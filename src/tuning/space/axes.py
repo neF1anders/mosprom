@@ -1,5 +1,7 @@
 """Search space: normalised axes t in [0, 1] (0 = cheap/fast/brittle, 1 = costly/slow/strong)."""
+
 import os
+from typing import Any  # noqa: F401  (used in type comments)
 
 from tuning.serialization import load_json_file
 
@@ -18,7 +20,7 @@ def load_search_space():
 
 
 def lookup(context, dotted):
-    # type: (dict, str) -> object
+    # type: (dict, str) -> Any
     node = context
     for part in dotted.split("."):
         node = node[part]
@@ -26,7 +28,7 @@ def lookup(context, dotted):
 
 
 def resolve_number(spec, context):
-    # type: (object, dict) -> float
+    # type: (Any, dict) -> float
     """A literal number or {"ref": "dotted.path", "mul": m, "add": a}."""
     if isinstance(spec, dict):
         value = float(lookup(context, spec["ref"]))
@@ -65,7 +67,7 @@ class Param(object):
 
 
 def t_interval_for_limits(param, minimum, maximum):
-    # type: (Param, object, object) -> tuple
+    # type: (Param, Any, Any) -> tuple
     """Convert value-domain limits (None = open) to an interval of t."""
     low, high = 0.0, 1.0
     for limit, is_minimum in ((minimum, True), (maximum, False)):

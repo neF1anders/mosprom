@@ -1,4 +1,5 @@
 """CLI: python -m tuning select --card card.json --stl part.stl [--state s.json --verdict v.json]."""
+
 import argparse
 import sys
 
@@ -29,11 +30,16 @@ def main(argv=None):
     if args.command != "select":
         _parser().print_help(sys.stderr)
         return 2
-    config = {"strategy": args.strategy, "seed": args.seed, "max_iterations": args.max_iterations,
-              "materials_dir": args.materials_dir}
+    config = {
+        "strategy": args.strategy,
+        "seed": args.seed,
+        "max_iterations": args.max_iterations,
+        "materials_dir": args.materials_dir,
+    }
     try:
         param_set, state = select_parameters(
-            load_json_file(args.card), extract_features(args.stl),
+            load_json_file(args.card),
+            extract_features(args.stl),
             state=load_json_file(args.state) if args.state else None,
             verdict=load_json_file(args.verdict) if args.verdict else None,
             config=config,

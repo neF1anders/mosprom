@@ -3,7 +3,9 @@
 Worlds: w1 monotone and separable, w2 with interactions, w3 non-monotone with noise and without severity.
 The specification of the metrics and thresholds was fixed before any strategy was run on it.
 """
+
 import random
+from typing import Any  # noqa: F401  (used in type comments)
 
 from tuning.experiments import oracle
 
@@ -11,17 +13,31 @@ WORLDS = ("w1", "w2", "w3")
 NOISE_SIGMA = 0.03
 THRESHOLD_SLACK = 1.3
 MAX_SHARE_OF_GRID_OPTIMUM = 0.85
-_STRENGTH_BASE = {"wall_line_count": 0.30, "infill_density": 0.20, "skin_thickness": 0.15,
-                  "print_temperature": 0.15, "layer_height": 0.10, "print_speed": 0.10}
-_TIME_BASE = {"layer_height": 0.35, "wall_line_count": 0.15, "infill_density": 0.20, "skin_thickness": 0.10,
-              "print_speed": 0.20, "print_temperature": 0.0}
-_QUALITY_BASE = {"w1": {"layer_height": 0.70, "print_speed": 0.30, "print_temperature": 0.0},
-                 "w2": {"layer_height": 0.65, "print_speed": 0.25, "print_temperature": 0.10},
-                 "w3": {"layer_height": 0.65, "print_speed": 0.25, "print_temperature": 0.10}}
+_STRENGTH_BASE = {
+    "wall_line_count": 0.30,
+    "infill_density": 0.20,
+    "skin_thickness": 0.15,
+    "print_temperature": 0.15,
+    "layer_height": 0.10,
+    "print_speed": 0.10,
+}
+_TIME_BASE = {
+    "layer_height": 0.35,
+    "wall_line_count": 0.15,
+    "infill_density": 0.20,
+    "skin_thickness": 0.10,
+    "print_speed": 0.20,
+    "print_temperature": 0.0,
+}
+_QUALITY_BASE = {
+    "w1": {"layer_height": 0.70, "print_speed": 0.30, "print_temperature": 0.0},
+    "w2": {"layer_height": 0.65, "print_speed": 0.25, "print_temperature": 0.10},
+    "w3": {"layer_height": 0.65, "print_speed": 0.25, "print_temperature": 0.10},
+}
 
 
 def _jittered(base, rng):
-    # type: (dict, object) -> dict
+    # type: (dict, Any) -> dict
     """Each weight times (1 + 0.10 * (2r - 1)), drawn in sorted id order, renormalised to sum 1."""
     raw = {}
     for param_id in sorted(base):
@@ -31,7 +47,7 @@ def _jittered(base, rng):
 
 
 def _requirement(card, key):
-    # type: (dict, str) -> object
+    # type: (dict, str) -> Any
     for requirement in card.get("requirements", []):
         if requirement.get("key") == key:
             return requirement
@@ -42,7 +58,7 @@ class StubValidator(object):
     """Computes S (strength), Q (surface quality), T (time cost) of a param_set and judges it against thresholds."""
 
     def __init__(self, world, seed, preparation, geometry, card):
-        # type: (str, int, object, dict, dict) -> None
+        # type: (str, int, Any, dict, dict) -> None
         if world not in WORLDS:
             raise ValueError("unknown world '%s', available: %s" % (world, ", ".join(WORLDS)))
         self.world, self.seed, self.preparation, self.card = world, seed, preparation, card
@@ -53,7 +69,7 @@ class StubValidator(object):
         self.strength_weights = _jittered(strength, rng)
         self.time_weights = _jittered(time_cost, rng)
         self.quality_weights = _jittered(_QUALITY_BASE[world], rng)
-        self._time_norm = (0.2 + 0.25 + 0.35 * self.infill_share + 0.2)
+        self._time_norm = 0.2 + 0.25 + 0.35 * self.infill_share + 0.2
         self.restart()
         self._set_thresholds()
 
@@ -68,18 +84,28 @@ class StubValidator(object):
         ws, wq, wt = self.strength_weights, self.quality_weights, self.time_weights
         strength = sum(ws[param_id] * u[param_id] for param_id in ws)
         if self.world == "w1":
-            return strength, wq["layer_height"] * u["layer_height"] + wq["print_speed"] * u["print_speed"], \
-                sum(wt[param_id] * u[param_id] for param_id in wt)
+            return (
+                strength,
+                wq["layer_height"] * u["layer_height"] + wq["print_speed"] * u["print_speed"],
+                sum(wt[param_id] * u[param_id] for param_id in wt),
+            )
         layer, wall, infill, skin = u["layer_height"], u["wall_line_count"], u["infill_density"], u["skin_thickness"]
         temp, speed = u["print_temperature"], u["print_speed"]
         if self.world == "w3":
             strength += ws["print_temperature"] * ((1.0 - ((temp - 0.6) / 0.6) ** 2) - temp)
             strength -= 0.10 * max(0.0, infill - 0.7) / 0.3
         strength = (strength + 0.25 * layer * wall + 0.15 * infill * temp + 0.10 * skin * layer) / 1.5
-        quality = (wq["layer_height"] * layer + wq["print_speed"] * speed
-                   + wq["print_temperature"] * (1.0 - 2.0 * abs(temp - 0.5)))
-        cost = ((0.2 + 0.25 * wall + 0.35 * self.infill_share * infill + 0.2 * skin)
-                * (0.3 + 0.7 * layer) * (0.4 + 0.6 * speed) / self._time_norm)
+        quality = (
+            wq["layer_height"] * layer
+            + wq["print_speed"] * speed
+            + wq["print_temperature"] * (1.0 - 2.0 * abs(temp - 0.5))
+        )
+        cost = (
+            (0.2 + 0.25 * wall + 0.35 * self.infill_share * infill + 0.2 * skin)
+            * (0.3 + 0.7 * layer)
+            * (0.4 + 0.6 * speed)
+            / self._time_norm
+        )
         return strength, quality, cost
 
     def metrics(self, values):
@@ -94,8 +120,10 @@ class StubValidator(object):
         """{param_id: value} of the proposed point, read through the t stored with the first key of each parameter."""
         by_key = {setting["key"]: setting for setting in param_set["settings"]}
         mode = param_set["printing_mode"]["value"]
-        return {param_id: param.value_at(by_key[self._key_of(param_id, mode)]["t"])
-                for param_id, param in self.preparation.params.items()}
+        return {
+            param_id: param.value_at(by_key[self._key_of(param_id, mode)]["t"])
+            for param_id, param in self.preparation.params.items()
+        }
 
     def verdict(self, param_set):
         # type: (dict) -> dict
@@ -107,23 +135,34 @@ class StubValidator(object):
             strength += self._noise.gauss(0.0, NOISE_SIGMA)
             quality += self._noise.gauss(0.0, NOISE_SIGMA)
             cost *= 1.0 + self._noise.gauss(0.0, NOISE_SIGMA)
-        violations = {"S": max(0.0, (self.s_min - strength) / self.s_min),
-                      "Q": max(0.0, (self.q_min - quality) / self.q_min),
-                      "T": max(0.0, (cost - self.t_max) / self.t_max)}
+        violations = {
+            "S": max(0.0, (self.s_min - strength) / self.s_min),
+            "Q": max(0.0, (self.q_min - quality) / self.q_min),
+            "T": max(0.0, (cost - self.t_max) / self.t_max),
+        }
         u = {param_id: self.preparation.params[param_id].t_of(value) for param_id, value in values.items()}
-        issues = []
+        issues = []  # type: list
         for metric in ("S", "Q", "T"):
             if violations[metric] > 0.0:
                 for param_id in self._blamed(metric, u):
                     issues.append(self._issue(len(issues) + 1, metric, param_id, mode, violations[metric]))
-        return {"schema": "verdict/0", "ok": not issues, "score": 1.0 - sum(violations.values()) / 3.0,
-                "issues": issues, "vetoes": []}
+        return {
+            "schema": "verdict/0",
+            "ok": not issues,
+            "score": 1.0 - sum(violations.values()) / 3.0,
+            "issues": issues,
+            "vetoes": [],
+        }
 
     def _issue(self, number, metric, param_id, mode, violation):
         # type: (int, str, str, str, float) -> dict
-        issue = {"id": "V%d" % number, "key": self._key_of(param_id, mode),
-                 "signal": "too_costly" if metric == "T" else "too_weak", "hard": metric != "T",
-                 "message": "stub %s violated by %.3f, blamed parameter %s" % (metric, violation, param_id)}
+        issue = {  # type: dict
+            "id": "V%d" % number,
+            "key": self._key_of(param_id, mode),
+            "signal": "too_costly" if metric == "T" else "too_weak",
+            "hard": metric != "T",
+            "message": "stub %s violated by %.3f, blamed parameter %s" % (metric, violation, param_id),
+        }
         if metric != "T":
             issue["requirement_id"] = self._requirement_id(metric)
         if self.world != "w3":

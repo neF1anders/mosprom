@@ -1,14 +1,16 @@
 """Pick the material: the one named in the card, or the best catalog candidate by requirements."""
+
 import itertools
+from typing import Any  # noqa: F401  (used in type comments)
 
 from tuning.catalog import find_material, rank_materials
-from tuning.catalog.ranking import FAIL, OK, UNKNOWN, WARN, evaluate
+from tuning.catalog.ranking import FAIL, UNKNOWN, WARN, evaluate
 from tuning.errors import TuningError
 
 
 class MaterialChoice(object):
     def __init__(self, material, block, unsatisfied, assumptions, infeasible):
-        # type: (object, dict, list, list, bool) -> None
+        # type: (Any, dict, list, list, bool) -> None
         self.material = material
         self.block = block
         self.unsatisfied = unsatisfied
@@ -21,7 +23,7 @@ def choose_material(card, materials):
     """Return (MaterialChoice, warnings)."""
     requirements = card.get("requirements", [])
     declared = card.get("material", {})
-    warnings = []
+    warnings = []  # type: list
     candidates = materials
     if declared.get("candidates"):
         names = set(name.strip().lower() for name in declared["candidates"])
@@ -46,14 +48,16 @@ def _summary(evaluation):
 def _unchecked_assumptions(evaluation):
     return [
         "%s %s: not verified from the catalog (%s)" % (c["requirement_id"], c["key"], c["detail"])
-        for c in evaluation["checks"] if c["status"] == UNKNOWN
+        for c in evaluation["checks"]
+        if c["status"] == UNKNOWN
     ]
 
 
 def _source_assumptions(requirements):
     return [
         "%s %s=%s is an assumption%s" % (r["id"], r["key"], r["value"], (": " + r["basis"]) if r.get("basis") else "")
-        for r in requirements if r.get("source") == "assumption"
+        for r in requirements
+        if r.get("source") == "assumption"
     ]
 
 
@@ -61,14 +65,20 @@ def _named(material, requirements, declared):
     evaluation = evaluate(material, requirements)
     unsatisfied = [
         {"requirement_id": c["requirement_id"], "why": "material '%s' fails: %s" % (material.id, c["detail"])}
-        for c in evaluation["checks"] if c["status"] == FAIL
+        for c in evaluation["checks"]
+        if c["status"] == FAIL
     ]
     block = {
-        "value": material.id, "source": "card",
-        "reason": "material named in the task card (%s); %s" % (declared.get("source") or "unspecified origin", _summary(evaluation)),
-        "alternatives": [], "checks": evaluation["checks"],
+        "value": material.id,
+        "source": "card",
+        "reason": "material named in the task card (%s); %s"
+        % (declared.get("source") or "unspecified origin", _summary(evaluation)),
+        "alternatives": [],
+        "checks": evaluation["checks"],
     }
-    return MaterialChoice(material, block, unsatisfied, _source_assumptions(requirements) + _unchecked_assumptions(evaluation), False)
+    return MaterialChoice(
+        material, block, unsatisfied, _source_assumptions(requirements) + _unchecked_assumptions(evaluation), False
+    )
 
 
 def _ranked(materials, requirements):
@@ -80,13 +90,15 @@ def _ranked(materials, requirements):
     hard = [r for r in requirements if r.get("hard")]
     unsatisfied = _catalog_conflicts(ranked, hard)
     block = {
-        "value": chosen.id, "source": "rank",
+        "value": chosen.id,
+        "source": "rank",
         "reason": "best of %d catalog materials; %s" % (len(ranked), _summary(best)),
         "alternatives": [{"value": e["material"], "reason": _summary(e)} for e in ranked[1:3]],
         "checks": best["checks"],
     }
-    return MaterialChoice(chosen, block, unsatisfied, _source_assumptions(requirements) + _unchecked_assumptions(best),
-                          bool(unsatisfied))
+    return MaterialChoice(
+        chosen, block, unsatisfied, _source_assumptions(requirements) + _unchecked_assumptions(best), bool(unsatisfied)
+    )
 
 
 def _failed_ids(evaluation):
@@ -102,6 +114,11 @@ def _catalog_conflicts(ranked, hard):
     rest = sorted(checkable - set(alone))
     for first, second in itertools.combinations(rest, 2):
         if all(first in failed or second in failed for failed in failures):
-            found.append({"requirement_id": first, "conflicts_with": second,
-                          "why": "no catalog material satisfies both hard requirements"})
+            found.append(
+                {
+                    "requirement_id": first,
+                    "conflicts_with": second,
+                    "why": "no catalog material satisfies both hard requirements",
+                }
+            )
     return found

@@ -1,4 +1,5 @@
 """M2: M1 with an adaptive step: severity sets the fraction of the way, score improvement rate scales it (secant)."""
+
 from tuning.strategies.m1 import IntervalStrategy
 
 _MIN_FRACTION, _MAX_FRACTION = 0.3, 0.95

@@ -1,6 +1,8 @@
 """select_parameters: task card + geometry -> param_set/0 with a reason for every value."""
+
 import math
 import os
+from typing import Any  # noqa: F401  (used in type comments)
 
 from tuning.catalog import read_materials
 from tuning.contracts import normalize_card, validate_verdict
@@ -48,7 +50,7 @@ class Preparation(object):
 
 
 def prepare(card, geometry, config=None):
-    # type: (dict, dict, object) -> Preparation
+    # type: (dict, dict, Any) -> Preparation
     settings = dict(DEFAULT_CONFIG)
     settings.update(config or {})
     return Preparation(card, geometry, settings)
@@ -57,12 +59,19 @@ def prepare(card, geometry, config=None):
 def render_points(preparation, points):
     # type: (Preparation, dict) -> dict
     """Param_set for explicit t values per parameter (used by the experiment oracle); status is `proposed`."""
-    state = {"iteration": 0, "strategy": "explicit", "points": points, "vetoed": {}, "history": [], "strategy_state": {}}
+    state = {
+        "iteration": 0,
+        "strategy": "explicit",
+        "points": points,
+        "vetoed": {},
+        "history": [],
+        "strategy_state": {},
+    }
     return _assemble(preparation, state, "proposed", [])
 
 
 def select_parameters(card, geometry, state=None, verdict=None, config=None):
-    # type: (dict, dict, object, object, object) -> tuple
+    # type: (dict, dict, Any, Any, Any) -> tuple
     """First call: state=None, verdict=None. Next calls: state and verdict of the previous step.
 
     Returns (param_set, new_state), both JSON-compatible; nothing is kept between calls.
@@ -83,9 +92,18 @@ def select_parameters(card, geometry, state=None, verdict=None, config=None):
 def _first_call(preparation, settings):
     strategy = get_strategy(settings["strategy"])
     points, strategy_state = strategy.propose(preparation.plan["params"], {}, None, 0)
-    state = {"schema": STATE_SCHEMA, "iteration": 0, "strategy": strategy.id, "seed": settings["seed"],
-             "material": preparation.material.id, "mode": preparation.mode_block["value"],
-             "points": points, "vetoed": {}, "history": [], "strategy_state": strategy_state}
+    state = {
+        "schema": STATE_SCHEMA,
+        "iteration": 0,
+        "strategy": strategy.id,
+        "seed": settings["seed"],
+        "material": preparation.material.id,
+        "mode": preparation.mode_block["value"],
+        "points": points,
+        "vetoed": {},
+        "history": [],
+        "strategy_state": strategy_state,
+    }
     status = "infeasible" if preparation.infeasible else "proposed"
     return _assemble(preparation, state, status, []), state
 
@@ -108,11 +126,14 @@ def _next_call(preparation, settings, state, verdict):
         return _assemble(preparation, new_state, "final", []), new_state
     if not strategy.adaptive or state["iteration"] + 1 >= settings["max_iterations"]:
         return _exhausted(preparation, new_state, "exhausted", [])
-    points, strategy_state = strategy.propose(preparation.plan["params"], state["strategy_state"], feedback,
-                                              state["iteration"] + 1)
+    points, strategy_state = strategy.propose(
+        preparation.plan["params"], state["strategy_state"], feedback, state["iteration"] + 1
+    )
     new_state.update({"iteration": state["iteration"] + 1, "points": points, "strategy_state": strategy_state})
     if strategy_state["conflict"]:
-        return _exhausted(preparation, new_state, "infeasible", _conflict_items(strategy_state["conflict"], verdict, preparation))
+        return _exhausted(
+            preparation, new_state, "infeasible", _conflict_items(strategy_state["conflict"], verdict, preparation)
+        )
     return _assemble(preparation, new_state, "proposed", []), new_state
 
 
@@ -123,7 +144,10 @@ def _exhausted(preparation, state, status, extra):
     final_state["points"] = best["points"]
     final_state["iteration"] = best["iteration"]
     open_issues = [
-        {"requirement_id": issue["requirement_id"] or issue["id"], "why": issue["message"] or "validator issue %s" % issue["id"]}
+        {
+            "requirement_id": issue["requirement_id"] or issue["id"],
+            "why": issue["message"] or "validator issue %s" % issue["id"],
+        }
         for issue in best["issues"]
     ]
     return _assemble(preparation, final_state, status, extra + open_issues), state
@@ -181,15 +205,26 @@ def _choose_mode(votes, geometry, profile, warnings):
     for vote in votes:
         if vote["mode"] not in profile["modes"]:
             warnings.append("printing mode '%s' from rule %s is unknown, ignored" % (vote["mode"], vote["rule_id"]))
-    weights = {}
+    weights = {}  # type: dict
     for vote in valid:
         if fits_build_volume(size, profile, vote["mode"]):
             weights[vote["mode"]] = weights.get(vote["mode"], 0.0) + vote["weight"]
     if not weights:
         fallback = "classic"
-        return ({"value": fallback, "source": "default:" + profile["id"], "confidence": 0.1,
-                 "reason": "model does not fit the build volume in any mode as oriented; classic kept as placeholder"},
-                [{"requirement_id": "GEOMETRY", "why": "model size %s mm exceeds the build volume in every mode (orientation not searched)" % size}])
+        return (
+            {
+                "value": fallback,
+                "source": "default:" + profile["id"],
+                "confidence": 0.1,
+                "reason": "model does not fit the build volume in any mode as oriented; classic kept as placeholder",
+            },
+            [
+                {
+                    "requirement_id": "GEOMETRY",
+                    "why": "model size %s mm exceeds the build volume in every mode (orientation not searched)" % size,
+                }
+            ],
+        )
     winner = max(sorted(weights), key=lambda mode: weights[mode])
     top = max((v for v in valid if v["mode"] == winner), key=lambda v: (v["weight"], v["rule_id"]))
     source = "card" if top["rule_id"] == "mode-card-hint" else "rule:" + top["rule_id"]
@@ -216,8 +251,13 @@ def _plan_unsatisfied(plan, rules, key_ids):
             result.append({"requirement_id": requirement_id, "why": item["why"]})
     for conflict in plan["conflicts"]:
         first, second = (conflict["rules"] + conflict["rules"])[:2]
-        result.append({"requirement_id": reference(first), "conflicts_with": reference(second),
-                       "why": "rules %s and %s demand incompatible values of %s" % (first, second, conflict["param"])})
+        result.append(
+            {
+                "requirement_id": reference(first),
+                "conflicts_with": reference(second),
+                "why": "rules %s and %s demand incompatible values of %s" % (first, second, conflict["param"]),
+            }
+        )
     return result
 
 
@@ -236,14 +276,29 @@ def _explain(entry, rule_reasons, profile_id, searched_at):
 def _settings(mode, preparation, state, unsatisfied):
     points, vetoed = state["points"], state["vetoed"]
     touched = searched_iterations(state["history"], points, state["iteration"])
-    params, plan, space, material, profile = (preparation.params, preparation.plan, preparation.space,
-                                              preparation.material, preparation.profile)
+    params, plan, space, material, profile = (
+        preparation.params,
+        preparation.plan,
+        preparation.space,
+        preparation.material,
+        preparation.profile,
+    )
     values = {param_id: params[param_id].value_at(points[param_id]) for param_id in params}
     entries = []
 
     def add(key, value, unit, t, source, rule_ids, reason):
-        entries.append({"key": key, "value": value, "unit": unit, "target": "global", "t": t,
-                        "source": source, "rule_ids": sorted(rule_ids), "reason": reason})
+        entries.append(
+            {
+                "key": key,
+                "value": value,
+                "unit": unit,
+                "target": "global",
+                "t": t,
+                "source": source,
+                "rule_ids": sorted(rule_ids),
+                "reason": reason,
+            }
+        )
 
     for param_id, param in sorted(params.items()):
         entry = plan["params"][param_id]
@@ -253,8 +308,15 @@ def _settings(mode, preparation, state, unsatisfied):
             layer = values[param.emit["layer_param"]]
             for key in param.emit["keys"]:
                 layers = max(plan["min_layers"].get(key, 0), int(math.ceil(round(values[param_id] / layer, 4))))
-                add(key, layers, "", t, source, entry["rule_ids"] + [plan["min_layers_rule"]],
-                    "%s; %g mm of solid skin at %g mm layers" % (reason, values[param_id], layer))
+                add(
+                    key,
+                    layers,
+                    "",
+                    t,
+                    source,
+                    entry["rule_ids"] + [plan["min_layers_rule"]],
+                    "%s; %g mm of solid skin at %g mm layers" % (reason, values[param_id], layer),
+                )
             continue
         for key in param.keys[mode]:
             add(key, values[param_id], param.unit, t, source, entry["rule_ids"], reason)
@@ -271,11 +333,18 @@ def _settings(mode, preparation, state, unsatisfied):
                 continue
             source, rule_ids, reason = "default:material:" + material.id, [], "value from the material file"
         elif chosen:
-            value, source, rule_ids, reason = chosen["value"], "rule:" + chosen["rule_id"], [chosen["rule_id"]], chosen["reason"]
+            value, source, rule_ids, reason = (
+                chosen["value"],
+                "rule:" + chosen["rule_id"],
+                [chosen["rule_id"]],
+                chosen["reason"],
+            )
         else:
             value = definition["default"]
             if definition["id"] == "infill_pattern":
-                value = definition["default_dense"] if density > definition["dense_above_pct"] else definition["default"]
+                value = (
+                    definition["default_dense"] if density > definition["dense_above_pct"] else definition["default"]
+                )
             source, rule_ids, reason = "default:" + profile["id"], [], "profile default; no rule fired"
         banned = vetoed.get(definition["id"], [])
         if value in banned:
@@ -284,7 +353,9 @@ def _settings(mode, preparation, state, unsatisfied):
                 value, source, rule_ids = options[0], "search:it%d" % state["iteration"], []
                 reason = "previous value rejected by a validator veto; next candidate"
             else:
-                unsatisfied.append({"requirement_id": "discrete:" + definition["id"], "why": "every candidate value was vetoed"})
+                unsatisfied.append(
+                    {"requirement_id": "discrete:" + definition["id"], "why": "every candidate value was vetoed"}
+                )
         for key in keys:
             add(key, value, definition["unit"], None, source, rule_ids, reason)
     return sorted(entries, key=lambda item: item["key"])

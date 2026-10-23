@@ -1,9 +1,11 @@
 """Deterministic JSON output shared by the library and the CLI."""
+
 import json
+from typing import Any  # noqa: F401  (used in type comments)
 
 
 def dumps(payload):
-    # type: (object) -> str
+    # type: (Any) -> str
     return json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 

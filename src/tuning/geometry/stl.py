@@ -1,4 +1,5 @@
 """STL reader (binary and ASCII) returning a compact flat float array."""
+
 import re
 import struct
 from array import array

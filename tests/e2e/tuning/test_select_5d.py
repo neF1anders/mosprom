@@ -1,6 +1,10 @@
 import json
 
-NO_SUPPORTS = {"requirements": [{"id": "R1", "kind": "geometry", "key": "no_supports", "value": True, "hard": True, "source": "user"}]}
+NO_SUPPORTS = {
+    "requirements": [
+        {"id": "R1", "kind": "geometry", "key": "no_supports", "value": True, "hard": True, "source": "user"}
+    ]
+}
 
 
 def keys_of(param_set):

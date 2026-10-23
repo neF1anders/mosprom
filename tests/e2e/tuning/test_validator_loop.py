@@ -26,13 +26,29 @@ def test_ok_verdict_gives_final_with_the_same_settings(run_tuning, write_card, b
     assert final["settings"] == first["settings"]
 
 
-def test_budget_exhausted_is_reported_as_exhausted_with_reasons_never_final(run_tuning, write_card, block_stl, tmp_path):
+def test_budget_exhausted_is_reported_as_exhausted_with_reasons_never_final(
+    run_tuning, write_card, block_stl, tmp_path
+):
     card = write_card(**CARD)
     weak = {"ok": False, "score": 0.4, "issues": [issue("infill_sparse_density", "too_weak", requirement_id="R7")]}
     _, state = start(run_tuning, tmp_path, card, block_stl, "--strategy", "m1", "--max-iterations", "2")
-    second, state = advance(run_tuning, tmp_path, card, block_stl, state, weak, 1, "--strategy", "m1", "--max-iterations", "2")
+    second, state = advance(
+        run_tuning, tmp_path, card, block_stl, state, weak, 1, "--strategy", "m1", "--max-iterations", "2"
+    )
     assert second["status"] == "proposed"
-    last, _ = advance(run_tuning, tmp_path, card, block_stl, state, dict(weak, score=0.5), 2, "--strategy", "m1", "--max-iterations", "2")
+    last, _ = advance(
+        run_tuning,
+        tmp_path,
+        card,
+        block_stl,
+        state,
+        dict(weak, score=0.5),
+        2,
+        "--strategy",
+        "m1",
+        "--max-iterations",
+        "2",
+    )
     assert last["status"] == "exhausted"
     assert {"requirement_id": "R7", "why": "validator: too_weak"} in last["unsatisfied"]
     assert last["iteration"] == 1  # the better-scored proposal is returned
@@ -50,7 +66,10 @@ def test_veto_switches_a_discrete_setting_to_the_next_candidate(run_tuning, writ
     card = write_card(**CARD)
     first, state = start(run_tuning, tmp_path, card, mushroom_stl, "--strategy", "m1")
     assert setting(first, "support_enable_classic")["value"] is True
-    verdict = {"ok": False, "vetoes": [{"key": "support_enable_classic", "value": True, "message": "supports leave marks"}]}
+    verdict = {
+        "ok": False,
+        "vetoes": [{"key": "support_enable_classic", "value": True, "message": "supports leave marks"}],
+    }
     second, _ = advance(run_tuning, tmp_path, card, mushroom_stl, state, verdict, 1, "--strategy", "m1")
     assert setting(second, "support_enable_classic")["value"] is False
     assert setting(second, "support_enable_classic")["source"] == "search:it1"

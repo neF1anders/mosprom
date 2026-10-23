@@ -1,7 +1,10 @@
 """Reader of STE Slicer material files (*.fdm_material) joined with general-knowledge traits."""
+
 import os
 import xml.etree.ElementTree as ElementTree
+from typing import Any  # noqa: F401  (used in type comments)
 
+from tuning.errors import TuningError
 from tuning.serialization import load_json_file
 
 _NAMESPACE = {"m": "http://www.ultimaker.com/material"}
@@ -51,8 +54,10 @@ def read_materials(directory):
         if not filename.endswith(_SUFFIX):
             continue
         root = ElementTree.parse(os.path.join(directory, filename)).getroot()
-        material_id = filename[:-len(_SUFFIX)]
+        material_id = filename[: -len(_SUFFIX)]
         name = root.find("m:metadata/m:name", _NAMESPACE)
+        if name is None:
+            raise TuningError("%s has no metadata/name" % filename)
         label = name.findtext("m:label", namespaces=_NAMESPACE) or name.findtext("m:material", namespaces=_NAMESPACE)
         settings = {
             item.get("key"): _number(item.text)
@@ -71,7 +76,7 @@ def read_materials(directory):
 
 
 def find_material(materials, name):
-    # type: (dict, str) -> object
+    # type: (dict, str) -> Any
     """Look a material up by file id or label, case-insensitively."""
     wanted = name.strip().lower()
     for material in materials.values():

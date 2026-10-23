@@ -4,7 +4,6 @@ import subprocess
 import sys
 
 import pytest
-
 from materials_factory import write_materials
 from stl_factory import cube, frustum, write_binary
 
@@ -19,13 +18,18 @@ def materials_dir(tmp_path_factory):
 @pytest.fixture
 def run_tuning(materials_dir):
     """Run the CLI as a real process; returns (exit code, stdout, stderr)."""
+
     def run(*args):
         environment = dict(os.environ, PYTHONPATH=os.path.join(REPOSITORY, "src"))
         process = subprocess.run(
             [sys.executable, "-m", "tuning"] + list(args) + ["--materials-dir", materials_dir],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment, cwd=REPOSITORY,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            cwd=REPOSITORY,
         )
         return process.returncode, process.stdout.decode("utf-8"), process.stderr.decode("utf-8")
+
     return run
 
 
@@ -37,6 +41,7 @@ def write_card(tmp_path):
         path = tmp_path / "card.json"
         path.write_text(json.dumps(card), encoding="utf-8")
         return str(path)
+
     return write
 
 

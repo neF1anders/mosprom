@@ -4,8 +4,8 @@ import subprocess
 import sys
 
 import pytest
-
 from conftest import REPOSITORY
+
 from tuning.experiments import oracle
 from tuning.experiments.run import run_loop
 from tuning.experiments.stub_validator import WORLDS, StubValidator
@@ -13,8 +13,11 @@ from tuning.geometry import extract_features
 from tuning.select import prepare, render_points
 
 CARD = {
-    "schema": "task_card/0", "status": "ready", "inputs": {"text": "test part"},
-    "part": {"load": "cyclic"}, "preferences": {"priority": ["strength", "accuracy"]},
+    "schema": "task_card/0",
+    "status": "ready",
+    "inputs": {"text": "test part"},
+    "part": {"load": "cyclic"},
+    "preferences": {"priority": ["strength", "accuracy"]},
     "requirements": [
         {"id": "R1", "kind": "x", "key": "high_stiffness", "value": True, "hard": True, "source": "user"},
         {"id": "R2", "kind": "x", "key": "dimensional_tol_mm", "value": 0.15, "hard": False, "source": "user"},
@@ -70,8 +73,10 @@ def test_oracle_point_is_feasible_and_not_worse_than_rule_start(setup, world):
     optimum = validator.metrics(validator.opt_values)
     assert optimum["S"] >= validator.s_min and optimum["Q"] >= validator.q_min
     assert optimum["T"] == pytest.approx(validator.t_opt)
-    start = {param_id: preparation.params[param_id].value_at(min(max(entry["t0"], entry["lo"]), entry["hi"]))
-             for param_id, entry in preparation.plan["params"].items()}
+    start = {
+        param_id: preparation.params[param_id].value_at(min(max(entry["t0"], entry["lo"]), entry["hi"]))
+        for param_id, entry in preparation.plan["params"].items()
+    }
     metrics = validator.metrics(start)
     if metrics["S"] >= validator.s_min and metrics["Q"] >= validator.q_min:
         assert validator.t_opt <= metrics["T"] + 1e-12
@@ -98,9 +103,30 @@ def test_runner_end_to_end_is_deterministic(materials_dir, block_stl, mushroom_s
     def run(out):
         environment = dict(os.environ, PYTHONPATH=os.path.join(REPOSITORY, "src"))
         process = subprocess.run(
-            [sys.executable, "-m", "tuning.experiments.run", "--strategies", "m0,m1", "--worlds", "w1", "--seeds", "2",
-             "--cases", str(cases), "--materials-dir", materials_dir, "--out", str(out), "--n", "3"],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=environment, cwd=REPOSITORY)
+            [
+                sys.executable,
+                "-m",
+                "tuning.experiments.run",
+                "--strategies",
+                "m0,m1",
+                "--worlds",
+                "w1",
+                "--seeds",
+                "2",
+                "--cases",
+                str(cases),
+                "--materials-dir",
+                materials_dir,
+                "--out",
+                str(out),
+                "--n",
+                "3",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            cwd=REPOSITORY,
+        )
         assert process.returncode == 0, process.stderr.decode("utf-8")
         records = [json.loads(line) for line in (out / "cells.jsonl").read_text(encoding="utf-8").splitlines()]
         for record in records:

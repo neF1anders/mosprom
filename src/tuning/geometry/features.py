@@ -1,4 +1,5 @@
 """Deterministic geometry features of an STL mesh (contract geometry/0)."""
+
 import math
 
 from tuning.geometry.stl import read_triangles
@@ -23,7 +24,7 @@ def extract_features(path):
         "bbox_mm": {
             "min": _rounded(low),
             "max": _rounded(high),
-            "size": _rounded([h - l for h, l in zip(high, low)]),
+            "size": _rounded([top - bottom for top, bottom in zip(high, low)]),
         },
         "volume_mm3": round(volume_mm3, 3),
         "surface_area_mm2": round(area, 3),
@@ -57,7 +58,7 @@ def _measure(coordinates, bed_z):
     # Downward faces steeper than the threshold from vertical: normal z < -sin(angle).
     limit = -math.sin(math.radians(OVERHANG_ANGLE_DEG))
     for offset in range(0, len(coordinates), 9):
-        ax, ay, az, bx, by, bz, cx, cy, cz = coordinates[offset:offset + 9]
+        ax, ay, az, bx, by, bz, cx, cy, cz = coordinates[offset : offset + 9]
         ux, uy, uz = bx - ax, by - ay, bz - az
         vx, vy, vz = cx - ax, cy - ay, cz - az
         nx = uy * vz - uz * vy
@@ -89,7 +90,7 @@ def _topology(coordinates):
     base = len(vertex_ids)
     edges = []
     for offset in range(0, len(corners), 3):
-        ring = corners[offset:offset + 3]
+        ring = corners[offset : offset + 3]
         for start, end in zip(ring, ring[1:] + ring[:1]):
             if start == end:
                 continue

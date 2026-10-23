@@ -1,5 +1,7 @@
 """Independent check of the hard rules (spec 4.2) on a finished param_set."""
+
 import math
+from typing import Any  # noqa: F401  (used in type comments)
 
 
 def _values(param_set):
@@ -7,7 +9,7 @@ def _values(param_set):
 
 
 def hard_rule_violations(param_set, profile, material):
-    # type: (dict, dict, object) -> list
+    # type: (dict, dict, Any) -> list
     """Return human-readable violations; an empty list means the set respects the hard rules."""
     values = _values(param_set)
     found = []
