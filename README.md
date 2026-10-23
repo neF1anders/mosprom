@@ -6,6 +6,7 @@
 
 - [План команды, роли, сроки и приёмка](docs/HACKATHON_PLAN.md)
 - [Источники, ограничения и выводы исследования](docs/RESEARCH_NOTES.md)
+- [Правила работы с Git и Pull Requests](CONTRIBUTING.md)
 - [Официальное задание и материалы](https://665dc1hack2026.k8s.stereotech.cloud/)
 - [Командная вики](https://fedorsolodkin.github.io/mosprom-/)
 
