@@ -6,6 +6,8 @@ class IntervalStrategy(object):
     """Base: keeps [lo, hi] per parameter; subclasses choose how far to step inside it."""
     id = "m1"
     adaptive = True
+    # M1 as specified declares a conflict when one parameter is blamed both ways; M5 holds that parameter instead.
+    defer_mixed = False
 
     def propose(self, plan, state, feedback, iteration):
         # type: (dict, dict, object, int) -> tuple
@@ -33,6 +35,8 @@ class IntervalStrategy(object):
         if not (weak or costly):
             return None
         if weak and costly:
+            if self.defer_mixed:
+                return None
             self.flag_conflict(state, pid, "validator reports both too_weak and too_costly")
             return None
         lo, hi = interval
