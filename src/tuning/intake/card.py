@@ -149,6 +149,8 @@ def _read_card_field(field, requirement, label, vocabulary, task_card, notes):
             notes.warnings.append("quantity %s: %s" % (label, error))
     elif field == "load":
         _set_load(text, label, vocabulary, task_card, notes)
+    elif field == "printing_mode":
+        _set_printing_mode(text.strip().lower(), label, vocabulary, task_card, notes)
     elif _source(requirement) == "assumption":
         notes.warnings.append("material %s is not confirmed, catalog ranking is used" % label)
     else:
@@ -163,6 +165,13 @@ def _set_load(text, origin, vocabulary, task_card, notes):
             notes.assumptions.append("load '%s' read from the text of %s" % (load, origin))
             return
     notes.warnings.append("load of %s not recognised: %r" % (origin, text))
+
+
+def _set_printing_mode(mode, label, vocabulary, task_card, notes):
+    if mode in vocabulary["printing_modes"]:
+        task_card["preferences"]["printing_mode"] = mode
+    else:
+        notes.warnings.append("printing mode %s is not one of %s" % (label, ", ".join(vocabulary["printing_modes"])))
 
 
 def _read_answers(answers, vocabulary, task_card):
