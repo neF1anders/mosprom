@@ -8,6 +8,9 @@ class IntervalStrategy(object):
     adaptive = True
     # M1 as specified declares a conflict when one parameter is blamed both ways; M5 holds that parameter instead.
     defer_mixed = False
+    # M1 as specified declares a conflict when a parameter cannot move further; M5 holds it and moves the others,
+    # and gives up only when no signalled parameter can move at all.
+    defer_stuck = False
 
     def propose(self, plan, state, feedback, iteration):
         # type: (dict, dict, object, int) -> tuple
@@ -18,6 +21,7 @@ class IntervalStrategy(object):
         state = {key: (dict(value) if isinstance(value, dict) else value) for key, value in state.items()}
         points, intervals = state["points"], state["intervals"]
         self.observe(state, feedback, points)
+        any_moved = False
         for pid, found in sorted(feedback["signals"].items()):
             if pid not in points:
                 continue
@@ -25,6 +29,9 @@ class IntervalStrategy(object):
             if moved is None:
                 continue
             points[pid] = moved
+            any_moved = True
+        if self.defer_stuck and feedback["signals"] and not any_moved:
+            self.flag_conflict(state, sorted(feedback["signals"])[0], "no signalled parameter can move any further")
         return dict(points), state
 
     def step(self, pid, current, interval, found, bounds, feedback, state, iteration):
@@ -49,6 +56,8 @@ class IntervalStrategy(object):
         room = (hi - current) if weak else (current - lo)
         quantum = bounds["step_t"]
         if room < quantum - TOLERANCE:
+            if self.defer_stuck:
+                return None
             self.flag_conflict(state, pid, "no distinct value left between the failing points and the bound")
             return None
         target = self.target(pid, current, lo, hi, weak, found, feedback, state)
