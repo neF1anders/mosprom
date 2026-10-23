@@ -1,4 +1,5 @@
 """Turn fired rules into a plan: start point and allowed interval per parameter, discrete choices, mode votes."""
+
 from tuning.rules import resolve_value
 from tuning.space import resolve_number, t_interval_for_limits
 
@@ -8,14 +9,28 @@ _EPSILON = 1e-9
 
 def build_plan(fired, params, facts, context):
     # type: (list, dict, dict, dict) -> dict
-    """params: {id: Param}. Returns plan with `params`, `discrete`, `votes`, `min_layers`, `unsatisfied`, `conflicts`."""
+    """params: {id: Param}. Returns a plan: `params`, `discrete`, `votes`, `min_layers`, `unsatisfied`, `conflicts`."""
     entries = {
-        param_id: {"t0": BASELINE_T, "lo": 0.0, "hi": 1.0, "rule_ids": [], "moving_rule_ids": [],
-                   "lo_rule": None, "hi_rule": None,
-                   "step_t": abs(params[param_id].step / (params[param_id].v1 - params[param_id].v0))}
+        param_id: {
+            "t0": BASELINE_T,
+            "lo": 0.0,
+            "hi": 1.0,
+            "rule_ids": [],
+            "moving_rule_ids": [],
+            "lo_rule": None,
+            "hi_rule": None,
+            "step_t": abs(params[param_id].step / (params[param_id].v1 - params[param_id].v0)),
+        }
         for param_id in params
     }
-    plan = {"params": entries, "discrete": {}, "votes": [], "min_layers": {}, "unsatisfied": [], "conflicts": []}
+    plan = {  # type: dict
+        "params": entries,
+        "discrete": {},
+        "votes": [],
+        "min_layers": {},
+        "unsatisfied": [],
+        "conflicts": [],
+    }
     for rule in fired:
         for action in rule["then"]:
             _apply(action, rule, plan, params, facts, context)
@@ -74,9 +89,16 @@ def _apply(action, rule, plan, params, facts, context):
     elif operation == "set_discrete":
         plan["discrete"][action["param"]] = {"value": action["value"], "rule_id": rule["id"], "reason": rule["reason"]}
     elif operation == "mode_vote":
-        plan["votes"].append({
-            "mode": resolve_value(action["mode"], facts), "weight": action["weight"],
-            "confidence": action["confidence"], "rule_id": rule["id"], "reason": rule["reason"],
-        })
+        plan["votes"].append(
+            {
+                "mode": resolve_value(action["mode"], facts),
+                "weight": action["weight"],
+                "confidence": action["confidence"],
+                "rule_id": rule["id"],
+                "reason": rule["reason"],
+            }
+        )
     elif operation == "unsatisfied":
-        plan["unsatisfied"].append({"requirement_key": action["requirement_key"], "why": action["why"], "rule_id": rule["id"]})
+        plan["unsatisfied"].append(
+            {"requirement_key": action["requirement_key"], "why": action["why"], "rule_id": rule["id"]}
+        )

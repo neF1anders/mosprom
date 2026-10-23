@@ -1,4 +1,7 @@
-"""M3: one scalar lambda moves every parameter along a cheap -> strong curve; bisection on lambda, then M1 refinements."""
+"""M3: one scalar lambda moves all parameters along a cheap -> strong curve; bisect lambda, then refine as M1."""
+
+from typing import Any  # noqa: F401  (used in type comments)
+
 from tuning.loop import TOLERANCE
 from tuning.strategies.m1 import IntervalStrategy
 
@@ -34,7 +37,7 @@ class M3(IntervalStrategy):
     id = "m3"
 
     def propose(self, plan, state, feedback, iteration):
-        # type: (dict, dict, object, int) -> tuple
+        # type: (dict, dict, Any, int) -> tuple
         if feedback is None:
             points, state = super().propose(plan, state, None, iteration)
             state.update({"phase": "scalar", "lambda": [0.0, 1.0], "lam": 0.5, "scalar_steps": 0})
@@ -65,7 +68,10 @@ class M3(IntervalStrategy):
         new_state["lambda"] = [low, high]
         new_state["conflict"] = state["conflict"]
         if abs(new_state["lam"] - lam) < minimum * 0.999:
-            new_state["conflict"] = {"param": "lambda", "why": "no distinct value left between the failing points and the bound"}
+            new_state["conflict"] = {
+                "param": "lambda",
+                "why": "no distinct value left between the failing points and the bound",
+            }
         points = curve(plan, new_state["lam"])
         new_state["points"] = dict(points)
         return points, new_state

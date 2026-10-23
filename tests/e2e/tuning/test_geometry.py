@@ -1,6 +1,6 @@
 import pytest
-
 from stl_factory import cube, frustum, write_ascii, write_binary
+
 from tuning.geometry import StlError, extract_features
 
 

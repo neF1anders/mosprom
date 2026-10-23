@@ -4,7 +4,9 @@ import os
 
 import pytest
 
-SOURCE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "src", "tuning")
+SOURCE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), "src", "tuning"
+)
 FILES = sorted(glob.glob(os.path.join(SOURCE, "**", "*.py"), recursive=True))
 
 

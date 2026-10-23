@@ -1,9 +1,13 @@
 """M1: per-parameter interval + bisection (hypothesis H1 of the stage owner)."""
+
+from typing import Any  # noqa: F401  (used in type comments)
+
 from tuning.loop import TOLERANCE
 
 
 class IntervalStrategy(object):
     """Base: keeps [lo, hi] per parameter; subclasses choose how far to step inside it."""
+
     id = "m1"
     adaptive = True
     # M1 as specified declares a conflict when one parameter is blamed both ways; M5 holds that parameter instead.
@@ -13,11 +17,14 @@ class IntervalStrategy(object):
     defer_stuck = False
 
     def propose(self, plan, state, feedback, iteration):
-        # type: (dict, dict, object, int) -> tuple
+        # type: (dict, dict, Any, int) -> tuple
         if feedback is None:
             points = {pid: min(max(entry["t0"], entry["lo"]), entry["hi"]) for pid, entry in plan.items()}
-            return points, {"points": dict(points), "intervals": {pid: [e["lo"], e["hi"]] for pid, e in plan.items()},
-                            "conflict": None}
+            return points, {
+                "points": dict(points),
+                "intervals": {pid: [e["lo"], e["hi"]] for pid, e in plan.items()},
+                "conflict": None,
+            }
         state = {key: (dict(value) if isinstance(value, dict) else value) for key, value in state.items()}
         points, intervals = state["points"], state["intervals"]
         self.observe(state, feedback, points)
@@ -35,7 +42,7 @@ class IntervalStrategy(object):
         return dict(points), state
 
     def step(self, pid, current, interval, found, bounds, feedback, state, iteration):
-        # type: (str, float, list, list, dict, dict, dict, int) -> object
+        # type: (str, float, list, list, dict, dict, dict, int) -> Any
         """Update the interval from the signals; return the new t or None when nothing can change."""
         weak = any(item["signal"] == "too_weak" for item in found)
         costly = any(item["signal"] == "too_costly" for item in found)

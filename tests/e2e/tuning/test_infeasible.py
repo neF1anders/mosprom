@@ -20,14 +20,25 @@ def test_infeasible_stays_infeasible_when_the_loop_continues(run_tuning, write_c
     assert again["status"] == "infeasible"
 
 
-def test_validator_pulling_one_parameter_both_ways_gives_infeasible_with_the_pair(run_tuning, write_card, block_stl, tmp_path):
+def test_validator_pulling_one_parameter_both_ways_gives_infeasible_with_the_pair(
+    run_tuning, write_card, block_stl, tmp_path
+):
     card = write_card()
     _, state = start(run_tuning, tmp_path, card, block_stl, "--strategy", "m1")
-    verdict = {"ok": False, "issues": [
-        issue("infill_sparse_density", "too_weak", 1, "R2"), issue("infill_sparse_density", "too_costly", 2, "R5")]}
+    verdict = {
+        "ok": False,
+        "issues": [
+            issue("infill_sparse_density", "too_weak", 1, "R2"),
+            issue("infill_sparse_density", "too_costly", 2, "R5"),
+        ],
+    }
     result, _ = advance(run_tuning, tmp_path, card, block_stl, state, verdict, 1, "--strategy", "m1")
     assert result["status"] == "infeasible"
-    assert {"requirement_id": "R2", "conflicts_with": "R5", "why": "validator reports both too_weak and too_costly"} in result["unsatisfied"]
+    assert {
+        "requirement_id": "R2",
+        "conflicts_with": "R5",
+        "why": "validator reports both too_weak and too_costly",
+    } in result["unsatisfied"]
 
 
 def test_hard_bound_reached_while_validator_wants_more_gives_infeasible(run_tuning, write_card, block_stl, tmp_path):

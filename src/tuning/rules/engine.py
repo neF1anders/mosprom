@@ -1,5 +1,7 @@
 """Rule engine: conditions and actions are JSON data, see rules.json."""
+
 import os
+from typing import Any  # noqa: F401  (used in type comments)
 
 from tuning.serialization import load_json_file
 
@@ -45,7 +47,7 @@ def fired_rules(rules, facts):
 
 
 def resolve_value(spec, facts):
-    # type: (object, dict) -> object
+    # type: (Any, dict) -> Any
     """Literal or {"ref": fact_name}."""
     if isinstance(spec, dict):
         return facts[spec["ref"]]

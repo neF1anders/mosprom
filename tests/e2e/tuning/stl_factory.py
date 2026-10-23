@@ -1,4 +1,5 @@
 """Synthetic STL meshes for tests; outward-facing counter-clockwise triangles."""
+
 import math
 import struct
 
@@ -7,18 +8,25 @@ def cube(size):
     s = float(size)
     v = [(0, 0, 0), (s, 0, 0), (s, s, 0), (0, s, 0), (0, 0, s), (s, 0, s), (s, s, s), (0, s, s)]
     faces = [
-        (0, 2, 1), (0, 3, 2),
-        (4, 5, 6), (4, 6, 7),
-        (0, 1, 5), (0, 5, 4),
-        (3, 7, 6), (3, 6, 2),
-        (0, 4, 7), (0, 7, 3),
-        (1, 2, 6), (1, 6, 5),
+        (0, 2, 1),
+        (0, 3, 2),
+        (4, 5, 6),
+        (4, 6, 7),
+        (0, 1, 5),
+        (0, 5, 4),
+        (3, 7, 6),
+        (3, 6, 2),
+        (0, 4, 7),
+        (0, 7, 3),
+        (1, 2, 6),
+        (1, 6, 5),
     ]
     return [tuple(v[i] for i in face) for face in faces]
 
 
 def frustum(bottom_radius, top_radius, height, segments=24):
     """Cylinder-like solid; top radius much wider than bottom gives real overhangs."""
+
     def ring(radius, z):
         return [
             (radius * math.cos(2 * math.pi * i / segments), radius * math.sin(2 * math.pi * i / segments), z)

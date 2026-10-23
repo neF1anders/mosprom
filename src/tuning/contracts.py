@@ -1,13 +1,24 @@
 """Validation of the stage-2 data contracts (task_card/0, param_set/0, verdict/0)."""
+
 import re
 
 from tuning.errors import TuningError
 
 PARAM_STATUSES = ("proposed", "final", "exhausted", "infeasible")
 VERDICT_SIGNALS = ("too_weak", "too_costly", "wrong_value", "conflict")
-_CARD_FIELDS = frozenset([
-    "schema", "status", "inputs", "part", "requirements", "preferences", "material", "assumptions", "missing",
-])
+_CARD_FIELDS = frozenset(
+    [
+        "schema",
+        "status",
+        "inputs",
+        "part",
+        "requirements",
+        "preferences",
+        "material",
+        "assumptions",
+        "missing",
+    ]
+)
 _SOURCE_PATTERN = re.compile(r"^(card|rank|rule:.+|search:it\d+|default:.+)$")
 
 

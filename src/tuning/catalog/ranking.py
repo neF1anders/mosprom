@@ -1,4 +1,7 @@
 """Rank catalog materials against task-card requirements."""
+
+from typing import Any  # noqa: F401  (used in type comments)
+
 from tuning.catalog.materials import load_traits
 
 OK, WARN, FAIL, UNKNOWN, NOT_APPLICABLE = "ok", "warn", "fail", "unknown", "na"
@@ -13,11 +16,13 @@ def _scale(value, mapping):
 
 def _threshold(trait):
     """Check that a numeric trait reaches the required value."""
+
     def check(material, required, flags):
         value = material.traits.get(trait)
         if value is None:
             return UNKNOWN, "no %s data (general knowledge table, not verified)" % trait
         return (OK if value >= float(required) else FAIL), "%s=%s" % (trait, value)
+
     return check
 
 
@@ -121,7 +126,7 @@ def _text_flags(material):
 
 
 def evaluate(material, requirements):
-    # type: (object, list) -> dict
+    # type: (Any, list) -> dict
     """Check one material against requirements; returns verdicts per requirement id plus a score."""
     flags = _text_flags(material)
     checks = []
@@ -137,8 +142,15 @@ def evaluate(material, requirements):
         weight = _HARD_WEIGHT if requirement.get("hard") else _SOFT_WEIGHT
         total_weight += weight
         earned += weight * _SCORE[status]
-        checks.append({"requirement_id": requirement["id"], "key": requirement["key"], "hard": bool(requirement.get("hard")),
-                       "status": status, "detail": detail})
+        checks.append(
+            {
+                "requirement_id": requirement["id"],
+                "key": requirement["key"],
+                "hard": bool(requirement.get("hard")),
+                "status": status,
+                "detail": detail,
+            }
+        )
     return {"material": material.id, "checks": checks, "score": earned / total_weight if total_weight else 0.5}
 
 
