@@ -5,7 +5,36 @@
 Обязательны только `status` и `inputs`. Весь JSON на выходе детерминирован:
 `json.dumps(..., sort_keys=True, ensure_ascii=False)`.
 
-## task_card/0 (вход, этап 1)
+## Вход от этапа 1: единая карточка v1.1 (основной путь)
+
+Этап 1 присылает `{idempotency_key, card}`; `card` — карточка `TaskCard` 1.1 (описание контракта — у этапа 1).
+Адаптер `tuning.intake` переводит её во внутренние `task_card/0` и `geometry/0`, ядро подбора их и получает.
+Что читаем и как:
+
+| Поле карточки | Что делаем |
+| --- | --- |
+| `schema_version` | только `1.1`, иначе отказ |
+| `readiness`, `blocked_actions.select_parameters` | `blocked` или непустой список причин → отказ с причинами; `preliminary` → работаем, оговорка первой строкой в `assumptions_used` |
+| `requirements[]` | `key` ищется в `intake/vocabulary.json`: известный код → наш ключ; значение-строка разбирается по типу (число с единицей, диапазон → строгая граница, да/нет, список). `id` = `key` (повтор → `key#2`), `hard` = `mandatory`, `source`: `user`/`document` → `user`, `measurement`/`knowledge` → `model`, `assumption` или `verified: false` → `assumption`. Неизвестный код или неразобранное значение: обязательное → `assumptions_used` («не используется подбором»), необязательное → `warnings` |
+| требования `quantity`, `load_bearing`, `material`, `printing_mode` | не требования к материалу, а поля карточки: количество, нагрузка (по фразам из словаря), материал (только подтверждённый, не `assumption`), подсказка режима (`classic`/`cylindrical`/`cylindrical_full`) |
+| `answers.material_choice` | материал, если его нет в требованиях |
+| `preferences[]` (строки) | приоритеты `strength`/`accuracy`/`speed`/`cost` и запрет поддержек — по фразам из словаря, порядок по первому упоминанию; каждый вывод записывается в `assumptions_used` |
+| `production_constraints[]` | нагрузка, если её нет в требованиях |
+| `assumptions[]`, неразрешённые `conflicts[]` | в `assumptions_used`; `unknowns[]` — в `warnings` |
+| `stl_analysis` | `null` или нет `report` → отказ; `sha256` ≠ `report.file.sha256` → отказ |
+| `report.units.coordinate_unit` | `mm` — подтверждено; `unknown` — координаты принимаются за мм, допущение в `assumptions_used`; иное → отказ |
+| `report.geometry` | `bounds` → `bbox_mm`, `volume` (может быть `null` → факта нет), `surface_area` |
+| `report.topology`, `report.validation.defects` | `is_closed`, `normals_consistent`, `volume_sign_negative`, `needs_repair` |
+| `report.normal_chords.minimum_sampled` | `min_wall_estimate_mm` (оценка, не измерение) |
+| `report.warnings`, `partial_errors` | в `warnings` |
+| `idempotency_key` | копируется в `param_set` и `state`; вызов цикла с чужим ключом → отказ |
+
+Остальные поля (`rules_version`, `knowledge_version`, `geometry` (сводка), `source_versions`, `questions`,
+`allowed_actions`, `resolutions`, служебные поля отчёта) сейчас не читаются. Нависаний в отчёте нет: факт
+`geometry.overhang_area_fraction` не задаётся, правила поддержек и 5D по нависаниям не срабатывают, это пишется
+в `assumptions_used`. Отказ — код 2 и `error: …` в CLI, `TuningError` в библиотеке.
+
+## task_card/0 (внутренний вход ядра; путь разработки `--card`)
 
 | Поле | Тип | Смысл |
 | --- | --- | --- |
@@ -46,7 +75,7 @@
 `dimensional_tol_mm`; насос — `service_temp_max_c`, `density_max_g_cm3`, `dimensional_tol_mm`;
 пыльник — `flexible`, `chemical_resistance`, `service_temp_max_c`; фигурка — `no_visible_layers`, `no_supports`, `uv_stable`.
 
-## geometry/0 (вычисляется из STL)
+## geometry/0 (из отчёта этапа 1 или, на пути разработки, из STL)
 
 `bbox_mm` (min/max/size), `volume_mm3`, `surface_area_mm2`, `triangle_count`, `is_closed`
 (каждое ребро ровно в двух треугольниках), `normals_consistent`, `needs_repair`,
@@ -55,7 +84,7 @@
 
 ## param_set/0 (выход)
 
-Поля: `schema`, `iteration`, `strategy`, `status`, `printing_mode`, `material`, `settings`,
+Поля: `schema`, `idempotency_key` (только при входе от этапа 1), `iteration`, `strategy`, `status`, `printing_mode`, `material`, `settings`,
 `orientation`, `assumptions_used`, `unsatisfied`, `warnings`, `build_volume_mm` (область печати выбранного режима).
 `unsatisfied[]`: `requirement_id`, `why`, необязательный `conflicts_with` (второй участник конфликта).
 `material.checks[]` — проверка выбранного материала по каждому проверяемому требованию (`ok`/`warn`/`fail`/`unknown`).
@@ -75,8 +104,10 @@
 ## Интерфейс
 
 ```python
-select_parameters(card, geometry, state=None, verdict=None, config=None) -> (param_set, new_state)
+select_from_handoff(payload, state=None, verdict=None, config=None) -> (param_set, new_state)  # tuning.intake
+select_parameters(card, geometry, state=None, verdict=None, config=None) -> (param_set, new_state)  # ядро
 ```
 
 Состояние — JSON-совместимый словарь, глобального состояния нет. CLI:
-`uv run python -m tuning select --card card.json --stl part.stl [--state s.json --verdict v.json] [--strategy m1] [--seed 1]`.
+`uv run python -m tuning select --input handoff.json [--state s.json --verdict v.json] [--strategy m1] [--seed 1]`;
+путь разработки и экспериментов: `--card card.json --stl part.stl` вместо `--input`.

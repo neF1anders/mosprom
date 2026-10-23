@@ -1,11 +1,11 @@
 # Внедрение блока подбора параметров (этап 2) в пайплайн
 
-Для команды: что этап 2 получает от этапа 1 и валидатора, что отдаёт этапам 4–5. Полные схемы — в [CONTRACTS.md](CONTRACTS.md); это краткая «инструкция по подключению». Контракт — предложение v0, его надо согласовать.
+Для команды: что этап 2 получает от этапа 1 и валидатора, что отдаёт этапам 4–5. Полные схемы — в [CONTRACTS.md](CONTRACTS.md); это краткая «инструкция по подключению». Вход от этапа 1 — его карточка `TaskCard` 1.1; выход и вердикт — наше предложение v0, их надо согласовать.
 
 ```
-Этап 1 (карточка) ──► ЭТАП 2 (подбор) ◄──► Этап 3 (валидатор)
-STL ────────────────►      │
-                           └─ param_set ──► Этап 4 (слайсинг) ──► Этап 5 (сборка)
+Этап 1: {idempotency_key, card (требования + отчёт STL)} ──► ЭТАП 2 (подбор) ◄──► Этап 3 (валидатор)
+                                                                 │
+                                                                 └─ param_set ──► Этап 4 (слайсинг) ──► Этап 5 (сборка)
 ```
 
 ## 1. Как вызывать
@@ -13,44 +13,70 @@ STL ────────────────►      │
 Библиотека (внутри плагина) или CLI; состояния между вызовами не хранится:
 
 ```python
-from tuning.select import select_parameters
-param_set, state = select_parameters(card, geometry, state=None, verdict=None, config=cfg)   # первый подбор
-param_set, state = select_parameters(card, geometry, state=state, verdict=verdict, config=cfg)  # после вердикта
+from tuning.intake import select_from_handoff
+
+param_set, state = select_from_handoff(payload, state=None, verdict=None, config=cfg)  # первый подбор
+param_set, state = select_from_handoff(payload, state=state, verdict=verdict, config=cfg)  # после вердикта
 ```
 
 ```sh
-uv run python -m tuning select --card card.json --stl part.stl --materials-dir <resources/materials> \
+uv run python -m tuning select --input handoff.json --materials-dir <resources/materials> \
     [--state state.json --verdict verdict.json] [--strategy m5] [--max-iterations 3] [--seed 1] [--state-out state.json]
 ```
 
-- `geometry` считает сам модуль: `tuning.geometry.extract_features(path_to_stl)` (CLI делает это сам). 28 МБ STL читается ≈ 3 с.
-- `state` — JSON-словарь. **Его хранит вызывающая сторона** (оркестратор/чат) и возвращает при следующем вызове вместе с вердиктом. Карточка и STL при каждом вызове передаются заново и не должны меняться.
+- `payload` — тело POST этапа 1 `{idempotency_key, card}`; принимается и «голая» карточка из `GET /api/v1/jobs/{id}/card` (тогда без ключа и с предупреждением). STL этапу 2 не нужен: геометрия берётся из `card.stl_analysis.report`.
+- `state` — JSON-словарь. **Его хранит вызывающая сторона** (оркестратор/чат) и возвращает при следующем вызове вместе с вердиктом и той же карточкой. Новая ревизия карточки (другой `idempotency_key`) — это новый подбор с `state=None`; старое состояние с ней отклоняется.
 - `config`: `materials_dir` (или переменная `STE_MATERIALS_DIR`) — папка `resources/materials` слайсера; `strategy` (по умолчанию `m0`; для цикла рекомендуем `m5`, см. отчёт экспериментов); `max_iterations` = N, число проверок валидатора (по умолчанию 3); `seed`.
 - Вывод детерминирован: `json.dumps(sort_keys=True, ensure_ascii=False)`. Ошибка входа: код 2 и строка `error: ...` в stderr (CLI) / `TuningError` (библиотека).
 - Модуль на Python 3.5 (стандартная библиотека), запускается внутри слайсера.
+- Путь разработки и экспериментов: `--card task_card.json --stl part.stl` (`select_parameters(card, geometry, ...)`, геометрию модуль считает из STL сам).
 
-## 2. Что нужно от этапа 1 (карточка `task_card/0`)
+## 2. Что берём из карточки этапа 1
 
-Обязательны только `status` (должен быть `"ready"`, иначе отказ) и `inputs`. Остальное необязательно, но чем полнее — тем точнее подбор. Неизвестные поля игнорируются с записью в `warnings`.
+Подбор начинается, только если `schema_version = "1.1"`, `readiness` — `ready` или `preliminary` и в `blocked_actions` нет `select_parameters`. Иначе — отказ с причинами из карточки. Отказ будет и тогда, когда нет `stl_analysis.report` или его `file.sha256` не совпадает с `stl_analysis.sha256`.
 
-| Поле | Зачем нам | Если нет |
+| Данные карточки | Зачем нам | Если нет |
 |---|---|---|
-| файл STL (отдельно от карточки: путь передаёт оркестратор) | геометрия: габариты, нависания, тонкая стенка | подбор невозможен |
-| `requirements[]` = `{id, key, value, hard, source, basis}` | материал, границы параметров, выбор режима | подбор по умолчанию |
-| `preferences.priority` (порядок из `strength`/`accuracy`/`speed`/`cost`) | стартовая точка поиска | нейтральная середина |
-| `preferences.supports_allowed` | допускаются ли поддержки (по умолчанию да) | да |
-| `preferences.printing_mode` (`classic`/`cylindrical`/`cylindrical_full`) | подсказка режима; единственный надёжный способ выбрать 5D | `classic`, либо гипотеза правил |
-| `preferences.quantity` | пока только записывается | 1 |
-| `part.load` (`static`/`cyclic`/`impact`/`none`) | запас по периметрам, паттерн заполнения | — |
-| `material.name` (id файла или название) / `material.candidates` | материал берём из карточки, иначе ранжируем каталог | ранжирование |
+| `stl_analysis.report.geometry.bounds` | габариты: область печати, выбор режима | отказ |
+| `report.geometry.volume`, `surface_area` | факты для правил, стенд | факт не задаётся |
+| `report.topology`, `report.validation.defects` | нужен ли ремонт сетки | — |
+| `report.normal_chords.minimum_sampled` | оценка тонкой стенки | — |
+| `report.units.coordinate_unit` | `mm` — размеры подтверждены | `unknown` → принимаем за мм, допущение в ответе |
+| `requirements[]` с кодами из словаря (ниже) | материал, границы параметров | подбор по умолчанию |
+| требование `load_bearing` или `production_constraints` | нагрузка → периметры, паттерн заполнения | — |
+| требование `quantity` | пока только записывается | 1 |
+| требование `printing_mode` (`classic`/`cylindrical`/`cylindrical_full`) | подсказка режима, вес 10 | `classic` или гипотеза правил |
+| требование `material` (подтверждённое) или `answers.material_choice` | материал из карточки | ранжируем каталог |
+| `preferences[]` | приоритеты (прочность/точность/скорость/стоимость) и запрет поддержек — по ключевым фразам | нейтральная середина |
+| `assumptions`, `unknowns`, неразрешённые `conflicts` | передаём дальше в `assumptions_used` / `warnings` | — |
 
-**Словарь `requirements.key`, который мы реально используем** (значения и единицы обязательны): `tg_min_c` (°C), `service_temp_max_c` (°C), `hydrophobic` (bool), `uv_stable` (bool), `chemical_resistance` (список: `acid`, `alkali`, `salts`, `oil`, `fuel`, `alcohol`, `ozone`, `solvents`, `water`), `flexible` (bool), `density_max_g_cm3`, `low_friction`, `abrasion_resistant`, `high_stiffness`, `food_safe`, `esd` (bool), `dimensional_tol_mm` (мм), `no_visible_layers`, `no_supports` (bool). Другие ключи не ломают работу, но не учитываются.
+**Коды требований, которые подбор понимает** (`src/tuning/intake/vocabulary.json`; добавить код = добавить строку в словарь):
 
-Просим от этапа 1 строго:
-- `hard: true` только для того, что нарушать нельзя: такие требования становятся ограничениями, их конфликт даёт `infeasible`;
-- `source`: `user` | `model` | `assumption`; допущения мы отдаём дальше в `assumptions_used`, а не как факт;
-- числа и единицы, а не текст («Tg ≥ 85» → `tg_min_c: 85`); уникальные `id` (`R1`, `R2`…) — на них ссылаются вердикт и `unsatisfied`;
-- сообщать, что не удалось выразить ключами (`missing`) — мы это не интерпретируем, но оно полезно чату.
+| Код | Наш ключ | Значение и единица |
+|---|---|---|
+| `tg_min_c` | `tg_min_c` | число или диапазон, `°C`; из диапазона берём верхнюю границу |
+| `service_temp_max_c`, `service_temperature` | `service_temp_max_c` | число или диапазон, `°C`; верхняя граница |
+| `density_max_g_cm3` | `density_max_g_cm3` | число, `г/см³`; нижняя граница |
+| `dimensional_tol_mm` | `dimensional_tol_mm` | число, `мм`; нижняя граница |
+| `hydrophobic`, `uv_stable`, `flexible`, `low_friction`, `abrasion_resistant`, `high_stiffness`, `no_visible_layers`, `no_supports`, `food_safe`, `esd` | тот же | `да`/`нет` (`true`/`false`) |
+| `chemical_resistance` | `chemical_resistance` | список через запятую |
+
+Требование с другим кодом или с неразобранным значением не ломает подбор. Если оно `mandatory`, мы пишем в `assumptions_used`, что подбор его не учёл. Чат обязан это показать.
+
+### Запрос к этапу 1
+
+Без этих данных часть параметров рассчитывается по умолчанию или не рассчитывается совсем:
+
+1. **Коды требований.** Пусть Qwen выдаёт коды из таблицы выше, а числа — отдельным числом или диапазоном с единицей: не «до 70 °C, кратковременно 90», а `value: "70"`, `unit: "°C"`, а кратковременный режим — отдельным требованием. В примере v1.1 только `service_temperature` совпадает с нашим словарём. `load_bearing`, `airtightness`, `surface_finish` и `purpose_item_type` — свободный текст.
+2. **Нависания.** Это самое важное. Для каждого из шести направлений «вверх» (±X, ±Y, ±Z) нужны:
+   - доля площади нависаний круче 45° от вертикали;
+   - площадь контакта со столом;
+   - высота модели.
+
+   Без них подбор не включает поддержки, не выбирает ориентацию и не может применить правило «нависания + запрет поддержек → 5D». Сейчас это допущение в каждом ответе.
+3. **Подтверждённые единицы.** При `coordinate_unit: unknown` все размеры, а с ними область печати и допуски, держатся на допущении «мм».
+4. **Режим печати 3D/5D.** Если его задали пользователь или ТЗ, передавайте требование `printing_mode` со значением `classic` / `cylindrical` / `cylindrical_full` (поддержано). Это единственный надёжный путь к 5D: собственное правило выбора 5D у нас гипотеза.
+5. **На будущее (5D):** ось вращательной симметрии и диаметр центрального отверстия. От них зависит `cylindrical_mode_base_diameter`, которую мы пока не выдаём.
 
 Что мы **не** принимаем от этапа 1: значения настроек слайсера, ориентацию, G-code.
 
@@ -104,6 +130,6 @@ uv run python -m tuning select --card card.json --stl part.stl --materials-dir <
 2. N и кто правит параметры: сейчас N = 3, правим мы по замечаниям валидатора. Если валидатор сам правит значения — повторная проверка обязательна.
 3. Нужны ли настройки по экструдерам (`target: extruder:n`)? Сейчас всегда `global`.
 4. Точные ключи/значения, которые ждёт этап 4, и как он вернёт ошибки слайсинга в подбор.
-5. Что физически означают `cylindrical` и `cylindrical_full` (нужен эксперт организаторов); до ответа выбор 5D — гипотеза, надёжный путь — `preferences.printing_mode` от этапа 1.
+5. Что физически означают `cylindrical` и `cylindrical_full`. По коду слайсера `cylindrical_full` режет модель цилиндром диаметра `cylindrical_mode_base_diameter`: внутренняя часть печатается в 3D, внешняя в 5D. Когда какой режим выбирать, решает эксперт организаторов. До его ответа выбор 5D остаётся гипотезой, а надёжный путь — требование `printing_mode` от этапа 1 (запрос, п. 4).
 6. Откуда берётся папка материалов в плагине (`resources/materials` слайсера) и кто передаёт путь.
-7. Ориентация модели пока не подбирается; по примерам похоже, что ось Z части STL не совпадает с осью печати.
+7. Ориентация модели пока не подбирается: модель печатается «как загружена». Нужны нависания по направлениям от этапа 1 (запрос, п. 2).
