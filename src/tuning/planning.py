@@ -11,7 +11,8 @@ def build_plan(fired, params, facts, context):
     """params: {id: Param}. Returns plan with `params`, `discrete`, `votes`, `min_layers`, `unsatisfied`, `conflicts`."""
     entries = {
         param_id: {"t0": BASELINE_T, "lo": 0.0, "hi": 1.0, "rule_ids": [], "moving_rule_ids": [],
-                   "lo_rule": None, "hi_rule": None}
+                   "lo_rule": None, "hi_rule": None,
+                   "step_t": abs(params[param_id].step / (params[param_id].v1 - params[param_id].v0))}
         for param_id in params
     }
     plan = {"params": entries, "discrete": {}, "votes": [], "min_layers": {}, "unsatisfied": [], "conflicts": []}
