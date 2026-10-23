@@ -15,6 +15,7 @@ class IntervalStrategy(object):
                             "conflict": None}
         state = {key: (dict(value) if isinstance(value, dict) else value) for key, value in state.items()}
         points, intervals = state["points"], state["intervals"]
+        self.observe(state, feedback, points)
         for pid, found in sorted(feedback["signals"].items()):
             if pid not in points:
                 continue
@@ -50,6 +51,10 @@ class IntervalStrategy(object):
         if (target - current) * direction < quantum - TOLERANCE:
             target = current + direction * quantum
         return min(max(target, lo), hi)
+
+    def observe(self, state, feedback, points):
+        # type: (dict, dict, dict) -> None
+        """Hook: record what the validator said about `points` before the interval update."""
 
     def target(self, pid, current, lo, hi, weak, found, feedback, state):
         # type: (str, float, float, float, bool, list, dict, dict) -> float
