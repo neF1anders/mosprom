@@ -18,7 +18,7 @@ AGENTS.md.example Шаблон инструкций для агентов
 CLAUDE.md.example Шаблон локальных настроек участника
 ```
 
-Сквозные проверки запускаются одной командой: `uv run pytest tests/e2e` (Python ≥ 3.8; код `src/tuning/` совместим с Python 3.5). Подбор из консоли: `PYTHONPATH=src uv run python -m tuning select --card card.json --stl part.stl --materials-dir <resources/materials>`; контракты и решения — в `docs/tuning/`.
+Сквозные проверки запускаются одной командой: `uv run pytest tests/e2e` (Python ≥ 3.8; линтеры `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`; код `src/tuning/` совместим с Python 3.5). Подбор из консоли: `uv run python -m tuning select --card card.json --stl part.stl --materials-dir <resources/materials>`; контракты и решения — в `docs/tuning/`.
 
 Перед работой прочитайте [CONTRIBUTING.md](CONTRIBUTING.md). Реализованные возможности отслеживаем в [реестре фич](docs/FEATURES.md).
 
