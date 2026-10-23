@@ -10,3 +10,5 @@ src/web/test-results
 .pytest_cache
 .mypy_cache
 .ruff_cache
+research
+docs

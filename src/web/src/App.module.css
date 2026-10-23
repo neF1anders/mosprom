@@ -132,12 +132,7 @@
 .chats nav button {
   text-align: left;
   width: 100%;
-  padding: 10px 12px;
   overflow-wrap: anywhere;
-}
-.chats nav button span {
-  display: block;
-  font-weight: 500;
 }
 .activeChat {
   background: #fff !important;
@@ -271,39 +266,12 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.progress,
 .question {
   background: #f5f5f7;
-  padding: 20px;
   border-radius: 16px;
-}
-.progress ol {
-  list-style: none;
-  padding: 0;
-  display: grid;
-  gap: 14px;
-}
-.progress li {
-  display: flex;
-  gap: 12px;
-}
-.progress article {
-  margin-top: 12px;
-  background: white;
-  padding: 10px;
-  border-radius: 10px;
-}
-.question h3 {
-  margin-top: 16px;
-  font-size: 16px;
-}
-.question p {
-  margin-top: 8px;
 }
 .question .options {
   display: grid;
-  gap: 8px;
-  margin: 16px 0;
 }
 .options button {
   background: white;
@@ -320,9 +288,6 @@
 }
 .question input {
   width: 100%;
-}
-.question .actions {
-  margin-top: 16px;
 }
 .steps {
   display: flex;
@@ -358,31 +323,11 @@
 .error button {
   margin: 8px;
 }
-.attachments {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.attachments li {
-  background: #f5f5f7;
-  border-radius: 12px;
-  padding: 8px 12px;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-}
 .preview {
   width: 100%;
   height: auto;
   border-radius: 12px;
   margin: 12px 0;
-}
-.footnote {
-  text-align: center;
-  color: #6b6e7b;
-  font-size: 11px;
-  padding-top: 6px;
 }
 .panelToggle {
   align-self: start;
@@ -436,8 +381,6 @@
 }
 @media (max-width: 800px) {
   .app {
-    height: auto;
-    min-height: 100dvh;
     padding: 12px;
   }
   .header {
@@ -456,7 +399,6 @@
     padding: 12px;
   }
   .chats nav {
-    display: flex;
     overflow: auto;
   }
   .chats nav button {
@@ -466,21 +408,13 @@
     order: 3;
     max-height: 400px;
   }
-  .chat {
-    min-height: 65dvh;
-  }
-  .thread {
-    max-height: 65dvh;
-  }
   .panelToggle {
     writing-mode: initial;
   }
   .question > .row {
     align-items: flex-start;
-    flex-direction: column;
   }
   .composer {
-    position: sticky;
     bottom: 12px;
   }
   .userMessage {

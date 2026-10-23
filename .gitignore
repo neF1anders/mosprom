@@ -1,5 +1,6 @@
 __pycache__/
 .DS_Store
+.idea/
 *.png
 /CLAUDE.md
 /AGENTS.md
