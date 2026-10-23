@@ -18,8 +18,12 @@ DEFAULT_CONFIG = {"strategy": "m0", "seed": 1, "max_iterations": 3, "materials_d
 STATE_SCHEMA = "tuning_state/0"
 
 
-class _Preparation(object):
-    """Everything derived from the card, geometry and catalog; recomputed on every call (stateless loop)."""
+class Preparation(object):
+    """Everything derived from the card, geometry and catalog; recomputed on every call (stateless loop).
+
+    Also the read-only description of the search space for experiments: `params` (axes), `plan` (start point
+    and allowed interval per parameter), `material`, `profile`.
+    """
 
     def __init__(self, card, geometry, settings):
         self.card, self.warnings = normalize_card(card)
@@ -43,6 +47,20 @@ class _Preparation(object):
         self.index = key_index(self.space)
 
 
+def prepare(card, geometry, config=None):
+    # type: (dict, dict, object) -> Preparation
+    settings = dict(DEFAULT_CONFIG)
+    settings.update(config or {})
+    return Preparation(card, geometry, settings)
+
+
+def render_points(preparation, points):
+    # type: (Preparation, dict) -> dict
+    """Param_set for explicit t values per parameter (used by the experiment oracle); status is `proposed`."""
+    state = {"iteration": 0, "strategy": "explicit", "points": points, "vetoed": {}, "history": [], "strategy_state": {}}
+    return _assemble(preparation, state, "proposed", [])
+
+
 def select_parameters(card, geometry, state=None, verdict=None, config=None):
     # type: (dict, dict, object, object, object) -> tuple
     """First call: state=None, verdict=None. Next calls: state and verdict of the previous step.
@@ -51,7 +69,7 @@ def select_parameters(card, geometry, state=None, verdict=None, config=None):
     """
     settings = dict(DEFAULT_CONFIG)
     settings.update(config or {})
-    preparation = _Preparation(card, geometry, settings)
+    preparation = Preparation(card, geometry, settings)
     if state is None:
         if verdict is not None:
             raise TuningError("a verdict needs the state returned by the previous call")
