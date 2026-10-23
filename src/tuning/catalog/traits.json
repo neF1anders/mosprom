@@ -1,0 +1,35 @@
+{
+  "schema": "material_traits/0",
+  "verified": false,
+  "note": "General polymer knowledge, NOT verified against vendor datasheets. Catalog files give only density, temperatures, speed and a Russian description. tg_c: glass transition, service_max_c: rough continuous-service ceiling; absent value = unknown.",
+  "materials": {
+    "enduse_abs":       {"tg_c": 105, "service_max_c": 85,  "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "medium", "friction": "medium", "abrasion": "fair", "warp": "high"},
+    "enduse_pa6":       {"tg_c": 50,  "service_max_c": 100, "hygroscopic": "high",   "uv": "fair", "flexible": false, "stiffness": "medium", "friction": "low",    "abrasion": "good", "warp": "high"},
+    "enduse_pc":        {"tg_c": 147, "service_max_c": 115, "hygroscopic": "medium", "uv": "fair", "flexible": false, "stiffness": "high",   "friction": "medium", "abrasion": "fair", "warp": "high"},
+    "enduse_petg":      {"tg_c": 80,  "service_max_c": 70,  "hygroscopic": "low",    "uv": "fair", "flexible": false, "stiffness": "medium", "friction": "medium", "abrasion": "fair", "warp": "low"},
+    "enduse_pp":        {"tg_c": -10, "service_max_c": 100, "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "low",    "friction": "low",    "abrasion": "fair", "warp": "high"},
+    "enduse_sbs":       {"service_max_c": 60,  "hygroscopic": "low", "uv": "poor", "flexible": true, "stiffness": "low", "abrasion": "fair", "warp": "low"},
+    "enduse_tpu_d70":   {"service_max_c": 80,  "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
+    "fiberpart_abs_g13":{"tg_c": 105, "service_max_c": 95,  "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "high",   "abrasion": "fair", "warp": "medium"},
+    "fiberpart_abs_g4": {"tg_c": 105, "service_max_c": 88,  "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "medium", "abrasion": "fair", "warp": "high"},
+    "fiberpart_abspa_g8":{"service_max_c": 90, "hygroscopic": "medium", "flexible": false, "stiffness": "high", "warp": "medium"},
+    "fiberpart_pa12_g12":{"tg_c": 45, "service_max_c": 110, "hygroscopic": "medium", "uv": "fair", "flexible": false, "stiffness": "high", "friction": "low", "abrasion": "good", "warp": "medium"},
+    "fiberpart_pc_g20": {"tg_c": 147, "service_max_c": 125, "hygroscopic": "medium", "uv": "fair", "flexible": false, "stiffness": "high",   "abrasion": "fair", "warp": "medium"},
+    "fiberpart_pp_g30": {"tg_c": -10, "service_max_c": 110, "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "medium", "friction": "low", "warp": "medium"},
+    "fiberpart_tpu_c5": {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "abrasion": "good", "warp": "low"},
+    "fiberpart_tpu_g30":{"service_max_c": 100, "hygroscopic": "high", "flexible": false, "stiffness": "medium", "abrasion": "good", "warp": "low"},
+    "sealant_sebs":     {"hygroscopic": "low",  "flexible": true, "stiffness": "low", "friction": "high", "warp": "low"},
+    "sealant_tpe":      {"hygroscopic": "low",  "flexible": true, "stiffness": "low", "friction": "high", "warp": "low"},
+    "sealant_tpu":      {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
+    "sealant_tpu93":    {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
+    "sealant_tpu_A95":  {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
+    "sealant_tpv80":    {"service_max_c": 100, "hygroscopic": "low", "flexible": true, "stiffness": "low", "friction": "high", "warp": "low"}
+  },
+  "chemical_stems": {
+    "alkali": ["щелоч"], "acid": ["кислот"], "oil": ["масл", "смазоч"], "fuel": ["бензин", "дизельн", "керосин"],
+    "alcohol": ["спирт"], "salts": ["соли", "солей"], "water": ["гидролиз"], "ozone": ["озон"], "solvents": ["растворител"]
+  },
+  "text_flags": {
+    "uv_good": ["ультрафиолет"], "uv_bad": ["не стоек к атмосферным"], "food_safe": ["контакта с пищей", "контакт с пищей"]
+  }
+}

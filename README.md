@@ -6,6 +6,7 @@
 src/
   plugin/       Плагин STE Slicer и интеграция с приложением
   web/          Веб-интерфейс чата
+  tuning/       Этап 2: подбор параметров печати (геометрия STL, правила, материалы, CLI `python -m tuning`)
 tests/
   e2e/          Сквозные проверки пользовательских сценариев
 docs/
@@ -16,6 +17,8 @@ CONTRIBUTING.md Правила работы с Git и кодом
 AGENTS.md.example Шаблон инструкций для агентов
 CLAUDE.md.example Шаблон локальных настроек участника
 ```
+
+Сквозные проверки запускаются одной командой: `uv run pytest tests/e2e` (Python ≥ 3.8; код `src/tuning/` совместим с Python 3.5). Подбор из консоли: `PYTHONPATH=src uv run python -m tuning select --card card.json --stl part.stl --materials-dir <resources/materials>`; контракты и решения — в `docs/tuning/`.
 
 Перед работой прочитайте [CONTRIBUTING.md](CONTRIBUTING.md). Реализованные возможности отслеживаем в [реестре фич](docs/FEATURES.md).
 
