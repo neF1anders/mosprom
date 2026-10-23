@@ -1,57 +1,60 @@
-import json
-
 import pytest
-from loop_helpers import issue
-from stage1_factory import handoff, report, requirement, write_handoff
+from stage1_factory import handoff, report, requirement
 
-from tuning.contracts import param_set_errors
 from tuning.errors import TuningError
 from tuning.intake.values import parse_bool, parse_number, parse_numbers
 
-GEAR = dict(
-    requirements=[
-        requirement("tg_min_c", "85–90", "°C"),
-        requirement("high_stiffness", "да"),
-        requirement("load_bearing", "Циклическая нагрузка"),
-        requirement("airtightness", "Без требований"),
-        requirement("dimensional_tol_mm", "0.15", "мм", mandatory=False, provenance="assumption", verified=False),
-    ],
-    preferences=["Важна прочность, затем точность"],
-)
+
+def assumption_texts(parameter_set):
+    return [entry["text"] for entry in parameter_set["assumptions"]]
 
 
-def select(run_tuning, tmp_path, payload, *extra):
-    code, out, err = run_tuning("select", "--input", write_handoff(tmp_path / "handoff.json", payload), *extra)
-    return code, (json.loads(out) if code == 0 else None), err
-
-
-def test_handoff_gives_explained_parameters_tied_to_the_revision(run_tuning, tmp_path):
-    code, param_set, err = select(run_tuning, tmp_path, handoff(**GEAR))
+def test_card_ref_comes_from_the_idempotency_key_and_revision(select):
+    code, parameter_set, err = select(handoff(key="job-7:4", revision=4))
     assert code == 0, err
-    assert param_set_errors(param_set) == []
-    assert param_set["status"] == "proposed" and param_set["idempotency_key"] == "job-1:1"
-    keys = {setting["key"]: setting for setting in param_set["settings"]}
-    assert keys["wall_line_count"]["source"] == "rule:stiffness-hard"
-    assumptions = param_set["assumptions_used"]
-    assert "STL units are unknown: coordinates are taken as millimetres" in assumptions
-    assert "mandatory requirement airtightness (airtightness) is not used by parameter selection" in assumptions
-    assert "priority strength, accuracy read from the preference text" in assumptions
-    assert any(a.startswith("dimensional_tol_mm dimensional_tol_mm=0.15 is an assumption") for a in assumptions)
+    assert parameter_set["card_ref"] == {"job_id": "job-7", "revision": 4}
+    assert parameter_set["idempotency_key"] == "job-7:4"
 
 
-def test_unknown_overhangs_leave_supports_off_and_say_so(run_tuning, tmp_path):
-    code, param_set, err = select(run_tuning, tmp_path, handoff())
+def test_bare_card_takes_the_job_from_source_versions(select):
+    payload = handoff(source_versions=[{"id": "att-1", "sha256": "0" * 64}, {"id": "job-9", "revision": "1"}])
+    code, parameter_set, err = select(payload["card"])
     assert code == 0, err
-    supports = [s for s in param_set["settings"] if s["key"] == "support_enable_classic"]
-    assert supports[0]["value"] is False
-    assert any(a.startswith("overhang area is not in the stage-1 report") for a in param_set["assumptions_used"])
+    assert parameter_set["card_ref"] == {"job_id": "job-9", "revision": 1}
 
 
-def test_confirmed_millimetres_are_not_an_assumption(run_tuning, tmp_path):
-    payload = handoff(stl_report=report(coordinate_unit="mm"))
-    code, param_set, err = select(run_tuning, tmp_path, payload)
+def test_input_assumptions_reach_the_user(select):
+    payload = handoff(
+        requirements=[
+            requirement("airtightness", "Без требований"),
+            requirement("dimensional_tol_mm", "0.15", "мм", mandatory=False, provenance="assumption", verified=False),
+        ],
+        preferences=["Важна прочность, затем точность"],
+        assumptions=["одна модель на партию"],
+    )
+    code, parameter_set, err = select(payload)
     assert code == 0, err
-    assert "model coordinates are millimetres (confirmed by stage 1)" in param_set["assumptions_used"]
+    texts = assumption_texts(parameter_set)
+    assert "единицы STL неизвестны: координаты приняты за миллиметры" in texts
+    assert "обязательное требование airtightness (airtightness) не учтено подбором параметров" in texts
+    assert "приоритеты strength, accuracy выведены из текста пожеланий" in texts
+    assert "одна модель на партию" in texts
+    assert "требование dimensional_tol_mm = 0.15 — допущение, а не подтверждённый факт" in texts
+
+
+def test_unknown_overhangs_leave_supports_off_and_say_so(select):
+    code, parameter_set, err = select(handoff())
+    assert code == 0, err
+    assert "support_enable" not in parameter_set["settings"]
+    assert "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются" in assumption_texts(
+        parameter_set
+    )
+
+
+def test_confirmed_millimetres_are_not_an_assumption(select):
+    code, parameter_set, err = select(handoff(stl_report=report(coordinate_unit="mm")))
+    assert code == 0, err
+    assert "координаты модели в миллиметрах (подтверждено этапом 1)" in assumption_texts(parameter_set)
 
 
 @pytest.mark.parametrize(
@@ -62,75 +65,52 @@ def test_confirmed_millimetres_are_not_an_assumption(run_tuning, tmp_path):
         ({"schema_version": "1.0"}, "schema_version"),
     ],
 )
-def test_card_not_released_for_selection_is_refused(run_tuning, tmp_path, fields, message):
-    code, _, err = select(run_tuning, tmp_path, handoff(**fields))
+def test_card_not_released_for_selection_is_refused(select, fields, message):
+    code, _, err = select(handoff(**fields))
     assert code == 2 and message in err
 
 
-def test_printing_mode_requirement_selects_the_5d_mode(run_tuning, tmp_path):
-    payload = handoff(requirements=[requirement("printing_mode", "cylindrical")])
-    code, param_set, err = select(run_tuning, tmp_path, payload)
+def test_preliminary_card_is_used_with_a_caveat(select):
+    code, parameter_set, err = select(handoff(readiness="preliminary"))
     assert code == 0, err
-    assert param_set["printing_mode"]["value"] == "cylindrical" and param_set["printing_mode"]["source"] == "card"
-    assert "cylindrical_layer_height" in {setting["key"] for setting in param_set["settings"]}
+    assert parameter_set["assumptions"][0]["text"].startswith("карточка предварительная")
 
 
-def test_material_named_by_the_user_matches_the_extruder_filament(run_tuning, tmp_path):
-    code, param_set, err = select(run_tuning, tmp_path, handoff(answers={"material_choice": "PLA"}))
-    assert code == 0, err
-    assert param_set["material"]["value"] == "generic_pla_175"
-
-
-def test_chemical_media_in_russian_are_matched_to_the_catalog_text(run_tuning, tmp_path):
-    payload = handoff(requirements=[requirement("chemical_resistance", "щёлочи, масла")])
-    code, param_set, err = select(run_tuning, tmp_path, payload)
-    assert code == 0, err
-    assert param_set["material"]["value"] == "enduse_pa6"
-    assert [check["status"] for check in param_set["material"]["checks"]] == ["ok"]
-
-
-def test_preliminary_card_is_used_with_a_caveat(run_tuning, tmp_path):
-    code, param_set, err = select(run_tuning, tmp_path, handoff(readiness="preliminary"))
-    assert code == 0, err
-    assert param_set["assumptions_used"][0].startswith("task card is preliminary")
-
-
-def test_report_of_another_stl_is_refused(run_tuning, tmp_path):
+def test_report_of_another_stl_is_refused(select):
     payload = handoff()
     payload["card"]["stl_analysis"]["sha256"] = "f" * 64
-    code, _, err = select(run_tuning, tmp_path, payload)
+    code, _, err = select(payload)
     assert code == 2 and "sha256" in err
 
 
-def test_card_without_report_is_refused(run_tuning, tmp_path):
+def test_card_without_report_is_refused(select):
     payload = handoff()
     payload["card"]["stl_analysis"] = None
-    code, _, err = select(run_tuning, tmp_path, payload)
+    code, _, err = select(payload)
     assert code == 2 and "stl_analysis" in err
 
 
-def test_loop_state_of_another_revision_is_refused(run_tuning, tmp_path):
-    state_path, verdict_path = tmp_path / "state.json", tmp_path / "verdict.json"
-    code, _, err = select(run_tuning, tmp_path, handoff(), "--strategy", "m1", "--state-out", str(state_path))
+def test_material_named_by_the_user_matches_the_extruder_filament(select):
+    code, parameter_set, err = select(handoff(answers={"material_choice": "PLA"}))
     assert code == 0, err
-    verdict_path.write_text(json.dumps({"ok": False, "issues": [issue("infill_sparse_density", "too_weak")]}))
-    loop = ("--strategy", "m1", "--state", str(state_path), "--verdict", str(verdict_path))
-    code, second, err = select(run_tuning, tmp_path, handoff(), *loop)
-    assert code == 0 and second["iteration"] == 1, err
-    code, _, err = select(run_tuning, tmp_path, handoff(key="job-1:2"), *loop)
-    assert code == 2 and "job-1:2" in err
+    material = parameter_set["materials"]["0"]
+    assert material["id"] == "generic_pla_175" and material["source"] == "requirement:answer.material_choice"
 
 
-def test_same_handoff_gives_identical_bytes(run_tuning, tmp_path):
-    first = select(run_tuning, tmp_path, handoff(**GEAR))
-    second = select(run_tuning, tmp_path, handoff(**GEAR))
-    assert first[0] == 0 and first[1] == second[1]
+def test_chemical_media_in_russian_are_matched_to_the_catalog_text(select):
+    code, parameter_set, err = select(handoff(requirements=[requirement("chemical_resistance", "щёлочи, масла")]))
+    assert code == 0, err
+    material = parameter_set["materials"]["0"]
+    assert material["id"] == "enduse_pa6"
+    assert [check["status"] for check in material["checks"]] == ["ok"]
 
 
-def test_cli_requires_exactly_one_input_form(run_tuning, tmp_path, block_stl):
-    path = write_handoff(tmp_path / "handoff.json", handoff())
-    code, _, err = run_tuning("select", "--input", path, "--stl", block_stl)
-    assert code == 2 and "either --input" in err
+def test_repeated_requirement_codes_get_ids_the_validator_accepts(select):
+    payload = handoff(requirements=[requirement("tg_min_c", "60", "°C"), requirement("tg_min_c", "90", "°C")])
+    code, parameter_set, err = select(payload)
+    assert code == 0, err
+    ids = [check["requirement_id"] for check in parameter_set["materials"]["0"]["checks"]]
+    assert ids == ["tg_min_c", "tg_min_c-2"]
 
 
 @pytest.mark.parametrize(

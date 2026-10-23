@@ -1,0 +1,61 @@
+{
+  "id": "hte530v5.2.4",
+  "name": "Stereotech Hybrid 530 V5.2.4",
+  "source": "issued STE Slicer 5.2.4 build: definitions hte530v5.2.4 -> steprinter530_v5.2.4 -> steprinter_v5 -> fdmprinter, extruders/stereotech_v5.2.4_extruder_main, quality/*.inst.cfg",
+  "nozzle_mm": 0.4,
+  "filament_mm": 1.75,
+  "line_width_mm": 0.4,
+  "temperature_max_c": 285,
+  "width_mm": 351.0,
+  "depth_mm": 300.3,
+  "modes": {
+    "classic": {
+      "label": "3D",
+      "height_mm": 300.0,
+      "shape": "rectangular",
+      "usable_x_mm": [-169.5, 150.5],
+      "heated_bed": true,
+      "adhesion_default": "brim",
+      "fan_key": "cool_fan_enabled_classic"
+    },
+    "cylindrical": {
+      "label": "5D Spiral",
+      "height_mm": 231.1,
+      "shape": "elliptic",
+      "usable_x_mm": [-175.5, 175.5],
+      "heated_bed": false,
+      "adhesion_default": "brim",
+      "fan_key": "cool_fan_enabled_cylindrical"
+    },
+    "cylindrical_full": {
+      "label": "5D",
+      "height_mm": 231.1,
+      "shape": "elliptic",
+      "usable_x_mm": [-175.5, 175.5],
+      "heated_bed": false,
+      "adhesion_default": "raft",
+      "fan_key": "cool_fan_enabled_cylindrical"
+    }
+  },
+  "default_quality": "normal",
+  "qualities": {
+    "high": {"label": "Extra Fine", "layer_height": 0.06, "values": {}},
+    "normal": {"label": "Fine", "layer_height": 0.1, "values": {}},
+    "fast": {"label": "Normal", "layer_height": 0.15, "values": {"infill_sparse_density": 10, "wall_thickness": 1.0}},
+    "draft": {"label": "Draft", "layer_height": 0.2, "values": {}},
+    "verydraft": {"label": "Extra Fast", "layer_height": 0.3, "values": {}},
+    "coarse": {"label": "Coarse", "layer_height": 0.4, "values": {}},
+    "extra coarse": {"label": "Extra Coarse", "layer_height": 0.6, "values": {}}
+  },
+  "defaults": {
+    "wall_thickness": 0.8,
+    "top_bottom_thickness": 0.8,
+    "infill_sparse_density": 20,
+    "speed_print": 60,
+    "support_enable": false,
+    "retraction_enable": true,
+    "cool_fan_enabled": true,
+    "cylindrical_mode_base_diameter": 6,
+    "non_printing_base_diameter": 6
+  }
+}

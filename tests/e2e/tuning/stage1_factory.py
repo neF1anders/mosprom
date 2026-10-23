@@ -72,3 +72,21 @@ def handoff(key="job-1:1", stl_report=None, **fields):
 def write_handoff(path, payload):
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return str(path)
+
+
+def constraint(constraint_id, key, op, value, reason="synthetic"):
+    return {"id": constraint_id, "key": key, "op": op, "value": value, "reason": reason, "severity": "error"}
+
+
+def feedback(*constraints, **fields):
+    payload = {
+        "contract": "stage3.feedback",
+        "version": "0.1",
+        "iteration": 1,
+        "result": "needs_changes",
+        "constraints": list(constraints),
+        "exclude": [],
+        "warnings": [],
+    }
+    payload.update(fields)
+    return payload

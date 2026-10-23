@@ -10,7 +10,6 @@ from tuning.serialization import load_json_file
 _NAMESPACE = {"m": "http://www.ultimaker.com/material"}
 _SUFFIX = ".xml.fdm_material"
 _TRAITS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "traits.json")
-DEFAULT_SPEED_MM_S = 50.0
 _DIAMETER_TOLERANCE_MM = 1e-6
 
 
@@ -27,15 +26,6 @@ class Material(object):
         self.speed = settings.get("speed print")
         self.cooling_pct = settings.get("print cooling")
         self.traits = traits
-
-    def context(self):
-        # type: () -> dict
-        """Numbers used by search-space references; speed falls back to a documented default."""
-        return {
-            "print_temperature": self.print_temperature,
-            "bed_temperature": self.bed_temperature,
-            "speed": self.speed if self.speed is not None else DEFAULT_SPEED_MM_S,
-        }
 
 
 def load_traits():

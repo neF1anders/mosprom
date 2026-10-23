@@ -1,234 +1,102 @@
 {
-  "schema": "search_space/0",
-  "note": "t=0: cheap/fast/brittle, t=1: expensive/slow/strong. Keys per mode follow StartSliceJob: classic and cylindrical_full read *_classic values, cylindrical reads *_cylindrical (cylindrical_full also uses the 5D set: hypothesis).",
+  "schema": "search_space/1",
+  "note": "t=0: cheap/fast/brittle, t=1: costly/slow/strong. The start point is the value the slicer would use anyway (quality profile, material, definition); rules move t from there. `baseline` names where that value comes from. Keys are the source keys of the slicer: mode variants (*_classic, *_cylindrical) follow them by formula.",
   "params": [
     {
       "id": "layer_height",
+      "key": "layer_height",
       "unit": "mm",
       "kind": "float",
       "step": 0.01,
-      "v0": {
-        "ref": "profile.nozzle_mm",
-        "mul": 0.8
-      },
-      "v1": 0.1,
-      "keys": {
-        "classic": [
-          "classic_layer_height"
-        ],
-        "cylindrical": [
-          "cylindrical_layer_height"
-        ],
-        "cylindrical_full": [
-          "classic_layer_height",
-          "cylindrical_layer_height"
-        ]
-      }
+      "v0": {"ref": "profile.nozzle_mm", "mul": 0.8},
+      "v1": 0.06,
+      "baseline": {"quality_layer": true}
     },
     {
       "id": "wall_line_count",
-      "unit": "",
+      "key": "wall_thickness",
+      "unit": "mm",
       "kind": "int",
       "step": 1,
       "v0": 2,
       "v1": 6,
-      "keys": {
-        "classic": [
-          "wall_line_count"
-        ],
-        "cylindrical": [
-          "wall_line_count"
-        ],
-        "cylindrical_full": [
-          "wall_line_count"
-        ]
-      }
+      "baseline": {"setting": "wall_thickness", "as": "wall_lines"},
+      "emit_as": "wall_thickness_from_lines"
     },
     {
       "id": "skin_thickness",
+      "key": "top_bottom_thickness",
       "unit": "mm",
       "kind": "float",
       "step": 0.1,
       "v0": 0.8,
       "v1": 2.0,
-      "emit": {
-        "type": "layers_from_thickness",
-        "layer_param": "layer_height",
-        "keys": [
-          "top_layers",
-          "bottom_layers"
-        ]
-      }
+      "baseline": {"setting": "top_bottom_thickness"}
     },
     {
       "id": "infill_density",
+      "key": "infill_sparse_density",
       "unit": "%",
       "kind": "float",
       "step": 5,
       "v0": 10,
       "v1": 60,
-      "keys": {
-        "classic": [
-          "infill_sparse_density"
-        ],
-        "cylindrical": [
-          "infill_sparse_density"
-        ],
-        "cylindrical_full": [
-          "infill_sparse_density"
-        ]
-      }
+      "baseline": {"setting": "infill_sparse_density"}
     },
     {
       "id": "print_temperature",
-      "unit": "degC",
+      "key": "material_print_temperature",
+      "unit": "°C",
       "kind": "float",
       "step": 5,
-      "v0": {
-        "ref": "material.print_temperature",
-        "add": -10
-      },
-      "v1": {
-        "ref": "material.print_temperature",
-        "add": 10
-      },
-      "keys": {
-        "classic": [
-          "material_print_temperature"
-        ],
-        "cylindrical": [
-          "material_print_temperature"
-        ],
-        "cylindrical_full": [
-          "material_print_temperature"
-        ]
-      }
+      "v0": {"ref": "material.print_temperature", "add": -10},
+      "v1": {"ref": "material.print_temperature", "add": 10},
+      "baseline": {"material": "print_temperature"},
+      "scope": "extruder:0"
     },
     {
       "id": "print_speed",
+      "key": "speed_print",
       "unit": "mm/s",
       "kind": "float",
       "step": 5,
-      "v0": {
-        "ref": "material.speed",
-        "mul": 1.0
-      },
-      "v1": {
-        "ref": "material.speed",
-        "mul": 0.5
-      },
-      "keys": {
-        "classic": [
-          "speed_print"
-        ],
-        "cylindrical": [
-          "speed_print"
-        ],
-        "cylindrical_full": [
-          "speed_print"
-        ]
-      }
+      "v0": {"ref": "profile.defaults.speed_print"},
+      "v1": {"ref": "material.speed_floor"},
+      "baseline": {"setting": "speed_print"}
     }
   ],
   "discrete": [
     {
       "id": "support_enable",
-      "unit": "",
-      "default": false,
-      "keys": {
-        "classic": [
-          "support_enable_classic"
-        ],
-        "cylindrical": [
-          "support_enable_cylindrical"
-        ],
-        "cylindrical_full": [
-          "support_enable_classic",
-          "support_enable_cylindrical"
-        ]
-      },
-      "candidates": [
-        false,
-        true
-      ]
-    },
-    {
-      "id": "adhesion_type",
-      "unit": "",
-      "default": null,
-      "keys": {
-        "classic": [
-          "adhesion_type"
-        ],
-        "cylindrical": [],
-        "cylindrical_full": [
-          "adhesion_type"
-        ]
-      },
-      "candidates": [
-        "brim",
-        "skirt",
-        "raft",
-        "none"
-      ]
+      "key": "support_enable",
+      "baseline": {"setting": "support_enable"},
+      "candidates": [false, true]
     },
     {
       "id": "infill_pattern",
-      "unit": "",
-      "default": "grid",
-      "default_dense": "lines",
-      "dense_above_pct": 25,
-      "keys": {
-        "classic": [
-          "infill_pattern"
-        ],
-        "cylindrical": [
-          "infill_pattern"
-        ],
-        "cylindrical_full": [
-          "infill_pattern"
-        ]
-      },
-      "candidates": [
-        "grid",
-        "lines",
-        "gyroid",
-        "triangles",
-        "cubic",
-        "concentric"
-      ]
+      "key": "infill_pattern",
+      "baseline": {"infill_pattern_formula": true},
+      "candidates": ["grid", "lines", "gyroid", "triangles", "cubic", "concentric"]
     },
     {
-      "id": "bed_temperature",
-      "unit": "degC",
-      "from_material": "bed_temperature",
-      "keys": {
-        "classic": [
-          "material_bed_temperature"
-        ],
-        "cylindrical": [
-          "material_bed_temperature"
-        ],
-        "cylindrical_full": [
-          "material_bed_temperature"
-        ]
-      }
+      "id": "adhesion_type",
+      "key": "adhesion_type",
+      "baseline": {"mode": "adhesion_default"},
+      "candidates": ["brim", "skirt", "raft", "none"]
     },
     {
-      "id": "fan_speed",
-      "unit": "%",
-      "from_material": "cooling_pct",
-      "keys": {
-        "classic": [
-          "cool_fan_speed"
-        ],
-        "cylindrical": [
-          "cool_fan_speed"
-        ],
-        "cylindrical_full": [
-          "cool_fan_speed"
-        ]
-      }
+      "id": "cool_fan_enabled",
+      "key": {"mode": "fan_key"},
+      "baseline": {"setting": "cool_fan_enabled"},
+      "candidates": [true, false],
+      "scope": "extruder:0"
+    },
+    {
+      "id": "retraction_enable",
+      "key": "retraction_enable",
+      "baseline": {"setting": "retraction_enable"},
+      "candidates": [true, false],
+      "scope": "extruder:0"
     }
   ]
 }
