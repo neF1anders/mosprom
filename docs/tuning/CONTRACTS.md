@@ -14,7 +14,7 @@
 | `inputs` | object, обязательно | `text`, `files[{path, kind}]` |
 | `part` | object | `name`, `function`, `load` (`static`/`cyclic`/`impact`/`none`), `environment` |
 | `requirements` | list | `{id, kind, key, value, hard, source, basis}` |
-| `preferences` | object | `priority` (порядок из `strength`/`accuracy`/`speed`/`cost`), `supports_allowed`, `quantity` |
+| `preferences` | object | `priority` (порядок из `strength`/`accuracy`/`speed`/`cost`), `supports_allowed`, `quantity`, `printing_mode` (необязательная подсказка этапа 1: `classic`/`cylindrical`/`cylindrical_full`) |
 | `material` | object | `name`, `candidates`, `source` |
 | `assumptions` | list | `{text, basis, confidence}` |
 | `missing` | list | `{what, critical}` |
@@ -56,7 +56,9 @@
 ## param_set/0 (выход)
 
 Поля: `schema`, `iteration`, `strategy`, `status`, `printing_mode`, `material`, `settings`,
-`orientation`, `assumptions_used`, `unsatisfied`, `warnings`.
+`orientation`, `assumptions_used`, `unsatisfied`, `warnings`, `build_volume_mm` (область печати выбранного режима).
+`unsatisfied[]`: `requirement_id`, `why`, необязательный `conflicts_with` (второй участник конфликта).
+`material.checks[]` — проверка выбранного материала по каждому проверяемому требованию (`ok`/`warn`/`fail`/`unknown`).
 
 - `status`: `proposed` · `final` · `exhausted` · `infeasible`. `exhausted` и `infeasible` — не успех.
 - `printing_mode`/`material`/каждая запись `settings` обязаны иметь `source` и `reason`.
