@@ -1,25 +1,30 @@
 import type { Card } from "../types";
 import styles from "../App.module.css";
 export function CardSummary({ card }: { card: Card }) {
+  const geometry = card.geometry;
   const rows = [
-    ["Деталь", card.purpose],
+    ["Деталь", card.purpose || "Назначение не указано"],
     [
       "Обязательные",
       card.requirements
-        .map((r) => `${r.label || r.key}: ${r.value} ${r.unit || ""}`)
+        .filter((r) => r.mandatory)
+        .map((r) => `${r.label || r.key} ${r.value} ${r.unit || ""}`.trim())
         .join(" · ") || "Нет подтверждённых требований",
     ],
     [
       "Геометрия",
-      card.geometry.extents.length
-        ? `${card.geometry.extents.map((v) => Number(v.toFixed(3))).join(" × ")} ${card.geometry.units === "unknown" ? "единицы неизвестны" : "мм"}`
-        : "Недоступна",
+      geometry?.extents.length
+        ? `${geometry.extents.map((v) => Number(v.toFixed(3))).join(" × ")} ${geometry.units === "unknown" ? "в единицах файла" : geometry.units}`
+        : "Модели нет",
     ],
-    ["Допущения", card.assumptions.join(" · ") || "Нет допущений"],
+    [
+      "Допущения",
+      card.assumptions.map((a) => a.text).join(" · ") || "Нет допущений",
+    ],
     [
       "Ограничения",
-      card.geometry.limitations.join(" · ") ||
-        "Ограничения сохранены в карточке",
+      [...(geometry?.limitations || []), ...card.unknowns].join(" · ") ||
+        "Ограничений нет",
     ],
   ];
   return (

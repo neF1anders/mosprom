@@ -28,6 +28,7 @@ struct.pack_into("<f", nan, 96, float("nan"))
 (out / "task.txt").write_text(
     "Номинальный момент 25 Нм\nПиковый момент 75 Нм\nТемпература от 10 до 70 C", encoding="utf-8"
 )
+(out / "conflict.txt").write_text("TEST_CONFLICT\nДлина 80 мм\nДлина 100 мм", encoding="utf-8")
 doc = Document()
 doc.add_paragraph("Номинальный момент 25 Нм")
 doc.add_paragraph("Пиковый момент 75 Нм")

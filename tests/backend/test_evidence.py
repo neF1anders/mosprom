@@ -1,141 +1,142 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
-from src.backend.domain.evidence import merge_cards, validate_evidence
-from src.backend.domain.models import Evidence, Requirement, TaskCard
-from src.backend.domain.rules import assess
+from src.backend.domain.evidence import (
+    apply_decision,
+    check_citations,
+    reconcile,
+    reference,
+)
+from src.backend.domain.models import Evidence, Requirement, Source
 
 pytestmark = pytest.mark.unit
+T0 = datetime(2026, 10, 23, tzinfo=timezone.utc)
+SOURCES = {
+    "m1": Source(id="m1", ref="msg-1", kind="message", text="Момент 30 Н·м", created_at=T0),
+    "m2": Source(
+        id="m2",
+        ref="msg-2",
+        kind="message",
+        text="Нет, момент 35 Н·м",
+        created_at=T0 + timedelta(1),
+    ),
+    "f1p1": Source(
+        id="f1p1", ref="att:1", kind="document", text="Номинальный  момент\n25 Н·м", page=1
+    ),
+    "f2p1": Source(id="f2p1", ref="att2:1", kind="document", text="Момент 28 Н·м", page=1),
+    "f3p2": Source(
+        id="f3p2",
+        ref="pdf:2",
+        kind="document",
+        text="Номинальный момент 25 Н·м",
+        page=2,
+        image="p2.png",
+    ),
+    "f4p1": Source(id="f4p1", ref="scan:1", kind="document", text="", page=1, image="s1.png"),
+}
 
 
-@pytest.mark.parametrize("value", ["80", "100,5", "0", "-10", "15"])
-def test_user_correction_replaces_unverified_value(value):
-    from src.backend.domain.evidence import apply_answers
-
-    card = validate_evidence(
-        TaskCard(requirements=[Requirement(key="size", label="Размер", value="100")]), {}
-    )
-    question = card.questions[0]
-    apply_answers(card, {question.id: value}, {}, "answer-source")
-    assert card.requirements[0].value == value
-    assert card.requirements[0].verified
-    assert card.requirements[0].sources[0].source_id == "answer-source"
+def requirement(value="25", quote="Номинальный момент 25 Н·м", source="f1p1", **extra):
+    data = {
+        "key": "torque_nominal",
+        "label": "Номинальный момент",
+        "value": value,
+        "unit": "Н·м",
+        "sources": [Evidence(source_id=source, quote=quote)],
+    }
+    return Requirement(**{**data, **extra})
 
 
-@pytest.mark.parametrize("answer", ["да", "готово", "mm", "любое", "100"])
-def test_model_cannot_supply_its_own_answers(answer):
-    from src.backend.domain.models import Geometry, Question
-
-    card = TaskCard(
-        purpose="gear",
-        geometry=Geometry(readable=True, units="mm"),
-        questions=[
-            Question(id="load", title="Load", reason="Required", answer=answer, affected_actions=[])
-        ],
-    )
-    assert assess(card).readiness == "blocked"
-
-
-@pytest.mark.parametrize("count", [1, 2, 5, 10, 50])
-def test_conflicts_group_values_without_pairwise_explosion(count):
-    cards = [TaskCard(requirements=[Requirement(key="size", value=str(i))]) for i in range(count)]
-    result = merge_cards(cards)
-    assert len(result.conflicts) == (1 if count > 1 else 0)
-
-
-@pytest.mark.parametrize("number", ["1", "10", "25", "75", "160"])
-def test_T03_number_not_in_quote_requires_verification(number):
-    card = TaskCard(
-        requirements=[
-            Requirement(
-                key="load",
-                value=number,
-                sources=[Evidence(source_id="doc", quote="No measured values")],
-            )
-        ]
-    )
-    result = validate_evidence(card, {"doc": {"text": "No measured values"}})
-    assert not result.requirements[0].verified
-    assert result.questions
-
-
-def test_T08_approval_does_not_transfer_to_changed_conflict():
-    first = merge_cards(
-        [
-            TaskCard(
-                requirements=[
-                    Requirement(key="size", value="80"),
-                    Requirement(key="size", value="100"),
-                ]
-            )
-        ]
-    )
-    changed = merge_cards(
-        [
-            TaskCard(
-                requirements=[
-                    Requirement(key="size", value="90"),
-                    Requirement(key="size", value="100"),
-                ]
-            )
-        ]
-    )
-    assert first.conflicts[0].id != changed.conflicts[0].id
-
-
-def test_visual_requirement_keeps_page_and_image_evidence():
-    result = validate_evidence(
-        TaskCard(
-            requirements=[
-                Requirement(
-                    key="nominal",
-                    value="25",
-                    sources=[Evidence(source_id="scan:1", quote="Nominal 25 Nm", page=1)],
-                )
-            ]
-        ),
-        {"scan:1": {"text": "", "method": "vision", "image": "scan-page-1.png", "page": 1}},
-    )
-    requirement = result.requirements[0]
-    assert requirement.verified
-    assert requirement.sources[0].method == "vision"
-    assert requirement.sources[0].artifact_id == "scan-page-1.png"
-    assert not result.questions
+def test_literal_quote_with_matching_numbers_is_verified():
+    r = requirement()
+    assert check_citations(r, SOURCES) == "verified"
+    assert r.sources[0].method == "text" and r.sources[0].page == 1
 
 
 @pytest.mark.parametrize(
     "case",
     [
-        "missing_source",
-        "missing_page",
-        "wrong_page",
-        "missing_image",
-        "wrong_number",
-        "uncertain",
-        "unreadable",
+        requirement(value="250"),
+        requirement(quote="Номинальный момент 250 Н·м"),
+        requirement(source="missing"),
+        requirement(quote=""),
+        requirement(provenance="assumption"),
+        requirement(sources=[]),
+        requirement(
+            sources=[Evidence(source_id="f1p1", quote="Номинальный момент 25 Н·м", page=3)]
+        ),
     ],
 )
-def test_visual_requirement_cannot_bypass_source_checks(case):
-    source = {
-        "text": "",
-        "method": "vision",
-        "image": "scan-page-1.png",
-        "page": 1,
-        "uncertain": case == "uncertain",
-    }
-    if case == "missing_image":
-        source.pop("image")
-    requirement = Requirement(
-        key="nominal",
-        value="75" if case == "wrong_number" else "25",
-        verified=case != "unreadable",
-        sources=[
-            Evidence(
-                source_id="missing" if case == "missing_source" else "scan:1",
-                quote="Nominal 25 Nm",
-                page=None if case == "missing_page" else 2 if case == "wrong_page" else 1,
-            )
-        ],
-    )
-    result = validate_evidence(TaskCard(requirements=[requirement]), {"scan:1": source})
-    assert not result.requirements[0].verified
-    assert result.questions
+def test_unsupported_citations_are_rejected(case):
+    assert check_citations(case, SOURCES) == "rejected"
+
+
+def test_text_layer_quote_is_text_even_on_a_page_with_an_image():
+    r = requirement(source="f3p2", quote="Номинальный момент 25 Н·м")
+    assert check_citations(r, SOURCES) == "verified"
+    assert r.sources[0].method == "text" and r.sources[0].artifact_id == "p2.png"
+
+
+@pytest.mark.parametrize("source", ["f3p2", "f4p1"])
+def test_quote_absent_from_text_layer_needs_second_reading(source):
+    """A fabricated quote on a PDF page is never verified on the model's word alone."""
+    r = requirement(value="250", quote="момент 250 Н·м", source=source)
+    assert check_citations(r, SOURCES) == "vision"
+    assert r.sources[0].method == "vision"
+
+
+def test_user_message_wins_over_documents_and_newest_message_wins():
+    document = requirement()
+    first = requirement(value="30", quote="Момент 30 Н·м", source="m1", provenance="user")
+    second = requirement(value="35", quote="момент 35 Н·м", source="m2", provenance="user")
+    for r in (document, first, second):
+        assert check_citations(r, SOURCES) == "verified"
+    merged, questions = reconcile([document, first, second], SOURCES, {})
+    assert questions == []
+    assert [r.value for r in merged] == ["35"]
+    assert {s.value for s in merged[0].superseded} == {"25", "30"}
+    assert all(s.reason == "Заменено сообщением пользователя" for s in merged[0].superseded)
+
+
+def test_disagreeing_documents_go_to_the_user_and_the_answer_is_applied():
+    a = requirement()
+    b = requirement(value="28", quote="Момент 28 Н·м", source="f2p1")
+    for r in (a, b):
+        check_citations(r, SOURCES)
+    merged, questions = reconcile([a, b], SOURCES, {})
+    assert len(questions) == 1 and questions[0].options == ["25 Н·м", "28 Н·м"]
+    assert merged[0].verified is False
+    merged, _ = reconcile([a, b], SOURCES, {questions[0].id: "28 Н·м"})
+    assert (merged[0].value, merged[0].unit, merged[0].provenance) == ("28", "Н·м", "user")
+    assert merged[0].verified and [s.value for s in merged[0].superseded] == ["25"]
+
+
+def test_equivalent_values_are_not_a_conflict():
+    a = requirement()
+    b = requirement(value="25000", quote="Момент 28 Н·м", source="f2p1", unit="Н·мм")
+    merged, questions = reconcile([a, b], SOURCES, {})
+    assert questions == [] and len(merged) == 1
+
+
+def test_different_conditions_are_different_properties():
+    nominal = requirement()
+    peak = requirement(value="75", conditions="пик при стопорении")
+    merged, questions = reconcile([nominal, peak], SOURCES, {})
+    assert questions == [] and len(merged) == 2
+    assert reference(nominal) != reference(peak)
+
+
+@pytest.mark.parametrize(
+    "answer,value,unit",
+    [
+        ("27", "27", "Н·м"),
+        ("27 Н·м", "27", "Н·м"),
+        ("0,027 кН·м", "0,027", "кН·м"),
+        ("около тридцати", "около тридцати", None),
+    ],
+)
+def test_custom_answers_replace_value(answer, value, unit):
+    result = apply_decision(requirement(), "verify.x", answer, [requirement()])
+    assert (result.value, result.unit, result.verified) == (value, unit, True)
+    assert result.sources[0].source_id == "answer:verify.x"

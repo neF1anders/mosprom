@@ -1,9 +1,34 @@
 import type { ReactNode } from "react";
 import { Audit } from "./Audit";
-import type { Geometry, Job, ProgressEvent } from "../types";
-import { statusLabel } from "../types";
+import type { Evidence, Geometry, Job, ProgressEvent } from "../types";
+import { answered, statusLabel, UNKNOWN_ANSWER } from "../types";
 import styles from "../App.module.css";
 
+const methodLabels: Record<string, string> = {
+  vision: " · прочитано по изображению и подтверждено вторым чтением",
+  user: " · из ваших сообщений",
+  knowledge: " · из базы материалов",
+};
+function SourceQuote({ source, jobId }: { source: Evidence; jobId?: string }) {
+  return (
+    <blockquote>
+      {source.quote}
+      <small>
+        {source.page ? `страница ${source.page}` : ""}
+        {methodLabels[source.method || ""] || ""}
+      </small>
+      {source.artifact_id && (
+        <a
+          href={`/api/v1/jobs/${jobId}/artifacts/${encodeURIComponent(source.artifact_id)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Посмотреть страницу
+        </a>
+      )}
+    </blockquote>
+  );
+}
 const defectLabels: Record<string, string> = {
   boundary_edges: "Открытая поверхность",
   duplicate_faces: "Повторяющиеся грани",
@@ -41,24 +66,24 @@ export function TaskCard({
   job,
   onCollapse,
   events = [],
-  onEdit,
-  onStop,
+  collapsed = false,
 }: {
   job?: Job;
   onCollapse: () => void;
   events?: ProgressEvent[];
-  onEdit?: () => void;
-  onStop?: () => void;
+  collapsed?: boolean;
 }) {
   const card = job?.card;
   const geometry =
     events.reduce<Geometry | undefined>(
       (previous, event) =>
-        event.type === "geometry.completed"
+        event.type === "stl.completed"
           ? (event.data.geometry as Geometry)
           : previous,
       undefined,
-    ) || card?.geometry;
+    ) ||
+    card?.geometry ||
+    undefined;
   const running =
     !!job && ["running", "queued", "stopping"].includes(job.status);
   const requirements =
@@ -66,10 +91,19 @@ export function TaskCard({
   const dimensions = geometry?.extents
     .map((x) => Number(x.toFixed(3)))
     .join(" × ");
-  const unresolved =
-    card?.questions.filter((q) => q.answer === null).length || 0;
+  const unresolved = card?.questions.filter((q) => !answered(q)).length || 0;
   const defects = geometry?.defects.map((d) => defectLabels[d] || d) || [];
-  const unknowns = card ? [...card.assumptions, ...card.unknowns] : [];
+  const remarks =
+    card?.verdict?.remarks.filter((r) => r.severity !== "minor") || [];
+  const unknowns = card
+    ? [
+        ...card.assumptions.map((a) =>
+          a.basis ? `${a.text}, основание ${a.basis}` : a.text,
+        ),
+        ...card.unknowns,
+        ...remarks.map((r) => r.text),
+      ]
+    : [];
   const blockers = [
     ...new Set(
       Object.entries(card?.blocked_actions || {})
@@ -82,6 +116,7 @@ export function TaskCard({
       className={styles.card}
       aria-label="Карточка задания"
       data-empty={!card}
+      inert={collapsed}
     >
       <div className={styles.row}>
         <h2>Карточка задания</h2>
@@ -123,25 +158,13 @@ export function TaskCard({
                 </summary>
                 <p>{r.conditions || "Условия не указаны"}</p>
                 {r.sources.map((source, j) => (
-                  <blockquote key={j}>
-                    {source.quote}
-                    <small>
-                      {source.source_id}
-                      {source.page ? ` · стр ${source.page}` : ""}
-                      {source.method === "vision"
-                        ? " · прочитано по изображению"
-                        : ""}
-                    </small>
-                    {source.artifact_id && (
-                      <a
-                        href={`/api/v1/jobs/${job?.id}/artifacts/${encodeURIComponent(source.artifact_id)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Посмотреть страницу
-                      </a>
-                    )}
-                  </blockquote>
+                  <SourceQuote key={j} source={source} jobId={job?.id} />
+                ))}
+                {r.superseded.map((old, j) => (
+                  <p key={`old-${j}`} className={styles.muted}>
+                    Было {old.value} {old.unit || ""},{" "}
+                    {old.reason.toLowerCase()}
+                  </p>
                 ))}
               </details>
             ))}
@@ -156,7 +179,7 @@ export function TaskCard({
       >
         <p>
           {dimensions
-            ? `${dimensions} ${geometry?.units === "unknown" ? "единицы не указаны" : "мм"}`
+            ? `${dimensions} ${geometry?.units === "unknown" ? "в единицах файла" : geometry?.units}`
             : "Нет данных"}
           {defects.length ? ` · ${defects.join(", ")}` : ""}
         </p>
@@ -189,8 +212,8 @@ export function TaskCard({
         {unknowns.length ? (
           <details className={styles.cardDisclosure}>
             <summary>
-              {card?.assumptions.length} допущений · {card?.unknowns.length}{" "}
-              неизвестных
+              Допущений {card?.assumptions.length} · неизвестных{" "}
+              {card?.unknowns.length}
             </summary>
             {unknowns.map((text, i) => (
               <p key={i}>{text}</p>
@@ -200,7 +223,7 @@ export function TaskCard({
           <p>{card ? "Нет допущений и неизвестных" : "Нет данных"}</p>
         )}
         {card?.questions
-          .filter((q) => q.answer === "Не знаю")
+          .filter((q) => q.answer === UNKNOWN_ANSWER)
           .map((q) => (
             <p key={q.id}>Не удалось уточнить · {q.title}</p>
           ))}
@@ -240,20 +263,14 @@ export function TaskCard({
             ))}
           </details>
         )}
-        {job?.handoff === "not_connected" && (
-          <p>Карточка подготовлена, следующий этап не подключён</p>
+        {job?.next_stage === "queued" && (
+          <p>Карточка передана на подбор параметров</p>
         )}
       </Field>
       {card && !running && card.revision === job?.revision && (
         <a href={`/api/v1/jobs/${job?.id}/card`} download="task-card.json">
           Скачать карточку JSON
         </a>
-      )}
-      {job?.status === "completed" && (
-        <div className={styles.actions}>
-          <button onClick={onEdit}>Внести правки</button>
-          <button onClick={onStop}>Остановить</button>
-        </div>
       )}
     </aside>
   );

@@ -11,25 +11,41 @@ const event = (type: string, status = "completed"): ProgressEvent => ({
   message: "Подтверждённое событие",
   data: {},
 });
-describe("Figma timeline reflects actual events", () => {
+describe("timeline reflects actual events", () => {
   it("does not invent progress before any operation", () => {
-    render(<Progress events={[]} />);
+    render(<Progress events={[event("job.changed")]} />);
     expect(screen.queryByRole("region", { name: "Ход работы" })).toBeNull();
   });
   it.each([
-    "document.completed",
-    "geometry.started",
-    "geometry.failed",
-    "requirements.started",
-    "stage1.completed",
-  ])("keeps future stages waiting after %s", (type) => {
-    render(<Progress events={[event(type)]} />);
-    expect(screen.getByText("Интерпретация задания")).toBeVisible();
+    ["files.completed", "Файлы прочитаны", "done"],
+    ["stl.completed", "STL проанализирован", "done"],
+    ["stl.failed", "STL проанализирован", "warn"],
+    ["triage.completed", "Главные вопросы", "done"],
+    ["interpretation.started", "ТЗ разобрано по аспектам", "run"],
+    ["consolidation.started", "Сводка в карточку", "run"],
+    ["discrepancies.completed", "Поиск несоответствий", "done"],
+  ])(
+    "%s marks its substep and keeps future stages waiting",
+    (type, title, state) => {
+      const status = type.endsWith("started")
+        ? "running"
+        : type.endsWith("failed")
+          ? "failed"
+          : "completed";
+      render(<Progress events={[event(type, status)]} />);
+      expect(screen.getByText(title).closest("details")).toHaveAttribute(
+        "data-state",
+        state,
+      );
+      expect(
+        screen.getByText("Подбор параметров").closest("details"),
+      ).toHaveAttribute("data-state", "wait");
+    },
+  );
+  it("defects in the model show a warning on the STL substep", () => {
+    render(<Progress events={[event("stl.completed", "warning")]} />);
     expect(
-      screen.getByText("Подбор параметров").closest("details"),
-    ).toHaveAttribute("data-state", "wait");
-    expect(
-      screen.getByText("Подготовка результата").closest("details"),
-    ).toHaveAttribute("data-state", "wait");
+      screen.getByText("STL проанализирован").closest("details"),
+    ).toHaveAttribute("data-state", "warn");
   });
 });

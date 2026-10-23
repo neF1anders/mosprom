@@ -5,7 +5,7 @@ from .models import Status
 
 TRANSITIONS = {
     Status.DRAFT: {Status.QUEUED, Status.STOPPED},
-    Status.QUEUED: {Status.RUNNING, Status.STOPPED, Status.QUEUED},
+    Status.QUEUED: {Status.RUNNING, Status.STOPPED, Status.FAILED},
     Status.RUNNING: {
         Status.QUEUED,
         Status.WAITING,
@@ -17,7 +17,7 @@ TRANSITIONS = {
     Status.FAILED: {Status.QUEUED, Status.STOPPED},
     Status.STOPPING: {Status.STOPPED, Status.QUEUED},
     Status.STOPPED: {Status.QUEUED},
-    Status.COMPLETED: {Status.QUEUED, Status.STOPPED},
+    Status.COMPLETED: {Status.QUEUED},
 }
 
 

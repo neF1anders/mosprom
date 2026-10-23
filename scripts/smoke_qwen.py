@@ -11,9 +11,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from PIL import Image, ImageDraw
 
+from src.backend.agents.tools import ConvertArgs
 from src.backend.config import Settings
 from src.backend.infrastructure.qwen import QwenClient
-from src.backend.services.tools import TOOL_SCHEMAS
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_units",
+            "description": "Точный перевод величины между единицами",
+            "parameters": ConvertArgs.model_json_schema(),
+        },
+    }
+]
 
 
 async def main():
@@ -43,7 +54,7 @@ async def main():
         "tools": [
             {
                 "role": "user",
-                "content": "Обязательно вызови search_knowledge с query плотность, material_id proto_pla, property density.",
+                "content": "Обязательно вызови convert_units и переведи 2.5 inch в mm.",
             }
         ],
         "context_8000_estimate": [
@@ -59,13 +70,20 @@ async def main():
     for name, messages in cases.items():
         start = time.monotonic()
         try:
-            answer = await asyncio.wait_for(
-                client.complete(messages, TOOL_SCHEMAS if name == "tools" else []), 45
+            reply = await asyncio.wait_for(
+                client.complete(
+                    messages, TOOLS if name == "tools" else [], agent="smoke", thinking=True
+                ),
+                120,
             )
             output[name] = {
                 "ok": True,
                 "seconds": round(time.monotonic() - start, 2),
-                "response": answer,
+                "content": reply.content,
+                "tool_calls": reply.tool_calls,
+                "finish_reason": reply.finish_reason,
+                "reasoning": reply.reasoning[:300],
+                "usage": reply.usage,
             }
         except Exception as exc:
             output[name] = {

@@ -5,11 +5,13 @@ export function Files({
   attachments,
   jobId,
   pending,
+  running,
   onRemove,
 }: {
   attachments: Attachment[];
   jobId: string;
   pending: boolean;
+  running: boolean;
   onRemove: (id: string) => void;
 }) {
   if (!attachments.length) return null;
@@ -49,10 +51,12 @@ export function Files({
                     ? file.kind === "stl"
                       ? "Готов к анализу"
                       : "Текст прочитан"
-                    : statusLabel[file.status] || file.status)}
+                    : running && file.status === "pending"
+                      ? "Проверяю"
+                      : statusLabel[file.status] || file.status)}
               </span>
               <img
-                src={`/figma/${file.status === "completed" ? "done" : file.status === "failed" ? "error" : "run"}.svg`}
+                src={`/figma/${file.status === "completed" ? "done" : file.status === "failed" ? "error" : running ? "run" : "wait"}.svg`}
                 alt={statusLabel[file.status] || file.status}
               />
             </div>

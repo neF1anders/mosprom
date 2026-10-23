@@ -1,144 +1,178 @@
+"""Algorithmic guardrails over requirements: citations, reconciliation, user decisions."""
+
 from __future__ import annotations
 
 import hashlib
 import re
-from collections import defaultdict
+from datetime import datetime, timezone
+from typing import Literal
 
-from .models import Conflict, Evidence, Question, Requirement, TaskCard
-from .rules import known, normalize_quantity
+from .models import Evidence, Question, Requirement, Source, Superseded
+from .rules import known
+from .units import numbers, plain, quantity_key
 
-
-def validate_evidence(card: TaskCard, sources: dict[str, dict]) -> TaskCard:
-    """Text quotes are matched; visual readings retain their actual page image."""
-    normalized = {key: " ".join(source.get("text", "").split()) for key, source in sources.items()}
-    for requirement in card.requirements:
-        valid = bool(requirement.sources)
-        quoted_numbers: set[str] = set()
-        for evidence in requirement.sources:
-            quote = " ".join(evidence.quote.split())
-            quoted_numbers.update(numbers(quote))
-            supported = _citation_supported(evidence, sources, normalized)
-            valid = valid and supported
-        requirement.verified = (
-            requirement.verified
-            and valid
-            and numbers(requirement.value).issubset(quoted_numbers)
-            and requirement.provenance != "assumption"
-        )
-        if requirement.mandatory and not requirement.verified:
-            key = verification_id(requirement)
-            card.questions.append(
-                Question(
-                    id=key,
-                    title=f"Уточните требование {requirement.label or requirement.key}",
-                    reason=f"Не удалось подтвердить значение {requirement.value} по источнику",
-                    options=[requirement.value] if requirement.sources else [],
-                )
-            )
-    return card
+METHOD = {"message": "user", "answer": "user", "document": "text", "knowledge": "knowledge"}
+_DASHES = str.maketrans({"–": "-", "—": "-", "−": "-", "ё": "е", "«": '"', "»": '"'})
+_AMOUNT = re.compile(r"^\s*(-?\d+(?:[.,]\d+)?)\s*(\S.*)?$")
+Citation = Literal["verified", "vision", "rejected"]
 
 
-def _citation_supported(evidence: Evidence, sources: dict, normalized: dict) -> bool:
-    source = sources.get(evidence.source_id, {})
-    quote = " ".join(evidence.quote.split())
-    evidence.method, evidence.artifact_id = "text", None
-    if not source or not quote or source.get("uncertain", False):
-        return False
-    if evidence.page is not None and evidence.page != source.get("page"):
-        return False
-    evidence.artifact_id = source.get("image")
-    if quote in normalized.get(evidence.source_id, ""):
-        evidence.method = "user" if source.get("method") == "user" else "text"
-        return True
-    if source.get("method") != "vision" or not source.get("image"):
-        return False
-    evidence.method = "vision"
-    return evidence.page == source.get("page") and evidence.page is not None
+def normalize_text(text: str) -> str:
+    return " ".join(text.casefold().translate(_DASHES).split())
 
 
-def _conflicts(requirements: list[Requirement]) -> list[Conflict]:
-    # One conflict per comparable property, rather than all O(n²) pairs of values.
-    groups: dict[tuple, dict[tuple, Requirement]] = defaultdict(dict)
-    for requirement in requirements:
-        value, unit = normalize_quantity(requirement.value, requirement.unit or "")
-        key = (requirement.key, requirement.conditions.strip().casefold(), unit)
-        groups[key][(value, unit)] = requirement
-    conflicts = []
-    for key, alternatives in groups.items():
-        if len(alternatives) < 2:
-            continue
-        identity = hashlib.sha256(str((key, sorted(alternatives))).encode()).hexdigest()[:16]
-        values = list(alternatives.values())
-        conflicts.append(
-            Conflict(
-                id=identity,
-                title=values[0].label or key[0],
-                options=[f"{r.value} {r.unit or ''}".strip() for r in values],
-                sources=[source for r in values for source in r.sources],
-            )
-        )
-    return conflicts
+def digest(*parts: str) -> str:
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
-def merge_cards(cards: list[TaskCard]) -> TaskCard:
-    result = TaskCard()
-    seen: set[tuple] = set()
-    for card in cards:
-        result.purpose = card.purpose or result.purpose
-        for field in (
-            "preferences",
-            "assumptions",
-            "unknowns",
-            "questions",
-            "conflicts",
-            "production_constraints",
-        ):
-            getattr(result, field).extend(getattr(card, field))
-        for requirement in card.requirements:
-            identity = (
-                requirement.key,
-                requirement.value,
-                requirement.unit,
-                requirement.conditions,
-            )
-            if identity not in seen:
-                seen.add(identity)
-                result.requirements.append(requirement)
-    result.conflicts.extend(_conflicts(result.requirements))
-    result.questions = list({q.id: q for q in result.questions}.values())
-    result.conflicts = list({c.id: c for c in result.conflicts}.values())
-    for field in ("preferences", "assumptions", "unknowns", "production_constraints"):
-        setattr(result, field, list(dict.fromkeys(getattr(result, field))))
-    return result
+def reference(requirement: Requirement) -> str:
+    return digest(requirement.key, normalize_text(requirement.conditions))
 
 
-def verification_id(requirement: Requirement) -> str:
-    return (
-        "verify." + hashlib.sha256((requirement.key + requirement.value).encode()).hexdigest()[:16]
+def display(requirement: Requirement) -> str:
+    return f"{requirement.value} {requirement.unit or ''}".strip()
+
+
+def check_citations(requirement: Requirement, sources: dict[str, Source]) -> Citation:
+    """Text must be quoted literally; image-only readings need an independent second reading."""
+    if requirement.provenance == "assumption" or not requirement.sources:
+        return "rejected"
+    pending, quoted = False, set[str]()
+    for evidence in requirement.sources:
+        source = sources.get(evidence.source_id)
+        if source is None or not evidence.quote.strip():
+            return "rejected"
+        if None not in (evidence.page, source.page) and evidence.page != source.page:
+            return "rejected"
+        evidence.page, evidence.artifact_id = source.page, source.image
+        quoted.update(plain(n) for n in numbers(evidence.quote))
+        if normalize_text(evidence.quote) in normalize_text(source.text):
+            evidence.method = METHOD[source.kind]  # type: ignore[assignment]
+        elif source.image:
+            evidence.method, pending = "vision", True
+        else:
+            return "rejected"
+    if not {plain(n) for n in numbers(requirement.value)} <= quoted:
+        return "rejected"
+    return "vision" if pending else "verified"
+
+
+def verify_question(requirement: Requirement, impact: str, options: list[str]) -> Question:
+    return Question(
+        id="verify." + reference(requirement),
+        kind="verify",
+        title=f"Уточните {requirement.label or requirement.key}",
+        impact=impact,
+        options=list(dict.fromkeys(o for o in options if o)),
+        sources=requirement.sources,
+        requirement_key=requirement.key,
     )
 
 
-def apply_answers(
-    card: TaskCard, answers: dict[str, str], resolutions: dict[str, str], source_id: str
-) -> None:
-    """Only persisted user commands can confirm or replace a requirement."""
-    for requirement in card.requirements:
-        key = verification_id(requirement)
-        answer = answers.get(key)
-        if answer is None or not known(answer):
+def same_quantity(requirement: Requirement, value: str, unit: str | None) -> bool:
+    return quantity_key(requirement.value, requirement.unit) == quantity_key(value, unit)
+
+
+def apply_decision(
+    requirement: Requirement, question_id: str, answer: str, alternatives: list[Requirement]
+) -> Requirement:
+    """A user's choice replaces the value; every other stated value is kept as history."""
+    chosen = next((a for a in alternatives if display(a) == answer.strip()), None)
+    value, unit = (chosen.value, chosen.unit) if chosen else _parse(answer, requirement.unit)
+    result = requirement.model_copy(
+        deep=True,
+        update={
+            "value": value,
+            "unit": unit,
+            "verified": True,
+            "provenance": "user",
+            "sources": [Evidence(source_id=f"answer:{question_id}", quote=answer, method="user")],
+        },
+    )
+    result.superseded.extend(
+        Superseded(
+            value=a.value, unit=a.unit, sources=a.sources, reason="Отклонено решением пользователя"
+        )
+        for a in alternatives
+        if not same_quantity(result, a.value, a.unit)
+    )
+    return result
+
+
+def _parse(answer: str, unit: str | None) -> tuple[str, str | None]:
+    match = _AMOUNT.match(answer)
+    if match is None:
+        return answer.strip(), None
+    return match.group(1), match.group(2) or unit
+
+
+def reconcile(
+    requirements: list[Requirement], sources: dict[str, Source], answers: dict[str, str]
+) -> tuple[list[Requirement], list[Question]]:
+    """One value per property: user statements win, documents that disagree go to the user."""
+    groups: dict[str, list[Requirement]] = {}
+    for requirement in requirements:
+        groups.setdefault(reference(requirement), []).append(requirement)
+    result, questions = [], []
+    for ref, members in groups.items():
+        distinct = _distinct(members)
+        if len(distinct) == 1:
+            result.append(distinct[0])
             continue
-        requirement.value = answer
-        requirement.verified = True
-        requirement.provenance = "user"
-        requirement.sources = [
-            Evidence(source_id=source_id, quote=f"{key} = {answer}", method="user")
-        ]
-    for conflict in card.conflicts:
-        conflict.resolution = resolutions.get(conflict.id)
-        conflict.resolved = known(conflict.resolution)
+        from_user = [m for m in distinct if _stated_by_user(m, sources)]
+        if from_user:
+            winner = max(from_user, key=lambda m: _newest(m, sources))
+            winner.superseded.extend(
+                Superseded(
+                    value=m.value,
+                    unit=m.unit,
+                    sources=m.sources,
+                    reason="Заменено сообщением пользователя",
+                )
+                for m in distinct
+                if m is not winner
+            )
+            result.append(winner)
+            continue
+        question = Question(
+            id="sources." + ref,
+            kind="discrepancy",
+            title=f"Источники расходятся, {distinct[0].label or distinct[0].key}",
+            impact="Влияет на подбор параметров",
+            options=[display(m) for m in distinct],
+            sources=[e for m in distinct for e in m.sources],
+            requirement_key=distinct[0].key,
+        )
+        answer = answers.get(question.id, "")
+        if known(answer):
+            result.append(apply_decision(distinct[0], question.id, answer, distinct))
+        else:
+            result.append(distinct[0].model_copy(update={"verified": False}))
+        questions.append(question)
+    return result, questions
 
 
-def numbers(text: str) -> set[str]:
-    return {
-        normalize_quantity(value, "")[0] for value in re.findall(r"(?<![\w])\d+(?:[.,]\d+)?", text)
-    }
+def _distinct(members: list[Requirement]) -> list[Requirement]:
+    unique: dict[tuple, Requirement] = {}
+    for member in sorted(members, key=lambda m: not m.verified):
+        primary = unique.setdefault(quantity_key(member.value, member.unit), member)
+        if primary is not member:
+            primary.sources.extend(e for e in member.sources if e.method is not None)
+    return list(unique.values())
+
+
+def _stated_by_user(requirement: Requirement, sources: dict[str, Source]) -> bool:
+    return any(
+        e.method == "user" and sources[e.source_id].kind in {"message", "answer"}
+        for e in requirement.sources
+        if e.source_id in sources
+    )
+
+
+def _newest(requirement: Requirement, sources: dict[str, Source]) -> datetime:
+    times = [
+        sources[e.source_id].created_at or datetime.min.replace(tzinfo=timezone.utc)
+        for e in requirement.sources
+        if e.method == "user" and e.source_id in sources
+    ]
+    return max(times)

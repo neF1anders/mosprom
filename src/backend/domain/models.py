@@ -33,83 +33,94 @@ class Status(StrEnum):
     COMPLETED = "completed"
 
 
+CARD_SCHEMA_VERSION = "2.0"
+DOCUMENT_VERSION = "documents-v3-full-pages"
+SELECT_PARAMETERS = "select_parameters"
+
+
 class Evidence(Value):
     source_id: str
     quote: str = ""
     page: int | None = None
-    method: Literal["text", "vision", "user"] = "text"
+    # Set by the server after verification, never trusted from the model.
+    method: Literal["text", "vision", "user", "knowledge"] | None = None
     artifact_id: str | None = None
 
 
+class Source(Value):
+    """Citable input: a chat message, an answer, a document page or a knowledge record.
+
+    ``id`` is the short handle agents cite within one run; ``ref`` is the stable reference
+    stored in the card (message id, ``attachment:page``, ``answer:question`` or ``kb:record``).
+    """
+
+    id: str
+    ref: str
+    kind: Literal["message", "answer", "document", "knowledge"]
+    text: str = ""
+    page: int | None = None
+    image: str | None = None
+    filename: str = ""
+    created_at: datetime | None = None
+
+
+class Superseded(Value):
+    value: str
+    unit: str | None = None
+    sources: list[Evidence] = Field(default_factory=list)
+    reason: str
+
+
 class Requirement(Value):
-    label: str = ""
     key: str
+    label: str = ""
     value: str
     unit: str | None = None
     conditions: str = ""
     mandatory: bool = True
-    provenance: Literal["user", "document", "measurement", "knowledge", "assumption"] = "document"
+    provenance: Literal["user", "document", "knowledge", "assumption"] = "document"
     sources: list[Evidence] = Field(default_factory=list)
-    verified: bool = True
+    verified: bool = False
+    superseded: list[Superseded] = Field(default_factory=list)
+
+
+class Assumption(Value):
+    text: str
+    basis: str = ""
+    consequence: str = ""
 
 
 class Question(Value):
     id: str
+    kind: Literal["units", "purpose", "clarify", "verify", "discrepancy"]
     title: str
-    reason: str
+    impact: str = ""
     options: list[str] = Field(default_factory=list)
-    affected_actions: list[str] = Field(default_factory=lambda: ["select_parameters"])
     suggested: str | None = None
     basis: str | None = None
+    sources: list[Evidence] = Field(default_factory=list)
+    requirement_key: str | None = None
+    blocking: bool = True
     answer: str | None = None
 
 
-class Conflict(Value):
-    id: str
-    title: str
-    options: list[str]
-    sources: list[Evidence] = Field(default_factory=list)
-    affected_actions: list[str] = Field(default_factory=lambda: ["select_parameters"])
-    resolution: str | None = None
-    resolved: bool = False
-
-
 class Geometry(Value):
+    """Summary of the analyzer report; the full report travels as StlAnalysis."""
+
     readable: bool = False
     units: str = "unknown"
-    coordinate_unit: Literal["unknown", "mm"] = "unknown"
     extents: list[float] = Field(default_factory=list)
+    watertight: bool | None = None
+    components: int | None = None
     defects: list[str] = Field(default_factory=list)
-    physical_volume_confirmed: bool = False
+    surface_area: float | None = None
+    volume: float | None = None
+    volume_basis: str = ""
+    min_wall_sample: float | None = None
+    sections: list[dict[str, Any]] = Field(default_factory=list)
+    limitations: list[str] = Field(default_factory=list)
     report_id: str | None = None
     preview_id: str | None = None
-    limitations: list[str] = Field(default_factory=list)
-
-
-class InterpretationCard(Value):
-    # Keep the established model-output contract independent of transport additions.
-    model_config = ConfigDict(extra="forbid", title="TaskCard")
-    schema_version: str = "1.0"
-    rules_version: str = "1"
-    knowledge_version: str = "kb001-v1"
-    revision: int = 0
-    purpose: str = ""
-    requirements: list[Requirement] = Field(default_factory=list)
-    preferences: list[str] = Field(default_factory=list)
-    geometry: Geometry = Field(default_factory=Geometry)
-    source_versions: list[dict[str, str]] = Field(default_factory=list)
-    production_constraints: list[str] = Field(default_factory=list)
-    assumptions: list[str] = Field(default_factory=list)
-    unknowns: list[str] = Field(default_factory=list)
-    questions: list[Question] = Field(default_factory=list)
-    conflicts: list[Conflict] = Field(default_factory=list)
-    allowed_actions: list[str] = Field(default_factory=list)
-    blocked_actions: dict[str, list[str]] = Field(default_factory=dict)
-    readiness: Literal["ready", "preliminary", "blocked"] = "blocked"
-
-
-CARD_SCHEMA_VERSION = "1.2"
-DOCUMENT_VERSION = "documents-v2-vision"
 
 
 class StlAnalysis(Value):
@@ -118,25 +129,73 @@ class StlAnalysis(Value):
     report: dict[str, Any]
 
 
-class TaskCard(InterpretationCard):
+class Remark(Value):
+    severity: Literal["critical", "major", "minor"]
+    text: str
+    requirement_key: str | None = None
+
+
+class Verdict(Value):
+    score: float = Field(ge=0, le=1)
+    passed: bool
+    reworked: bool = False
+    remarks: list[Remark] = Field(default_factory=list)
+
+
+class SourceFile(Value):
+    id: str
+    filename: str
+    kind: str
+    sha256: str
+
+
+class TaskCard(Value):
     schema_version: str = CARD_SCHEMA_VERSION
+    job_id: str
+    revision: int
+    purpose: str = ""
+    requirements: list[Requirement] = Field(default_factory=list)
+    preferences: list[str] = Field(default_factory=list)
+    production_constraints: list[str] = Field(default_factory=list)
+    assumptions: list[Assumption] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
+    questions: list[Question] = Field(default_factory=list)
+    geometry: Geometry | None = None
     stl_analysis: StlAnalysis | None = None
-    answers: dict[str, str] = Field(default_factory=dict)
-    resolutions: dict[str, str] = Field(default_factory=dict)
+    verdict: Verdict | None = None
+    readiness: Literal["ready", "preliminary", "blocked"] = "blocked"
+    allowed_actions: list[str] = Field(default_factory=list)
+    blocked_actions: dict[str, list[str]] = Field(default_factory=dict)
+    files: list[SourceFile] = Field(default_factory=list)
+    versions: dict[str, str] = Field(default_factory=dict)
+
+
+class Answer(Value):
+    title: str
+    value: str
+    revision: int
+    answered_at: datetime = Field(default_factory=now)
 
 
 class Job(Value):
     id: str = Field(default_factory=identifier)
+    user_id: str
     title: str = "Новое задание"
+    # "auto" titles follow the first request and the triage; a rename by the user sticks.
+    title_source: Literal["auto", "user"] = "auto"
+    deleted: bool = False
     revision: int = 0
     status: Status = Status.DRAFT
     units: str = "unknown"
     active_stl: str | None = None
     card: TaskCard | None = None
-    answers: dict[str, str] = Field(default_factory=dict)
-    resolutions: dict[str, str] = Field(default_factory=dict)
+    answers: dict[str, Answer] = Field(default_factory=dict)
+    # Files are attached without starting work; the next send processes them.
+    files_changed: bool = False
+    next_stage: Literal["not_ready", "queued"] = "not_ready"
+    # Stage-one step of the running revision; answers given before "consolidate" join it.
+    phase: Literal["triage", "deep", "consolidate", "verify"] | None = None
     error: str | None = None
-    handoff: str = "not_ready"
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
 
@@ -151,20 +210,24 @@ class Message(Value):
     id: str = Field(default_factory=identifier)
     job_id: str
     revision: int
-    role: str
+    role: Literal["user", "assistant"]
+    # Answers are echoed into the chat but reach the agents through Job.answers, not as text.
+    kind: Literal["chat", "answers"] = "chat"
     text: str
     created_at: datetime = Field(default_factory=now)
 
 
 class Attachment(Value):
     active: bool = True
+    # Not sent yet: a new upload waiting in the composer, or a removal the next send applies.
+    draft: bool = False
     id: str = Field(default_factory=identifier)
     job_id: str
     filename: str
     kind: str
     sha256: str
     size: int
-    status: str = "pending"
+    status: Literal["pending", "completed", "failed"] = "pending"
     error: str | None = None
     fragments: list[dict[str, Any]] = Field(default_factory=list)
     artifacts: list[str] = Field(default_factory=list)
@@ -182,14 +245,6 @@ class Event(Value):
     created_at: datetime = Field(default_factory=now)
 
 
-class Work(Value):
-    id: str = Field(default_factory=identifier)
-    job_id: str
-    revision: int
-    owner: str = ""
-    attempts: int = 0
-
-
 class Knowledge(Value):
     id: str
     material_id: str | None = None
@@ -201,5 +256,21 @@ class Knowledge(Value):
     method: str = ""
     text: str
     source: str
-    version: str = "kb001-v1"
-    scope: Literal["grade", "family", "rule", "printer", "example"] = "rule"
+    version: str = "kb001-v2"
+    scope: Literal["grade", "family", "rule", "printer"] = "rule"
+
+
+class AgentCall(Value):
+    """One provider round trip of an agent, stored verbatim for debugging and prompt tuning."""
+
+    job_id: str
+    revision: int
+    run_id: str
+    agent: str
+    step: int
+    started_at: datetime
+    duration_ms: int
+    request: dict[str, Any]
+    response: dict[str, Any] | None = None
+    tools: list[dict[str, Any]] = Field(default_factory=list)
+    error: str | None = None

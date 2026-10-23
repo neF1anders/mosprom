@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
-LIMITS = {"stl": 256, "pdf": 25, "docx": 25, "txt": 25, "md": 25, "png": 20, "jpg": 20, "jpeg": 20}
+KINDS = frozenset({"stl", "pdf", "docx", "txt", "md", "png", "jpg", "jpeg"})
 
 
 class InputLimits(BaseModel):
@@ -17,6 +17,8 @@ class InputLimits(BaseModel):
     image_pixels: int = Field(default=25_000_000, ge=1, le=25_000_000)
     expanded_docx_mib: int = Field(default=100, ge=1, le=100)
     companions: int = Field(default=20, ge=1, le=20)
+    # Every page and photo goes to the model in one request; this keeps it within the window.
+    job_images: int = Field(default=150, ge=1, le=150)
 
     def file_mib(self, kind: str) -> int:
         if kind == "stl":

@@ -2,12 +2,17 @@ export interface Evidence {
   source_id: string;
   quote: string;
   page: number | null;
-  method?: "text" | "vision" | "user";
+  method?: "text" | "vision" | "user" | "knowledge" | null;
   artifact_id?: string | null;
 }
+export interface Superseded {
+  value: string;
+  unit: string | null;
+  reason: string;
+}
 export interface Requirement {
-  label?: string;
   key: string;
+  label: string;
   value: string;
   unit: string | null;
   conditions: string;
@@ -15,55 +20,52 @@ export interface Requirement {
   verified: boolean;
   provenance: string;
   sources: Evidence[];
+  superseded: Superseded[];
 }
 export interface Question {
   id: string;
+  kind: "units" | "purpose" | "clarify" | "verify" | "discrepancy";
   title: string;
-  reason: string;
+  impact: string;
   options: string[];
-  answer: string | null;
-  suggested?: string | null;
-  basis?: string | null;
-  affected_actions: string[];
-}
-export interface Conflict {
-  id: string;
-  title: string;
-  options: string[];
+  suggested: string | null;
+  basis: string | null;
   sources: Evidence[];
-  resolved: boolean;
-  resolution: string | null;
-  affected_actions: string[];
+  blocking: boolean;
+  answer: string | null;
 }
 export interface Geometry {
   readable: boolean;
   units: string;
-  coordinate_unit?: "unknown" | "mm";
   extents: number[];
   defects: string[];
   limitations: string[];
   report_id: string | null;
-  preview_id?: string | null;
+  preview_id: string | null;
+}
+export interface Assumption {
+  text: string;
+  basis: string;
+  consequence: string;
+}
+export interface Remark {
+  severity: "critical" | "major" | "minor";
+  text: string;
 }
 export interface Card {
-  schema_version?: string;
-  stl_analysis?: {
-    attachment_id: string;
-    sha256: string;
-    report: Record<string, unknown>;
-  } | null;
-  answers?: Record<string, string>;
-  resolutions?: Record<string, string>;
+  schema_version: string;
+  job_id: string;
   revision: number;
   purpose: string;
   requirements: Requirement[];
   preferences: string[];
-  geometry: Geometry;
-  assumptions: string[];
+  production_constraints: string[];
+  assumptions: Assumption[];
   unknowns: string[];
   questions: Question[];
-  conflicts: Conflict[];
-  readiness: string;
+  geometry: Geometry | null;
+  verdict: { score: number; passed: boolean; remarks: Remark[] } | null;
+  readiness: "ready" | "preliminary" | "blocked";
   allowed_actions: string[];
   blocked_actions: Record<string, string[]>;
 }
@@ -75,12 +77,16 @@ export interface Job {
   status: string;
   card: Card | null;
   error: string | null;
-  handoff: string;
+  files_changed: boolean;
+  answers?: Record<string, { title: string; value: string }>;
+  next_stage: "not_ready" | "queued";
   created_at: string;
   updated_at: string;
 }
 export interface Attachment {
   id: string;
+  // Not sent yet: the file waits in the composer.
+  draft?: boolean;
   filename: string;
   kind: string;
   status: string;
@@ -91,6 +97,7 @@ export interface Message {
   id: string;
   seq: number;
   role: string;
+  kind?: "chat" | "answers";
   text: string;
   revision: number;
 }
@@ -117,5 +124,12 @@ export const statusLabel: Record<string, string> = {
   stopping: "Останавливаем",
   stopped: "Остановлено",
   completed: "Первый этап завершён",
-  pending: "Проверка в очереди",
+  pending: "Ждёт отправки",
 };
+export const UNKNOWN_ANSWER = "Не знаю";
+export function answered(question: Question) {
+  return (
+    !!question.answer?.trim() &&
+    question.answer.trim().toLowerCase() !== UNKNOWN_ANSWER.toLowerCase()
+  );
+}

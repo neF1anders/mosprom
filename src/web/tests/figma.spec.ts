@@ -18,10 +18,10 @@ for (const state of designStates)
       await expect(
         page.getByRole("region", { name: "Уточняющие вопросы" }),
       ).toBeVisible();
-    if (state === "conflict")
-      await expect(
-        page.getByRole("button", { name: "Подтвердить выбор" }),
-      ).toBeDisabled();
+    if (state === "conflict") {
+      await expect(page.getByText("Нужно ваше подтверждение")).toBeVisible();
+      await expect(page.getByRole("button", { pressed: true })).toHaveCount(0);
+    }
     await expect(
       page.getByRole("complementary", { name: "Карточка задания" }),
     ).toHaveCSS("background-color", "rgb(245, 245, 247)");

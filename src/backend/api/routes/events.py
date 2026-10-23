@@ -5,16 +5,20 @@ import asyncio
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
-from ..dependencies import Services
+from ..dependencies import Services, User
 
 router = APIRouter(tags=["events"])
 
 
 @router.get("/jobs/{job_id}/events")
 async def events(
-    job_id: str, request: Request, services: Services, after: int = Query(default=0, ge=0)
+    job_id: str,
+    request: Request,
+    services: Services,
+    user: User,
+    after: int = Query(default=0, ge=0),
 ):
-    await services.jobs.snapshot(job_id)
+    await services.jobs.ensure_owner(user, job_id)
     last_id = request.headers.get("last-event-id", "")
     cursor = max(after, int(last_id)) if last_id.isdigit() else after
 

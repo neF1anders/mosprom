@@ -37,11 +37,12 @@ def test_runtime_dependencies_cover_lazy_production_imports():
 @pytest.mark.parametrize(
     ("folder", "forbidden"),
     [
-        ("api/routes", ("sqlalchemy", "asyncpg", "infrastructure")),
-        ("services", ("sqlalchemy", "asyncpg", "fastapi", "infrastructure")),
-        ("domain", ("sqlalchemy", "asyncpg", "fastapi", "httpx", "infrastructure")),
-        ("ports", ("sqlalchemy", "asyncpg", "fastapi", "infrastructure")),
-        ("infrastructure", ("api.routes", "services")),
+        ("api/routes", ("sqlalchemy", "psycopg", "infrastructure")),
+        ("services", ("sqlalchemy", "psycopg", "fastapi", "infrastructure")),
+        ("agents", ("sqlalchemy", "psycopg", "fastapi", "infrastructure", "httpx")),
+        ("domain", ("sqlalchemy", "psycopg", "fastapi", "httpx", "infrastructure", "agents")),
+        ("ports", ("sqlalchemy", "psycopg", "fastapi", "infrastructure")),
+        ("infrastructure", ("api.routes", "services", "agents")),
     ],
 )
 def test_A01_import_boundaries(folder, forbidden):
@@ -56,10 +57,10 @@ def test_A01_import_boundaries(folder, forbidden):
             ), (path, names)
 
 
-def test_A01_worker_calls_shared_pipeline():
-    text = (ROOT / "worker.py").read_text()
-    assert "container.pipeline.run(work)" in text
-    assert "select(" not in text
+def test_A01_worker_runs_the_shared_stage_one():
+    text = (ROOT / "tasks.py").read_text()
+    assert "container.stage1.run(job_id, revision)" in text
+    assert "select(" not in (ROOT / "worker.py").read_text()
 
 
 def test_A01_application_branch_nesting_at_most_two():
@@ -69,6 +70,6 @@ def test_A01_application_branch_nesting_at_most_two():
         for child in ast.iter_child_nodes(node):
             visit(child, current)
 
-    for folder in ["domain", "services"]:
+    for folder in ["domain", "services", "agents"]:
         for path in (ROOT / folder).glob("*.py"):
             visit(ast.parse(path.read_text()))

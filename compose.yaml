@@ -17,14 +17,13 @@ services:
       context: .
       target: runtime
     environment: &app_environment
-      DATABASE_URL: postgresql+asyncpg://mosprom:${POSTGRES_PASSWORD:-mosprom_local}@db:5432/mosprom
+      DATABASE_URL: postgresql+psycopg://mosprom:${POSTGRES_PASSWORD:-mosprom_local}@db:5432/mosprom
       DATA_DIR: /data
       SESSION_SECRET: ${SESSION_SECRET:?Run python scripts/bootstrap.py first}
       QWEN_API_KEY: ${QWEN_API_KEY:-}
       QWEN_BASE_URL: ${QWEN_BASE_URL:-https://api.timeweb.ai/v1}
       QWEN_MODEL: ${QWEN_MODEL:-dashscope/qwen3.8-flash}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8000}
-      HANDOFF_URL: ${HANDOFF_URL:-}
     command: [sh, -c, "alembic upgrade head && python scripts/import_knowledge.py && uvicorn src.backend.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
     ports: ["127.0.0.1:8000:8000"]
     volumes: ["files:/data"]

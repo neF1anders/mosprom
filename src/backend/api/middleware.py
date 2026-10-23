@@ -9,6 +9,8 @@ from starlette.responses import JSONResponse
 from ..domain.errors import AppError
 from ..domain.tokens import verify_token
 
+PUBLIC = {"/api/v1/health", "/api/v1/session/exchange"}
+
 
 class LocalSecurity(BaseHTTPMiddleware):
     def __init__(self, app, origin: str, secret: str):
@@ -22,10 +24,9 @@ class LocalSecurity(BaseHTTPMiddleware):
         origin = request.headers.get("origin")
         if origin and origin != self.origin:
             return JSONResponse({"error": "Недопустимый Origin"}, status_code=403)
-        public = {"/api/v1/health", "/api/v1/session/exchange"}
-        if request.url.path.startswith("/api/") and request.url.path not in public:
+        if request.url.path.startswith("/api/") and request.url.path not in PUBLIC:
             try:
-                verify_token(
+                request.state.user_id = verify_token(
                     self.secret,
                     request.cookies.get("mosprom_session", ""),
                     "session",
@@ -37,6 +38,6 @@ class LocalSecurity(BaseHTTPMiddleware):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+            "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
         )
         return response

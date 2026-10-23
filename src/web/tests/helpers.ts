@@ -11,6 +11,7 @@ function token() {
       kind: "launch",
       expires: Math.floor(Date.now() / 1000) + 600,
       nonce: randomUUID(),
+      user_id: "e2e",
     }),
   ).toString("base64url");
   return (
@@ -37,8 +38,24 @@ export async function settled(page: Page) {
     }),
   ).toBeVisible();
 }
-export async function upload(page: Page, name: string) {
+export async function attach(page: Page, name: string) {
   await page
     .getByLabel("Выбрать файлы", { exact: true })
     .setInputFiles(fixture(name));
+}
+export async function upload(page: Page, name: string) {
+  await attach(page, name);
+  const sendButton = page.getByRole("button", {
+    name: "Отправить",
+    exact: true,
+  });
+  await expect(sendButton).toBeEnabled();
+  await sendButton.click();
+}
+export async function answer(page: Page, option: string) {
+  const window = page.getByRole("region", { name: "Уточняющие вопросы" });
+  // Sending without a choice records "Не знаю".
+  if (option !== "Не знаю")
+    await window.getByRole("button", { name: option, exact: true }).click();
+  await window.getByRole("button", { name: "Отправить ответы" }).click();
 }

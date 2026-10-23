@@ -1,7 +1,7 @@
 <svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g id="icon/run" clip-path="url(#clip0_0_34)">
 <path id="Vector" d="M14.6667 8C14.6667 11.6819 11.6819 14.6667 8 14.6667C4.3181 14.6667 1.33333 11.6819 1.33333 8C1.33333 4.3181 4.3181 1.33333 8 1.33333C11.6819 1.33333 14.6667 4.3181 14.6667 8Z" stroke-width="1.8" stroke="#E6E7EB"/>
-<path id="Vector_2" d="M8 1.33333C8.87548 1.33333 9.74239 1.50577 10.5512 1.8408C11.3601 2.17583 12.095 2.6669 12.714 3.28595C13.3331 3.90501 13.8242 4.63994 14.1592 5.44878C14.4942 6.25761 14.6667 7.12452 14.6667 8" stroke-width="1.8" stroke-linecap="round" stroke="#13141A"/>
+<path id="Vector_2" d="M8 1.33333C8.87548 1.33333 9.74239 1.50577 10.5512 1.8408C11.3601 2.17583 12.095 2.6669 12.714 3.28595C13.3331 3.90501 13.8242 4.63994 14.1592 5.44878C14.4942 6.25761 14.6667 7.12452 14.6667 8" stroke-width="1.8" stroke-linecap="round" stroke="#13141A"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.9s" repeatCount="indefinite"/></path>
 </g>
 <defs>
 <clipPath id="clip0_0_34">

@@ -1,66 +1,65 @@
+"""Stage-one worker: claims Procrastinate jobs; several workers may run side by side."""
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-import signal
-from uuid import uuid4
+
+from procrastinate import App
 
 from .config import Settings
 from .container import Container
-from .domain.errors import AppError
+from .infrastructure.queue import STAGE1_QUEUE
+from .tasks import register
 
 logger = logging.getLogger(__name__)
+STALLED_CHECK_SECONDS = 30
 
 
-async def heartbeat(container, work, task):
-    while not task.done():
-        await asyncio.sleep(5)
-        async with container.uow() as uow:
-            valid = await uow.queue.heartbeat(work)
-            await uow.commit()
-        if not valid:
-            task.cancel()
-            return
+async def retry_stalled(queue: App) -> int:
+    """Jobs of a worker that died without a heartbeat go back to the queue."""
+    retried = 0
+    for job in await queue.job_manager.get_stalled_jobs():
+        logger.warning("Retrying stalled job %s", job.id)
+        try:
+            await queue.job_manager.retry_job(job)
+            retried += 1
+        except Exception:
+            # Another worker may have returned it to the queue first.
+            logger.info("Stalled job %s was already retried", job.id)
+    return retried
 
 
-async def execute(container, work):
-    task = asyncio.create_task(container.pipeline.run(work))
-    pulse = asyncio.create_task(heartbeat(container, work, task))
+async def recover_stalled(queue: App, interval: float = STALLED_CHECK_SECONDS) -> None:
+    """Checking only at startup misses the job killed by that same restart.
+
+    The dead worker's last heartbeat is still fresh then, so the check runs as long as the
+    worker does.
+    """
+    while True:
+        try:
+            await retry_stalled(queue)
+        except Exception:
+            logger.exception("Stalled job check failed")
+        await asyncio.sleep(interval)
+
+
+async def main() -> None:
+    settings = Settings()
+    container = Container(settings)
+    register(container)
     try:
-        await task
-    except asyncio.CancelledError:
-        return
-    except Exception:
-        logger.exception("Worker operation failed for job %s", work.job_id)
-        await container.pipeline._fail(
-            work, AppError("Внутренняя ошибка обработки, состояние сохранено", "worker_error", 503)
-        )
-    finally:
-        pulse.cancel()
-        await asyncio.gather(pulse, return_exceptions=True)
-    async with container.uow() as uow:
-        await uow.queue.finish(work)
-        await uow.commit()
-
-
-async def main():
-    container = Container(Settings())
-    owner, stop = str(uuid4()), asyncio.Event()
-    loop = asyncio.get_running_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop.set)
-    try:
-        while not stop.is_set():
-            async with container.uow() as uow:
-                work = await uow.queue.claim(owner)
-                await uow.commit()
-            if work:
-                await execute(container, work)
-                continue
+        async with container.queue.open_async():
+            recovery = asyncio.create_task(recover_stalled(container.queue))
             try:
-                await asyncio.wait_for(stop.wait(), 0.5)
-            except TimeoutError:
-                pass
+                await container.queue.run_worker_async(
+                    queues=[STAGE1_QUEUE], concurrency=settings.worker_concurrency
+                )
+            finally:
+                recovery.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await recovery
     finally:
         await container.close()
 

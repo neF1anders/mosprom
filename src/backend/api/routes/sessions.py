@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Response
 
-from ..dependencies import Services
+from ...services.sessions import SESSION_SECONDS
+from ..dependencies import Services, User
 from ..schemas import Launch
 
 router = APIRouter(tags=["sessions"])
@@ -12,11 +13,11 @@ router = APIRouter(tags=["sessions"])
 async def exchange(body: Launch, response: Response, services: Services):
     token = await services.sessions.exchange(body.token)
     response.set_cookie(
-        "mosprom_session", token, httponly=True, samesite="strict", max_age=30 * 86400
+        "mosprom_session", token, httponly=True, samesite="strict", max_age=SESSION_SECONDS
     )
     return {"authenticated": True}
 
 
 @router.get("/session")
-async def session():
-    return {"authenticated": True}
+async def session(user: User):
+    return {"authenticated": True, "user_id": user}

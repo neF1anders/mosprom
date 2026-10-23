@@ -4,7 +4,7 @@ test("T14 Figma desktop and narrow view artifacts", async ({ page }, info) => {
   await open(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.screenshot({ path: info.outputPath("start-desktop.png") });
-  await send(page, "TEST_QUESTIONS TEST_CONFLICT Проверка макета");
+  await send(page, "TEST_QUESTIONS Проверка макета");
   await settled(page);
   await page.screenshot({ path: info.outputPath("questions-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -43,6 +43,6 @@ test("T14 narrow panels open as drawers and close with Escape", async ({
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Закрыть панель", exact: true })
-    .click({position:{x:5,y:5}});
+    .click({ position: { x: 5, y: 5 } });
   await expect(page.getByLabel("Сообщение", { exact: true })).toBeVisible();
 });

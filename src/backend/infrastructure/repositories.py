@@ -4,11 +4,11 @@ import builtins
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.dialects.postgresql import array, insert
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.errors import AppError, NotFound
-from ..domain.models import Attachment, Event, Job, JobHead, Knowledge, Message
+from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
 from . import tables as t
 
 
@@ -34,27 +34,41 @@ class JobRepository:
             raise NotFound()
         return JobHead.model_validate(dict(row))
 
-    async def get(self, job_id: str, *, lock: bool = False) -> Job:
+    async def get(self, job_id: str, *, user_id: str | None = None, lock: bool = False) -> Job:
+        """Without user_id the caller is the system worker; requests always pass their user."""
         query = select(t.jobs.c.payload).where(t.jobs.c.id == job_id)
+        if user_id is not None:
+            query = query.where(t.jobs.c.user_id == user_id)
         if lock:
             query = query.with_for_update()
         value = await self._session.scalar(query)
         if value is None:
             raise NotFound()
-        return Job.model_validate(value)
+        job = Job.model_validate(value)
+        # A deleted chat is gone for its user; the worker still sees it to stop the run.
+        if user_id is not None and job.deleted:
+            raise NotFound()
+        return job
 
     async def save(self, job: Job) -> None:
-        query = insert(t.jobs).values(id=job.id, payload=job.model_dump(mode="json"))
+        payload = job.model_dump(mode="json")
+        query = insert(t.jobs).values(id=job.id, user_id=job.user_id, payload=payload)
         await self._session.execute(
             query.on_conflict_do_update(
                 index_elements=["id"], set_={"payload": query.excluded.payload}
             )
         )
 
-    async def list(self, before: str | None = None, limit: int = 50) -> builtins.list[Job]:
+    async def list(
+        self, user_id: str, before: str | None = None, limit: int = 50
+    ) -> builtins.list[Job]:
         updated = t.jobs.c.payload["updated_at"].astext
         query = (
-            select(t.jobs.c.payload.op("-")(array(["card", "answers", "resolutions"])))
+            select(t.jobs.c.payload.op("-")("card"))
+            .where(
+                t.jobs.c.user_id == user_id,
+                t.jobs.c.payload["deleted"].astext.is_distinct_from("true"),
+            )
             .order_by(updated.desc(), t.jobs.c.id.desc())
             .limit(limit)
         )
@@ -135,13 +149,6 @@ class JobRepository:
             insert(t.cache).values(key=key, payload=value).on_conflict_do_nothing()
         )
 
-    async def card_version(self, job: Job) -> None:
-        await self._session.execute(
-            insert(t.cards)
-            .values(job_id=job.id, revision=job.revision, payload=job.model_dump(mode="json"))
-            .on_conflict_do_nothing()
-        )
-
 
 class EventRepository:
     def __init__(self, session: AsyncSession):
@@ -212,3 +219,15 @@ class KnowledgeRepository:
             )
         statement = statement.order_by(t.knowledge.c.id).offset(offset).limit(5)
         return [Knowledge.model_validate(v) for v in await self._session.scalars(statement)]
+
+    async def all(self) -> builtins.list[Knowledge]:
+        statement = select(t.knowledge.c.payload).order_by(t.knowledge.c.id)
+        return [Knowledge.model_validate(v) for v in await self._session.scalars(statement)]
+
+
+class TraceRepository:
+    def __init__(self, session: AsyncSession):
+        self._session = session
+
+    async def record(self, call: AgentCall) -> None:
+        await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))

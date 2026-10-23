@@ -1,4 +1,5 @@
 import os
+import time
 
 import httpx
 import pytest
@@ -10,7 +11,11 @@ from src.backend.config import Settings
 from src.backend.domain.tokens import sign_token
 
 TEST_DATABASE = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+asyncpg://mosprom:mosprom_local@127.0.0.1:55432/mosprom_test"
+    "TEST_DATABASE_URL", "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom_test"
+)
+TABLES = (
+    "jobs, messages, attachments, events, receipts, operation_cache, knowledge, agent_calls, "
+    "procrastinate_jobs, procrastinate_events"
 )
 
 
@@ -29,26 +34,32 @@ async def pg(tmp_path):
     )
     container = app.state.container
     async with container.engine.begin() as connection:
-        await connection.execute(
-            text(
-                "TRUNCATE jobs, messages, attachments, events, receipts, operation_cache, cards, work_queue, knowledge RESTART IDENTITY"
-            )
-        )
+        await connection.execute(text(f"TRUNCATE {TABLES} RESTART IDENTITY CASCADE"))
     yield container
     await container.close()
 
 
+async def client(container, user_id: str) -> httpx.AsyncClient:
+    app = create_app(container.settings)
+    app.state.container = container
+    session = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
+    )
+    token = sign_token(container.settings.session_secret, "launch", int(time.time()) + 60, user_id)
+    response = await session.post("/api/v1/session/exchange", json={"token": token})
+    assert response.status_code == 200
+    return session
+
+
 @pytest_asyncio.fixture
 async def http(pg):
-    import time
+    session = await client(pg, "alice")
+    yield session
+    await session.aclose()
 
-    app = create_app(pg.settings)
-    app.state.container = pg
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
-    ) as client:
-        token = sign_token(pg.settings.session_secret, "launch", int(time.time()) + 60)
-        response = await client.post("/api/v1/session/exchange", json={"token": token})
-        assert response.status_code == 200
-        yield client
-    await app.state.container.close()
+
+@pytest_asyncio.fixture
+async def other(pg):
+    session = await client(pg, "bob")
+    yield session
+    await session.aclose()

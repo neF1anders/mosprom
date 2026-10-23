@@ -9,12 +9,14 @@ from typing import Any
 from zipfile import BadZipFile, ZipFile
 
 from ..domain.errors import AppError
-from ..domain.limits import LIMITS, InputLimits
+from ..domain.limits import KINDS, InputLimits
+
+FULL_PAGE_PIXELS = 4096
 
 
 def inspect_document(path: Path, kind: str, limits: InputLimits | None = None) -> dict[str, Any]:
     limits = limits or InputLimits()
-    if kind not in LIMITS:
+    if kind not in KINDS - {"stl"}:
         raise AppError("Формат файла не поддерживается", "unsupported_type")
     size = path.stat().st_size
     if not size:
@@ -29,7 +31,6 @@ def inspect_document(path: Path, kind: str, limits: InputLimits | None = None) -
         "png": _image,
         "jpg": _image,
         "jpeg": _image,
-        "stl": _stl,
     }
     try:
         return parsers[kind](path, limits)
@@ -41,8 +42,8 @@ def inspect_document(path: Path, kind: str, limits: InputLimits | None = None) -
         ) from exc
 
 
-def _fragment(text: str, page: int, **extra: Any) -> dict[str, Any]:
-    return {"text": text, "page": page, "method": "text", "uncertain": False, **extra}
+def _fragment(text: str, page: int, image: str | None = None) -> dict[str, Any]:
+    return {"text": text, "page": page, "image": image}
 
 
 def _text(path: Path, limits: InputLimits) -> dict[str, Any]:
@@ -74,7 +75,29 @@ def _docx(path: Path, limits: InputLimits) -> dict[str, Any]:
             blocks.extend(" | ".join(cell.text for cell in row.cells) for row in block.rows)
         else:
             blocks.append(block.text)
-    return {"fragments": [_fragment("\n".join(blocks), 1)], "artifacts": []}
+    fragments, artifacts = [_fragment("\n".join(blocks), 1)], []
+    # Drawings embedded in the document are read by the model like scanned pages.
+    for number, part in enumerate(_docx_images(doc), 2):
+        artifact = _image_artifact(_open_image(part.blob, limits), path, f"figure-{number}")
+        fragments.append(_fragment("", number, artifact))
+        artifacts.append(artifact)
+    return {"fragments": fragments, "artifacts": artifacts}
+
+
+def _docx_images(doc) -> list:
+    return [rel.target_part for rel in doc.part.rels.values() if "image" in rel.reltype]
+
+
+def _open_image(blob: bytes, limits: InputLimits):
+    from io import BytesIO
+
+    from PIL import Image
+
+    image = Image.open(BytesIO(blob))
+    if image.width * image.height > limits.image_pixels:
+        raise AppError("Рисунок в документе превышает 25 мегапикселей", "pixel_limit", 413)
+    image.load()
+    return image
 
 
 def _pdf(path: Path, limits: InputLimits) -> dict[str, Any]:
@@ -115,10 +138,11 @@ def page_deadline(seconds: float):
 
 
 def _image_artifact(image, path: Path, suffix: str) -> str:
+    """Full-resolution page; the request downsizes it, view_page crops it."""
     artifact = f"{path.name}-{suffix}.png"
-    preview = image.convert("RGB")
-    preview.thumbnail((2048, 2048))
-    preview.save(path.parent / artifact)
+    page = image.convert("RGB")
+    page.thumbnail((FULL_PAGE_PIXELS, FULL_PAGE_PIXELS))
+    page.save(path.parent / artifact)
     return artifact
 
 
@@ -126,11 +150,11 @@ def _pdf_page(path, number, page, rendered, limits):
     text = page.extract_text(extraction_mode="layout") or ""
     pdf_page = rendered[number - 1]
     width, height = pdf_page.get_size()
-    if width * height * 4 > limits.image_pixels:
-        raise AppError("Страница PDF превышает лимит рендера 25 мегапикселей", "pixel_limit", 413)
-    image = pdf_page.render(scale=2).to_pil()
+    # Render as sharply as the pixel budget allows; large drawings get a smaller scale.
+    scale = min(3.0, (limits.image_pixels / (width * height)) ** 0.5)
+    image = pdf_page.render(scale=scale).to_pil()
     artifact = _image_artifact(image, path, f"page-{number}")
-    return _fragment(text, number, method="vision", image=artifact), artifact
+    return _fragment(text, number, artifact), artifact
 
 
 def _image(path: Path, limits: InputLimits) -> dict[str, Any]:
@@ -144,17 +168,4 @@ def _image(path: Path, limits: InputLimits) -> dict[str, Any]:
         image.verify()
     with Image.open(path) as image:
         artifact = _image_artifact(image, path, "preview")
-    return {
-        "fragments": [_fragment("", 1, method="vision", image=artifact)],
-        "artifacts": [artifact],
-    }
-
-
-def _stl(path: Path, limits: InputLimits) -> dict[str, Any]:
-    from src.mesh_analysis import read_stl
-
-    try:
-        read_stl(path, limits.stl_mib * 1024 * 1024, limits.triangles)
-    except ValueError as exc:
-        raise AppError(str(exc), "invalid_stl") from exc
-    return {"fragments": [], "artifacts": []}
+    return {"fragments": [_fragment("", 1, artifact)], "artifacts": [artifact]}

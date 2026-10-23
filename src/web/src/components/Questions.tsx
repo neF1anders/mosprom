@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Question } from "../types";
+import { answered, UNKNOWN_ANSWER } from "../types";
 import styles from "../App.module.css";
 
 export function Questions({
@@ -11,39 +12,115 @@ export function Questions({
   onAnswer: (values: Record<string, string>) => void;
   pending: boolean;
 }) {
-  const unanswered = questions.filter((q) => q.answer === null);
+  // "Не знаю" is not an answer: such questions stay open and can be answered later.
+  const open = questions.filter((q) => !answered(q));
   const [index, setIndex] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
-  const question = unanswered[Math.min(index, unanswered.length - 1)];
+  const question = open[Math.min(index, open.length - 1)];
   if (!question) return null;
   const answer = values[question.id] || "";
   const options = [...new Set(question.options)].filter(
-    (option) => option !== "Не знаю",
+    (option) => option !== UNKNOWN_ANSWER,
   );
+  const several = open.length > 1;
+  const last = index >= open.length - 1;
+  // Moving on without an answer records "Не знаю": the question stays open for later.
+  const settle = () =>
+    answer.trim() ? values : { ...values, [question.id]: UNKNOWN_ANSWER };
+  const advance = () => {
+    const next = settle();
+    if (!last) {
+      setValues(next);
+      setIndex((i) => i + 1);
+      return;
+    }
+    if (pending) return;
+    onAnswer(
+      Object.fromEntries(Object.entries(next).filter(([, v]) => v.trim())),
+    );
+  };
+  const advanceRef = useRef(advance);
+  advanceRef.current = advance;
+  useEffect(() => {
+    // Enter works as Далее even when nothing on the page has focus.
+    const key = (event: globalThis.KeyboardEvent) => {
+      if (
+        event.key === "Enter" &&
+        !event.shiftKey &&
+        !event.isComposing &&
+        document.activeElement === document.body
+      ) {
+        event.preventDefault();
+        advanceRef.current();
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, []);
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing ||
+      target.closest("[data-native-enter]")
+    )
+      return;
+    event.preventDefault();
+    const option = target.closest<HTMLElement>("[data-option]")?.dataset.option;
+    if (option !== undefined) {
+      const next = { ...values, [question.id]: option };
+      setValues(next);
+      if (!last) setIndex((i) => i + 1);
+      else if (!pending) onAnswer(next);
+      return;
+    }
+    advance();
+  };
   return (
-    <section className={styles.question} aria-label="Уточняющие вопросы">
-      <div className={styles.row}>
-        <span className={styles.questionCounter}>
-          Вопрос {index + 1} из {unanswered.length}
-        </span>
-        <nav className={styles.steps} aria-label="Номера вопросов">
-          {unanswered.map((q, i) => (
-            <button
-              key={q.id}
-              aria-current={index === i ? "step" : undefined}
-              onClick={() => setIndex(i)}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </nav>
-      </div>
+    <section
+      className={styles.question}
+      aria-label="Уточняющие вопросы"
+      onKeyDown={onKeyDown}
+    >
+      {question.kind === "discrepancy" && (
+        <p className={styles.conflictHeading}>
+          <img src="/figma/warn.svg" alt="" />
+          Нужно ваше подтверждение
+        </p>
+      )}
+      {several && (
+        <div className={styles.row}>
+          <span className={styles.questionCounter}>
+            Вопрос {index + 1} из {open.length}
+          </span>
+          <nav
+            className={styles.steps}
+            aria-label="Номера вопросов"
+            data-native-enter
+          >
+            {open.map((q, i) => (
+              <button
+                key={q.id}
+                aria-current={index === i ? "step" : undefined}
+                onClick={() => setIndex(i)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
       <h3>{question.title}</h3>
-      <p className={styles.muted}>{question.reason}</p>
+      {question.impact && <p className={styles.muted}>{question.impact}</p>}
+      {question.answer && (
+        <p className={styles.muted}>Раньше вы ответили {question.answer}</p>
+      )}
       <div className={styles.options}>
         {options.map((option, i) => (
           <button
             key={option}
+            data-option={option}
             aria-label={option}
             aria-pressed={answer === option}
             data-suggested={!answer && question.suggested === option}
@@ -76,7 +153,7 @@ export function Questions({
             id={`answer-${question.id}`}
             placeholder="Напишите свой вариант"
             value={
-              question.options.includes(answer) || answer === "Не знаю"
+              options.includes(answer) || answer === UNKNOWN_ANSWER
                 ? ""
                 : answer
             }
@@ -86,41 +163,32 @@ export function Questions({
           />
         </div>
       </div>
+      {question.sources.length > 0 && (
+        <details className={styles.sources}>
+          <summary>Источники</summary>
+          {question.sources.map((source, i) => (
+            <blockquote key={i}>
+              {source.quote}
+              {source.page ? <small>страница {source.page}</small> : null}
+            </blockquote>
+          ))}
+        </details>
+      )}
       <div className={styles.actions}>
         {index > 0 && (
-          <button onClick={() => setIndex((i) => i - 1)}>Назад</button>
-        )}
-        {(index < unanswered.length - 1 || !answer) && (
-          <button
-            aria-label={!answer ? "Не знаю" : undefined}
-            title={!answer ? "Не знаю — пропустить вопрос" : undefined}
-            onClick={() => {
-              if (!answer)
-                setValues((values) => ({
-                  ...values,
-                  [question.id]: "Не знаю",
-                }));
-              setIndex((i) => Math.min(i + 1, unanswered.length - 1));
-            }}
-          >
-            {answer ? "Следующий вопрос" : "Пропустить"}
+          <button data-native-enter onClick={() => setIndex((i) => i - 1)}>
+            Назад
           </button>
         )}
-        {Object.values(values).some((v) => v.trim()) && (
-          <button
-            className={styles.primary}
-            disabled={pending || !Object.values(values).some((v) => v.trim())}
-            onClick={() =>
-              onAnswer(
-                Object.fromEntries(
-                  Object.entries(values).filter(([, v]) => v.trim()),
-                ),
-              )
-            }
-          >
-            Отправить ответы
-          </button>
-        )}
+        <button
+          className={styles.primary}
+          data-native-enter
+          disabled={last && pending}
+          aria-label={last ? "Отправить ответы" : undefined}
+          onClick={advance}
+        >
+          {last ? "Отправить" : "Далее"}
+        </button>
       </div>
     </section>
   );

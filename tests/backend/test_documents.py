@@ -14,7 +14,7 @@ def test_T01_empty_files_rejected(tmp_path, kind):
         inspect_document(path, kind)
 
 
-@pytest.mark.parametrize("kind", ["pdf", "docx", "png", "jpg", "stl"])
+@pytest.mark.parametrize("kind", ["pdf", "docx", "png", "jpg"])
 def test_T01_spoofed_extensions_rejected(tmp_path, kind):
     path = tmp_path / ("spoof." + kind)
     path.write_text("not this file format")
@@ -41,3 +41,28 @@ def test_configured_page_limit_is_enforced(limit):
             Path("tests/fixtures/too-many-pages.pdf"), "pdf", InputLimits(pdf_pages=limit)
         )
     assert exc.value.code == "page_limit"
+
+
+def test_stl_is_not_a_document(tmp_path):
+    path = tmp_path / "model.stl"
+    path.write_bytes(b"solid x")
+    with pytest.raises(AppError) as exc:
+        inspect_document(path, "stl")
+    assert exc.value.code == "unsupported_type"
+
+
+def test_docx_drawings_become_pages(tmp_path):
+    from docx import Document
+    from PIL import Image
+
+    picture = tmp_path / "drawing.png"
+    Image.new("RGB", (300, 200), "white").save(picture)
+    document = Document()
+    document.add_paragraph("Номинальный момент 25 Нм")
+    document.add_picture(str(picture))
+    path = tmp_path / "task"
+    document.save(path)
+    result = inspect_document(path, "docx")
+    assert [f["page"] for f in result["fragments"]] == [1, 2]
+    assert result["fragments"][1]["image"] == result["artifacts"][0]
+    assert (tmp_path / result["artifacts"][0]).is_file()

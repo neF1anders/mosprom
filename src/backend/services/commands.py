@@ -16,20 +16,42 @@ def fingerprint(payload: Any) -> str:
     ).hexdigest()
 
 
-async def changed(uow: UnitOfWork, job: Job, message: str, *, enqueue: bool = True) -> None:
+async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
+    """A new revision and its stage-one job commit together with the change itself."""
     job.updated_at = now()
-    if enqueue:
-        job.revision += 1
-        job.status = transition(job.status, Status.QUEUED)
-        job.error = None
-        job.handoff = "not_ready"
-        await uow.queue.enqueue(job)
+    job.revision += 1
+    job.status = transition(job.status, Status.QUEUED)
+    job.error = None
+    job.files_changed = False
+    job.next_stage = "not_ready"
+    job.phase = None
     await uow.jobs.save(job)
+    for attachment in await uow.jobs.attachments(job.id):
+        if attachment.draft:
+            attachment.draft = False
+            await uow.jobs.attachment(attachment)
+    await uow.queue.stage1(job.id, job.revision)
     await uow.events.append(
         Event(
             job_id=job.id,
             revision=job.revision,
             type="job.changed",
+            status=job.status,
+            message=message,
+        )
+    )
+
+
+async def attached(uow: UnitOfWork, job: Job, message: str, files_changed: bool = True) -> None:
+    """File changes wait for the user's next send instead of starting work."""
+    job.updated_at = now()
+    job.files_changed = files_changed
+    await uow.jobs.save(job)
+    await uow.events.append(
+        Event(
+            job_id=job.id,
+            revision=job.revision,
+            type="job.files_changed",
             status=job.status,
             message=message,
         )
@@ -42,6 +64,7 @@ class Commands:
 
     async def execute(
         self,
+        user_id: str,
         job_id: str,
         request_id: str,
         payload: dict[str, Any],
@@ -52,7 +75,7 @@ class Commands:
             previous = await uow.jobs.receipt(key, digest)
             if previous is not None:
                 return previous
-            job = await uow.jobs.get(job_id, lock=True)
+            job = await uow.jobs.get(job_id, user_id=user_id, lock=True)
             result = await operation(uow, job)
             await uow.jobs.remember(key, digest, result)
             await uow.commit()

@@ -36,7 +36,7 @@ class LocalFiles:
             async for chunk in chunks:
                 size += len(chunk)
                 if size > limit:
-                    raise AppError("Файл превышает допустимый размер", "file_too_large", 413)
+                    raise AppError(f"Файл больше {limit // 2**20} МБ", "file_too_large", 413)
                 digest.update(chunk)
                 await asyncio.to_thread(stream.write, chunk)
             if not size:

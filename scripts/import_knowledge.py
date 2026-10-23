@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.backend.config import Settings
 from src.backend.domain.models import Knowledge
 from src.backend.infrastructure.database import database
+from src.backend.infrastructure.queue import queue_app
 
 
 async def main():
@@ -14,7 +15,8 @@ async def main():
         Knowledge.model_validate(item)
         for item in json.loads(Path("knowledge/catalog.json").read_text())
     ]
-    engine, factory = database(Settings().database_url)
+    url = Settings().database_url
+    engine, factory = database(url, queue_app(url))
     try:
         async with factory() as uow:
             for record in records:

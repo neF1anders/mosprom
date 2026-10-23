@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { open, send, settled, upload } from "./helpers";
+import { answer, open, send, settled, upload } from "./helpers";
 test.beforeEach(async ({ page }) => open(page));
 
 test("T12 reconnect catches up and reopens same task", async ({
@@ -60,9 +60,7 @@ test("T01 remove corrupt attachment unblocks document preparation", async ({
   ).not.toBeVisible();
   await send(page, "Декоративная фигурка");
   await settled(page);
-  await expect(
-    page.getByText("Не прочитаны все сопроводительные файлы"),
-  ).not.toBeVisible();
+  await expect(page.getByText("Не прочитаны файлы corrupt.pdf")).toHaveCount(0);
 });
 
 test("T14 draft survives network error and double submit sends once", async ({
@@ -88,14 +86,13 @@ test("T14 draft survives network error and double submit sends once", async ({
   ).toHaveLength(1);
 });
 
-test("T13 card with confirmed units has downloadable current revision", async ({
+test("T13 downloaded card embeds the full STL report of the active file", async ({
   page,
 }) => {
-  await send(page, "Фигурка TEST_UNIT_ALIAS");
+  await send(page, "Фигурка");
   await upload(page, "box.stl");
   await settled(page);
-  await page.getByRole("button", { name: "mm", exact: true }).click();
-  await page.getByRole("button", { name: "Отправить ответы" }).click();
+  await answer(page, "mm");
   await expect(
     page.getByRole("status").filter({ hasText: "Первый этап завершён" }),
   ).toBeVisible();
@@ -105,16 +102,14 @@ test("T13 card with confirmed units has downloadable current revision", async ({
   const result = await page.request.get(href!);
   expect(result.ok()).toBe(true);
   const card = await result.json();
+  expect(card.schema_version).toBe("2.0");
   expect(card.geometry.units).toBe("mm");
-  expect(card.schema_version).toBe("1.2");
-  expect(card.stl_analysis.attachment_id).toBeTruthy();
+  expect(
+    card.questions.find((q: { id: string }) => q.id === "units").answer,
+  ).toBe("mm");
   expect(card.stl_analysis.sha256).toMatch(/^[a-f0-9]{64}$/);
   expect(card.stl_analysis.report.file.sha256).toBe(card.stl_analysis.sha256);
   expect(card.stl_analysis.report.units.input_unit).toBe("mm");
-  expect(card.stl_analysis.report).toHaveProperty("sections");
-  expect(card.stl_analysis.report).toHaveProperty("normal_chords");
-  expect(card.stl_analysis.report).toHaveProperty("partial_errors");
-  expect(card.answers["geometry.units"]).toBe("mm");
   const raw = await page.request.get(
     result
       .url()

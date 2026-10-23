@@ -4,6 +4,8 @@ import pytest
 from src.backend.api.app import create_app
 from src.backend.config import Settings
 
+from .conftest import TEST_DATABASE
+
 pytestmark = pytest.mark.unit
 
 
@@ -18,7 +20,9 @@ pytestmark = pytest.mark.unit
     ],
 )
 async def test_protected_routes_need_session(path, tmp_path):
-    app = create_app(Settings(session_secret="x" * 40, data_dir=tmp_path))
+    app = create_app(
+        Settings(session_secret="x" * 40, data_dir=tmp_path, database_url=TEST_DATABASE)
+    )
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
     ) as client:

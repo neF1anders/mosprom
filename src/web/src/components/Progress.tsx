@@ -58,6 +58,15 @@ function TimelineRow({
     </details>
   );
 }
+const steps = [
+  { title: "Файлы прочитаны", prefix: "files." },
+  { title: "STL проанализирован", prefix: "stl." },
+  { title: "Главные вопросы", prefix: "triage." },
+  { title: "ТЗ разобрано по аспектам", prefix: "interpretation." },
+  { title: "Сводка в карточку", prefix: "consolidation." },
+  { title: "Поиск несоответствий", prefix: "discrepancies." },
+  { title: "Итоговая оценка", prefix: "judge." },
+];
 function latest(events: ProgressEvent[], prefix: string) {
   for (let index = events.length - 1; index >= 0; index--) {
     if (events[index].type.startsWith(prefix)) return events[index];
@@ -66,8 +75,8 @@ function latest(events: ProgressEvent[], prefix: string) {
 function stateFor(events: ProgressEvent[], prefix: string): State {
   const event = latest(events, prefix);
   if (!event) return "wait";
-  if (event.status === "failed" || event.type.endsWith("failed")) return "warn";
-  return event.type.endsWith("completed") ? "done" : "run";
+  if (["failed", "warning"].includes(event.status)) return "warn";
+  return event.status === "completed" ? "done" : "run";
 }
 export function Progress({
   events,
@@ -78,79 +87,46 @@ export function Progress({
   job?: Job;
   compact?: boolean;
 }) {
-  const operations = events.filter(
-    (e) => !["job.created", "job.changed"].includes(e.type),
+  const operations = events.filter((e) =>
+    steps.some((step) => e.type.startsWith(step.prefix)),
   );
   if (!operations.length || compact) return null;
   const finished = events.some((e) => e.type === "stage1.completed");
-  const geometry = latest(events, "geometry.completed")?.data.geometry as
-    { defects?: string[] } | undefined;
   const state: State =
     job?.status === "failed" ? "warn" : finished ? "done" : "run";
-  const steps: { title: string; state: State; prefix: string }[] = [
-    {
-      title: "Прочитано ТЗ",
-      state: stateFor(events, "document."),
-      prefix: "document.",
-    },
-    {
-      title: "Проанализирован STL",
-      state: geometry?.defects?.length ? "warn" : stateFor(events, "geometry."),
-      prefix: "geometry.",
-    },
-    {
-      title: "Сверка ТЗ и геометрии",
-      state: finished ? "done" : stateFor(events, "requirements."),
-      prefix: "requirements.",
-    },
-    {
-      title: "Проверяю, хватает ли данных",
-      state: finished
-        ? job?.card?.readiness === "blocked"
-          ? "warn"
-          : "done"
-        : "wait",
-      prefix: "stage1.",
-    },
-    {
-      title: "Собираю карточку задания",
-      state: finished ? "done" : "wait",
-      prefix: "stage1.",
-    },
-  ];
   return (
     <section aria-label="Ход работы">
-      {!compact && (
-        <div className={styles.timeline}>
-          <TimelineRow title="Интерпретация задания" state={state} expanded>
-            {finished && job?.card ? (
-              <>
-                <p className={styles.checkCount}>5 проверок</p>
-                <CardSummary card={job.card} />
-              </>
-            ) : (
-              <div className={styles.substeps}>
-                {steps.map((step) => (
+      <div className={styles.timeline}>
+        <TimelineRow title="Интерпретация задания" state={state} expanded>
+          {finished && job?.card ? (
+            <CardSummary card={job.card} />
+          ) : (
+            <div className={styles.substeps}>
+              {steps.map((step) => {
+                const current = stateFor(events, step.prefix);
+                return (
                   <TimelineRow
                     key={step.title}
                     title={step.title}
-                    state={step.state}
+                    state={current}
                     small
-                    expanded={step.state === "run"}
+                    expanded={current === "run"}
                   >
                     {latest(events, step.prefix)?.message}
                   </TimelineRow>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
+          )}
+        </TimelineRow>
+        {labels.map((title, index) => (
+          <TimelineRow key={title} title={title} state="wait">
+            {index === 0 && job?.next_stage === "queued"
+              ? "Задание передано, ждёт подбора параметров"
+              : "Этап ещё не начат"}
           </TimelineRow>
-          {labels.map((title) => (
-            <TimelineRow key={title} title={title} state="wait">
-              Следующий этап не подключён
-            </TimelineRow>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
     </section>
   );
 }

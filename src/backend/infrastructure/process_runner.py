@@ -23,14 +23,17 @@ def analyze(path: Path, units: str, output: Path, limits: InputLimits | None = N
 
     limits = limits or InputLimits()
 
-    result = analyze_stl(
-        path,
-        units=units,
-        max_bytes=limits.stl_mib * 1024 * 1024,
-        max_faces=limits.triangles,
-        samples=128,
-        checkpoint=lambda report: write_json(output, report),
-    )
+    try:
+        result = analyze_stl(
+            path,
+            units=units,
+            max_bytes=limits.stl_mib * 1024 * 1024,
+            max_faces=limits.triangles,
+            samples=128,
+            checkpoint=lambda report: write_json(output, report),
+        )
+    except ValueError as exc:
+        raise AppError("Файл STL повреждён или не читается", "invalid_stl") from exc
     try:
         preview = output.with_suffix(".png")
         write_preview(path, preview)

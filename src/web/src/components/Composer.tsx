@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Attachments, type DraftFile } from "./Attachments";
 import styles from "../App.module.css";
 
 type Recognition = {
@@ -14,22 +15,38 @@ type Recognition = {
 export function Composer({
   onSend,
   onFiles,
+  onRemoveFile,
   onStop,
   pending,
   running,
+  files,
+  filesChanged,
   placeholder,
 }: {
   onSend: (text: string) => Promise<unknown>;
   onFiles: (files: File[]) => void;
+  onRemoveFile: (file: DraftFile) => void;
   onStop: () => void;
   pending: boolean;
   running: boolean;
+  files: DraftFile[];
+  filesChanged: boolean;
   placeholder?: string;
 }) {
+  // Attached files wait for an explicit send, with or without a message.
   const sending = useRef(false);
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  // The field grows with Shift+Enter lines up to the CSS max height.
+  useLayoutEffect(() => {
+    const element = field.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  }, [text]);
+  const uploading = files.some((file) => file.uploading);
   const recognizer = useRef<Recognition | null>(null);
   const Speech =
     (
@@ -70,7 +87,13 @@ export function Composer({
       className={styles.composer}
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!text.trim() || pending || sending.current) return;
+        if (
+          (!text.trim() && !filesChanged) ||
+          pending ||
+          uploading ||
+          sending.current
+        )
+          return;
         sending.current = true;
         const draft = text;
         try {
@@ -83,11 +106,14 @@ export function Composer({
         }
       }}
     >
+      <Attachments files={files} onRemove={onRemoveFile} />
       <label className={styles.srOnly} htmlFor="message">
         Сообщение
       </label>
       <textarea
+        ref={field}
         id="message"
+        rows={1}
         placeholder={
           placeholder ||
           (running
@@ -97,9 +123,11 @@ export function Composer({
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-            e.currentTarget.form?.requestSubmit();
-          }
+          // Enter sends, Shift+Enter starts a new line; IME composition keeps its Enter.
+          if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing)
+            return;
+          e.preventDefault();
+          e.currentTarget.form?.requestSubmit();
         }}
       />
       <div className={styles.row}>
@@ -153,7 +181,7 @@ export function Composer({
             <button
               type="submit"
               className={styles.icon}
-              disabled={pending || !text.trim()}
+              disabled={pending || uploading || (!text.trim() && !filesChanged)}
               aria-label="Отправить"
             >
               <img src="/figma/send.svg" alt="" />

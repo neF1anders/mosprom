@@ -1,14 +1,14 @@
 import { test, expect } from "@playwright/test";
-import { open, send, settled, upload } from "./helpers";
+import { answer, attach, open, send, settled, upload } from "./helpers";
 
 test.beforeEach(async ({ page }) => open(page));
 
 test("T12 refresh preserves messages and questions", async ({ page }) => {
-  await send(page, "Шестерня привода");
+  await send(page, "TEST_QUESTIONS Шестерня привода");
   await settled(page);
   await page.reload();
   await expect(
-    page.getByText("Шестерня привода", { exact: true }).first(),
+    page.getByText("TEST_QUESTIONS Шестерня привода", { exact: true }).first(),
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Уточняющие вопросы" }),
@@ -22,12 +22,42 @@ for (const [name, expected] of [
   ["too-many-pages.pdf", "В PDF больше 50 страниц"],
 ]) {
   test(`T01 T02 upload ${name}`, async ({ page }) => {
-    await upload(page, name);
+    if (name === "empty.txt") await attach(page, name);
+    else await upload(page, name);
     await expect(
       page.getByText(expected, { exact: false }).first(),
     ).toBeVisible();
   });
 }
+test("attached files wait in the composer for an explicit send", async ({
+  page,
+}) => {
+  await attach(page, "task.txt");
+  const drafts = page.getByRole("list", { name: "Вложения к сообщению" });
+  await expect(drafts.getByText("task.txt", { exact: true })).toBeVisible();
+  await expect(drafts.locator("[aria-busy]")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Ход работы" })).toHaveCount(0);
+  await send(page, "Шестерня по ТЗ во вложении");
+  await settled(page);
+  await expect(drafts).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "task.txt", exact: true }),
+  ).toBeVisible();
+});
+test("removing an unsent file leaves nothing to send", async ({ page }) => {
+  await attach(page, "photo.png");
+  const drafts = page.getByRole("list", { name: "Вложения к сообщению" });
+  await expect(drafts.locator("[aria-busy]")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Отправить", exact: true }),
+  ).toBeEnabled();
+  await drafts.getByRole("listitem").hover();
+  await drafts.getByRole("button", { name: "Убрать photo.png" }).click();
+  await expect(drafts).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Отправить", exact: true }),
+  ).toBeDisabled();
+});
 for (const name of [
   "task.txt",
   "task.docx",
@@ -81,7 +111,7 @@ for (const [name, expected] of [
   ["open.stl", "Открытая поверхность"],
   ["duplicate.stl", "Повторяющиеся грани"],
   ["shells.stl", "Несколько оболочек"],
-  ["nan.stl", "NaN"],
+  ["nan.stl", "Файл STL повреждён или не читается"],
 ]) {
   test(`T04 mesh ${name}`, async ({ page }) => {
     await upload(page, name);
@@ -90,45 +120,47 @@ for (const [name, expected] of [
     ).toBeVisible();
   });
 }
-for (const answer of ["mm", "cm", "m", "inch", "Не знаю"]) {
-  test(`T07 units ${answer}`, async ({ page }) => {
-    await send(page, "Шестерня привода");
-    await settled(page);
-    await page.getByRole("button", { name: answer, exact: true }).click();
-    await page.getByRole("button", { name: "Отправить ответы" }).click();
+for (const option of ["mm", "cm", "m", "inch", "Не знаю"]) {
+  test(`T07 units are asked first ${option}`, async ({ page }) => {
+    await upload(page, "box.stl");
     await settled(page);
     await expect(
-      page.getByText(`geometry.units = ${answer}`, { exact: true }),
+      page.getByRole("heading", { name: "В каких единицах создан STL" }),
     ).toBeVisible();
+    await answer(page, option);
+    await expect(
+      page.getByText(`В каких единицах создан STL, ${option}`, { exact: true }),
+    ).toBeVisible();
+    await settled(page);
+    if (option === "Не знаю")
+      await expect(page.getByText("Раньше вы ответили Не знаю")).toBeVisible();
   });
 }
-for (const answer of ["80 мм", "100 мм", "Не знаю", "90 мм", "100,5 мм"]) {
-  test(`T08 conflict ${answer}`, async ({ page }) => {
-    await send(page, "TEST_CONFLICT Размер детали");
+for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
+  test(`T08 disagreeing sources ${choice}`, async ({ page }) => {
+    await upload(page, "conflict.txt");
     await settled(page);
-    const conflict = page.getByRole("region", {
-      name: "Расхождение источников",
-    });
+    const window = page.getByRole("region", { name: "Уточняющие вопросы" });
+    await expect(window.getByText("Нужно ваше подтверждение")).toBeVisible();
+    await expect(window.getByRole("button", { pressed: true })).toHaveCount(0);
+    if (choice === "90 мм") {
+      await window.getByLabel("Свой ответ").fill(choice);
+      await window.getByRole("button", { name: "Отправить ответы" }).click();
+    } else await answer(page, choice);
     await expect(
-      conflict.getByRole("button", { name: "Подтвердить выбор" }),
-    ).toBeDisabled();
-    if (answer === "Не знаю") {
-      await conflict.getByRole("button", { name: answer, exact: true }).click();
-    } else {
-      await conflict.getByLabel("Своё значение").fill(answer);
-      await conflict.getByRole("button", { name: "Подтвердить выбор" }).click();
-    }
-    await expect(
-      page.getByText(`test-size = ${answer}`, { exact: true }),
+      page.getByText(`Источники расходятся, Длина детали, ${choice}`, {
+        exact: true,
+      }),
     ).toBeVisible();
+    await settled(page);
   });
 }
-test("T09 tool call is visible", async ({ page }) => {
-  await send(page, "TEST_TOOL плотность Proto PLA");
+test("T09 tool call is visible in the journal", async ({ page }) => {
+  await send(page, "TEST_TOOL Перевести дюймы");
   await settled(page);
   await page.getByLabel("Показать журнал вызовов", { exact: true }).click();
   await expect(
-    page.getByText("Завершён search_knowledge", { exact: true }),
+    page.getByText("Разбор ТЗ, переводит единицы", { exact: true }),
   ).toBeVisible();
 });
 for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
@@ -171,7 +203,7 @@ for (const width of [390, 600, 800, 1100, 1440]) {
 }
 test("T14 keyboard send and panels", async ({ page }) => {
   await page.getByLabel("Сообщение", { exact: true }).fill("Клавиатура");
-  await page.getByLabel("Сообщение", { exact: true }).press("Control+Enter");
+  await page.getByLabel("Сообщение", { exact: true }).press("Enter");
   await settled(page);
   await page.getByRole("button", { name: "Свернуть карточку" }).click();
   await page.getByRole("button", { name: "Карточка", exact: true }).click();
@@ -179,20 +211,20 @@ test("T14 keyboard send and panels", async ({ page }) => {
     page.getByRole("complementary", { name: "Карточка задания" }),
   ).toBeVisible();
 });
-test("T13 ready card export and honest handoff", async ({ page }) => {
+test("T13 ready card is handed to parameter selection", async ({ page }) => {
   await send(page, "Шестерня привода");
   await upload(page, "box.stl");
   await settled(page);
-  await page.getByRole("button", { name: "mm", exact: true }).click();
-  await page.getByRole("button", { name: "Отправить ответы" }).click();
+  await answer(page, "mm");
   await expect(
     page.getByRole("status").filter({ hasText: "Первый этап завершён" }),
   ).toBeVisible();
   await expect(
-    page
-      .getByText("Карточка подготовлена, следующий этап не подключён")
-      .first(),
+    page.getByText("Карточка передана на подбор параметров").first(),
   ).toBeVisible();
+  await expect(
+    page.getByText("Задание передано, ждёт подбора параметров"),
+  ).toBeAttached();
   await expect(
     page.getByRole("link", { name: "Скачать карточку JSON" }),
   ).toBeVisible();

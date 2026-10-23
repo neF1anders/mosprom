@@ -6,7 +6,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { usePanelFocus } from "./usePanelFocus";
-import { api, authenticate, command, requestId } from "./api";
+import { api, ApiError, authenticate, command, requestId } from "./api";
 import type {
   Attachment,
   Job,
@@ -14,10 +14,12 @@ import type {
   ProgressEvent,
   Snapshot,
 } from "./types";
-import { statusLabel } from "./types";
+import { answered, statusLabel } from "./types";
 import { Composer } from "./components/Composer";
+import { ChatItem } from "./components/ChatItem";
+import type { DraftFile } from "./components/Attachments";
+import { forget } from "./preview";
 import { Questions } from "./components/Questions";
-import { Conflict } from "./components/Conflict";
 import { Progress } from "./components/Progress";
 import { Files } from "./components/Files";
 import { TaskCard } from "./components/TaskCard";
@@ -40,16 +42,54 @@ function composerPlaceholder(
 ) {
   if (!connected) return "Нет связи. Текст останется в поле ввода";
   if (job?.error) return "Или напишите сообщение…";
+  if (job?.files_changed) return "Напишите сообщение или отправьте файлы";
   if (attachments.some((file) => file.status === "failed"))
     return "Приложите другой файл или напишите сообщение…";
   if (job?.status === "completed") return "Написать правку или вопрос…";
   if (job?.status === "waiting_user")
-    return job.card?.questions.some((question) => question.answer === null)
+    return job.card?.questions.some((question) => !answered(question))
       ? "Или ответьте текстом…"
       : "Можно написать сообщение…";
   if (job?.status === "running" || job?.status === "queued")
     return "Можно написать сообщение, я отвечу после текущего шага";
   return "Напишите, что нужно напечатать…";
+}
+// Mirrors KINDS and the upper InputLimits on the server, which may be configured lower.
+const LIMITS_MIB: Record<string, number> = {
+  stl: 256,
+  pdf: 25,
+  docx: 25,
+  txt: 25,
+  md: 25,
+  png: 20,
+  jpg: 20,
+  jpeg: 20,
+};
+const CAD = new Set(["step", "stp", "iges", "igs", "obj", "3mf", "ply", "f3d"]);
+function rejected(file: File, kind: string) {
+  if (!(kind in LIMITS_MIB))
+    return CAD.has(kind)
+      ? "Формат не поддерживается, приложите STL"
+      : "Формат не поддерживается";
+  if (file.size > LIMITS_MIB[kind] * 1024 * 1024)
+    return `Файл больше ${LIMITS_MIB[kind]} МБ`;
+}
+// Answers are stored as "question, answer" lines; known titles split them unambiguously.
+function answerPairs(text: string, job: Job | undefined) {
+  const titles = Object.values(job?.answers || {})
+    .map((answer) => answer.title)
+    .sort((a, b) => b.length - a.length);
+  return text.split("\n").map((line) => {
+    const title = titles.find((t) => line.startsWith(`${t}, `));
+    if (title) return { question: title, answer: line.slice(title.length + 2) };
+    const cut = line.lastIndexOf(", ");
+    return cut < 0
+      ? { question: "", answer: line }
+      : { question: line.slice(0, cut), answer: line.slice(cut + 2) };
+  });
+}
+function extension(name: string) {
+  return name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
 }
 export function App() {
   const client = useQueryClient();
@@ -90,9 +130,36 @@ export function App() {
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const [events, setEvents] = useState<ProgressEvent[]>([]),
     [connected, setConnected] = useState(true);
-  const [error, setError] = useState(""),
-    [uploading, setUploading] = useState(false);
-  const uploadLock = useRef(false);
+  const [error, setError] = useState("");
+  // Files still uploading or rejected before reaching the server; they live only here.
+  const [uploads, setUploads] = useState<DraftFile[]>([]);
+  // Picked files by attachment id, so previews need no download; also keeps card order.
+  const picked = useRef(new Map<string, File>());
+  const creating = useRef<Promise<string> | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const [away, setAway] = useState(false);
+  const toBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    following.current = true;
+    const element = threadRef.current;
+    element?.scrollTo({ top: element.scrollHeight, behavior });
+  }, []);
+  useEffect(() => {
+    const element = threadRef.current;
+    if (!element) return;
+    // New messages, progress and expanded details keep the newest content in view.
+    const observer = new MutationObserver(() => {
+      if (following.current) element.scrollTop = element.scrollHeight;
+    });
+    observer.observe(element, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["open"],
+    });
+    return () => observer.disconnect();
+  }, []);
   const [olderMessages, setOlderMessages] = useState<Message[]>([]);
   const [historyCursor, setHistoryCursor] = useState<
     number | null | undefined
@@ -143,6 +210,7 @@ export function App() {
     void client.invalidateQueries({ queryKey: ["jobs"] });
   };
   function select(id: string) {
+    following.current = true;
     selectedRef.current = id;
     setSelected(id);
     if (narrow) setLeft(false);
@@ -153,6 +221,7 @@ export function App() {
   const create = useMutation({
     mutationFn: () => command<Job>("/jobs"),
     onSuccess: (value) => {
+      setUploads([]);
       select(value.id);
       void client.invalidateQueries({ queryKey: ["jobs"] });
     },
@@ -161,20 +230,51 @@ export function App() {
   const send = useMutation({
     mutationFn: async (text: string) => {
       const id = await ensureJob();
-      return command(`/jobs/${id}/messages`, { text });
+      return text
+        ? command(`/jobs/${id}/messages`, { text })
+        : command(`/jobs/${id}/control/retry`);
     },
-    onSuccess: refresh,
+    onSuccess: () => {
+      // Rejected files never reached the server, so they are not part of the sent message.
+      setUploads((list) => list.filter((file) => file.uploading));
+      client.setQueryData<Snapshot>(
+        ["job", selectedRef.current],
+        (current) =>
+          current && {
+            ...current,
+            attachments: current.attachments.map((file) => ({
+              ...file,
+              draft: false,
+            })),
+          },
+      );
+      refresh();
+    },
+    onError: (e) => setError(e.message),
+  });
+  const rename = useMutation({
+    mutationFn: ({ id, title }: { id: string; title: string }) =>
+      command(`/jobs/${id}/rename`, { title }),
+    onSettled: () => client.invalidateQueries({ queryKey: ["jobs"] }),
+    onError: (e) => setError(e.message),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => command(`/jobs/${id}/delete`),
+    onSuccess: (_, id) => {
+      if (id === selectedRef.current) {
+        selectedRef.current = "";
+        setSelected("");
+        setUploads([]);
+        history.replaceState(null, "", location.pathname);
+      }
+      client.removeQueries({ queryKey: ["job", id] });
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: ["jobs"] }),
     onError: (e) => setError(e.message),
   });
   const answer = useMutation({
-    mutationFn: ({
-      values,
-      conflict,
-    }: {
-      values: Record<string, string>;
-      conflict?: boolean;
-    }) =>
-      command(`/jobs/${selected}/${conflict ? "conflicts" : "answers"}`, {
+    mutationFn: (values: Record<string, string>) =>
+      command(`/jobs/${selected}/answers`, {
         answers: values,
         expected_revision: job?.revision,
       }),
@@ -187,7 +287,19 @@ export function App() {
   const detach = useMutation({
     mutationFn: (id: string) =>
       command(`/jobs/${selected}/attachments/${id}/detach`),
-    onSuccess: refresh,
+    onMutate: (id) => {
+      forget(id);
+      picked.current.delete(id);
+      client.setQueryData<Snapshot>(
+        ["job", selected],
+        (current) =>
+          current && {
+            ...current,
+            attachments: current.attachments.filter((file) => file.id !== id),
+          },
+      );
+    },
+    onSettled: refresh,
     onError: (e) => setError(e.message),
   });
   const control = useMutation({
@@ -229,29 +341,66 @@ export function App() {
   }, [selected, session.data, client, connectionEpoch]);
   async function ensureJob() {
     if (selectedRef.current) return selectedRef.current;
-    const created = await command<Job>("/jobs");
-    select(created.id);
-    return created.id;
+    // Files picked together must not create a job each.
+    creating.current ??= command<Job>("/jobs").then((created) => {
+      select(created.id);
+      return created.id;
+    });
+    try {
+      return await creating.current;
+    } finally {
+      creating.current = null;
+    }
   }
   async function upload(files: File[]) {
-    if (uploadLock.current) return;
-    uploadLock.current = true;
-    setUploading(true);
     setError("");
-    try {
-      const id = await ensureJob();
-      for (const file of files) {
+    const queued = files.map((file) => {
+      const kind = extension(file.name);
+      const problem = rejected(file, kind);
+      return {
+        file,
+        card: {
+          key: requestId(),
+          name: file.name,
+          kind,
+          uploading: !problem,
+          error: problem,
+        },
+      };
+    });
+    setUploads((list) => [...list, ...queued.map(({ card }) => card)]);
+    for (const { file, card } of queued) {
+      if (card.error) continue;
+      try {
+        const id = await ensureJob();
         const form = new FormData();
         form.append("file", file);
-        form.append("request_id", requestId());
-        await api(`/jobs/${id}/attachments`, { method: "POST", body: form });
+        form.append("request_id", card.key);
+        const attachment = await api<Attachment>(`/jobs/${id}/attachments`, {
+          method: "POST",
+          body: form,
+        });
+        picked.current.set(attachment.id, file);
+        // The card swaps to the server copy only once the snapshot holds it, without a gap.
+        await client
+          .fetchQuery({
+            queryKey: ["job", id],
+            queryFn: () => api<Snapshot>(`/jobs/${id}`),
+          })
+          .catch(() => undefined);
+        setUploads((list) => list.filter((item) => item.key !== card.key));
+        void client.invalidateQueries({ queryKey: ["jobs"] });
+      } catch (e) {
+        const message =
+          e instanceof ApiError ? e.message : "Не удалось загрузить файл";
+        setUploads((list) =>
+          list.map((item) =>
+            item.key === card.key
+              ? { ...item, uploading: false, error: message }
+              : item,
+          ),
+        );
       }
-      refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      uploadLock.current = false;
-      setUploading(false);
     }
   }
   const jobList = [
@@ -267,7 +416,31 @@ export function App() {
       ]),
     ).values(),
   ].sort((a, b) => a.seq - b.seq);
-  const attachments = (snapshot.data?.attachments || []).filter(
+  // Unsent files wait in the composer; the thread shows only what was sent.
+  const sent = (snapshot.data?.attachments || []).filter((file) => !file.draft);
+  const order = [...picked.current.keys()];
+  const drafts: DraftFile[] = [
+    ...(snapshot.data?.attachments || [])
+      .filter((file) => file.draft)
+      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+      .map((file) => ({
+        key: file.id,
+        name: file.filename,
+        kind: file.kind,
+        load: async () => {
+          const local = picked.current.get(file.id);
+          if (local) return local;
+          const response = await fetch(
+            `/api/v1/jobs/${selected}/artifacts/${file.id}`,
+            { credentials: "same-origin" },
+          );
+          if (!response.ok) throw new Error(response.statusText);
+          return response.blob();
+        },
+      })),
+    ...uploads,
+  ];
+  const attachments = sent.filter(
     (file) =>
       file.kind !== "stl" || !job?.active_stl || file.id === job.active_stl,
   );
@@ -370,8 +543,8 @@ export function App() {
       <div
         className={`${styles.workspace} ${!left ? styles.noLeft : ""} ${!right ? styles.noRight : ""}`}
       >
-        {left ? (
-          <aside className={styles.chats} aria-label="Чаты">
+        <div className={styles.side} data-open={left}>
+          <aside className={styles.chats} aria-label="Чаты" inert={!left}>
             <div className={styles.row}>
               <h2>Чаты</h2>
               <div className={styles.actions}>
@@ -394,18 +567,19 @@ export function App() {
             </div>
             <nav aria-label="Задания">
               {jobList.map((item) => (
-                <button
-                  className={item.id === selected ? styles.activeChat : ""}
+                <ChatItem
                   key={item.id}
-                  aria-label={`${item.title} ${statusLabel[item.status]}`}
-                  title={item.title}
-                  onClick={() => select(item.id)}
-                >
-                  <span>{item.title}</span>
-                  <small>
-                    {chatDate(item.updated_at, item.id === selected)}
-                  </small>
-                </button>
+                  item={item}
+                  active={item.id === selected}
+                  label={`${item.title} ${statusLabel[item.status]}`}
+                  date={chatDate(item.updated_at, item.id === selected)}
+                  onOpen={() => {
+                    setUploads([]);
+                    select(item.id);
+                  }}
+                  onRename={(title) => rename.mutate({ id: item.id, title })}
+                  onDelete={() => remove.mutate(item.id)}
+                />
               ))}
             </nav>
             {jobs.hasNextPage && (
@@ -417,11 +591,14 @@ export function App() {
               </button>
             )}
           </aside>
-        ) : (
-          <button className={styles.panelToggle} onClick={() => setLeft(true)}>
+          <button
+            className={styles.panelToggle}
+            inert={left}
+            onClick={() => setLeft(true)}
+          >
             Чаты
           </button>
-        )}
+        </div>
         <main className={styles.chat}>
           {(error || snapshot.isError) && (
             <div className={styles.error} role="alert">
@@ -437,12 +614,23 @@ export function App() {
           {capability.data && !capability.data.model_configured && (
             <p className={styles.warning}>Qwen пока не подключён к серверу</p>
           )}
-          <div
-            className={styles.thread}
-            data-running={running && !!messages.length}
-          >
-            {!snapshot.data?.messages.length &&
-              !snapshot.data?.attachments.length && (
+          <div className={styles.threadArea}>
+            <div
+              ref={threadRef}
+              className={styles.thread}
+              data-running={running && !!messages.length}
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                const near =
+                  element.scrollHeight -
+                    element.scrollTop -
+                    element.clientHeight <
+                  80;
+                following.current = near;
+                setAway(!near);
+              }}
+            >
+              {!snapshot.data?.messages.length && !sent.length && (
                 <section className={styles.welcome}>
                   <h2>Как работает плагин</h2>
                   <p>
@@ -462,90 +650,104 @@ export function App() {
                   </p>
                 </section>
               )}
-            {before && (
-              <button disabled={loadingHistory} onClick={loadHistory}>
-                Предыдущие сообщения
-              </button>
-            )}
-            {messages.map((message) => (
-              <Fragment key={message.id}>
-                <article
-                  className={
-                    message.role === "user"
-                      ? styles.userMessage
-                      : styles.agentMessage
-                  }
-                >
-                  {message.role !== "user" && (
-                    <span className={styles.avatar} aria-hidden="true">
-                      M
-                    </span>
+              {before && (
+                <button disabled={loadingHistory} onClick={loadHistory}>
+                  Предыдущие сообщения
+                </button>
+              )}
+              {messages.map((message) => (
+                <Fragment key={message.id}>
+                  <article
+                    className={
+                      message.role === "user"
+                        ? styles.userMessage
+                        : styles.agentMessage
+                    }
+                  >
+                    {message.role !== "user" && (
+                      <span className={styles.avatar} aria-hidden="true">
+                        M
+                      </span>
+                    )}
+                    {message.kind === "answers" ? (
+                      <dl className={styles.answerList}>
+                        {answerPairs(message.text, job).map((pair, index) => (
+                          <div key={index}>
+                            <dt>{pair.question}</dt>
+                            <dd>{pair.answer}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p>{message.text}</p>
+                    )}
+                  </article>
+                  {filesReady && message.id === lastUserId && (
+                    <Files
+                      attachments={attachments}
+                      jobId={selected}
+                      running={running}
+                      pending={detach.isPending}
+                      onRemove={(id) => detach.mutate(id)}
+                    />
                   )}
-                  <p>{message.text}</p>
-                </article>
-                {filesReady && message.id === lastUserId && (
-                  <Files
-                    attachments={attachments}
-                    jobId={selected}
-                    pending={detach.isPending}
-                    onRemove={(id) => detach.mutate(id)}
+                </Fragment>
+              ))}
+              {(!filesReady || !lastUserId) && (
+                <Files
+                  attachments={sent}
+                  jobId={selected}
+                  running={running}
+                  pending={detach.isPending}
+                  onRemove={(id) => detach.mutate(id)}
+                />
+              )}
+              <Progress
+                events={events.filter((e) => e.revision === job?.revision)}
+                job={job}
+                compact={job?.status === "waiting_user"}
+              />
+              {job?.error && (
+                <section className={styles.technicalError} role="alert">
+                  <img src="/figma/error.svg" alt="" />
+                  <p>{job.error}</p>
+                  <button
+                    disabled={control.isPending}
+                    onClick={() => control.mutate("retry")}
+                  >
+                    Повторить позже
+                  </button>
+                </section>
+              )}
+              {job?.card &&
+                job.card.revision === job.revision &&
+                // Early questions are answered while the deep reading still runs.
+                (!running || job.card.questions.some((q) => !answered(q))) && (
+                  <Questions
+                    key={`questions-${job.revision}-${job.card.questions.map((q) => q.id).join()}`}
+                    questions={job.card.questions}
+                    pending={answer.isPending}
+                    onAnswer={(values) => {
+                      toBottom("smooth");
+                      answer.mutate(values);
+                    }}
                   />
                 )}
-              </Fragment>
-            ))}
-            {(!filesReady || !lastUserId) && (
-              <Files
-                attachments={snapshot.data?.attachments || []}
-                jobId={selected}
-                pending={detach.isPending}
-                onRemove={(id) => detach.mutate(id)}
-              />
-            )}
-            {uploading && <p role="status">Загружаю файлы</p>}
-            <Progress
-              events={events.filter((e) => e.revision === job?.revision)}
-              job={job}
-              compact={job?.status === "waiting_user"}
-            />
-            {job?.error && (
-              <section className={styles.technicalError} role="alert">
-                <img src="/figma/error.svg" alt="" />
-                <p>{job.error}</p>
-                <button
-                  disabled={control.isPending}
-                  onClick={() => control.mutate("retry")}
-                >
-                  Повторить позже
+              {job?.status === "stopped" && (
+                <button onClick={() => control.mutate("retry")}>
+                  Продолжить
                 </button>
-              </section>
-            )}
-            {job?.card && job.card.revision === job.revision && (
-              <>
-                <Questions
-                  key={`questions-${job.revision}`}
-                  questions={job.card.questions}
-                  pending={answer.isPending}
-                  onAnswer={(values) => answer.mutate({ values })}
-                />
-                {job.card.conflicts
-                  .filter((c) => !c.resolved && c.resolution !== "Не знаю")
-                  .map((c) => (
-                    <Conflict
-                      key={c.id + job.revision}
-                      conflict={c}
-                      pending={answer.isPending}
-                      onResolve={(values) =>
-                        answer.mutate({ values, conflict: true })
-                      }
-                    />
-                  ))}
-              </>
-            )}
-            {job?.status === "stopped" && (
-              <button onClick={() => control.mutate("resume")}>
-                Продолжить
-              </button>
-            )}
+              )}
+            </div>
+            <button
+              className={styles.toBottom}
+              data-visible={away}
+              inert={!away}
+              aria-label="Прокрутить вниз"
+              onClick={() => toBottom("smooth")}
+            >
+              <img src="/figma/arrow-down.svg" alt="" />
+            </button>
           </div>
           {connected &&
             running &&
@@ -553,7 +755,7 @@ export function App() {
             job.card.revision < job.revision && (
               <p className={styles.connectionNotice} role="status">
                 <img src="/figma/run.svg" alt="" />
-                Пересчитываю проверки
+                Обновляю карточку с учётом изменений
               </p>
             )}
           {!connected && (
@@ -564,34 +766,42 @@ export function App() {
           )}
           {
             <Composer
-              onSend={(text) => send.mutateAsync(text)}
+              onSend={(text) => {
+                toBottom("smooth");
+                return send.mutateAsync(text);
+              }}
               onFiles={upload}
-              onStop={() => control.mutate("stop")}
-              pending={
-                send.isPending || create.isPending || uploading || !session.data
+              onRemoveFile={(file) =>
+                file.load
+                  ? detach.mutate(file.key)
+                  : setUploads((list) =>
+                      list.filter((item) => item.key !== file.key),
+                    )
               }
+              onStop={() => control.mutate("stop")}
+              pending={send.isPending || create.isPending || !session.data}
               running={running}
-              placeholder={composerPlaceholder(
-                job,
-                connected,
-                snapshot.data?.attachments || [],
-              )}
+              files={drafts}
+              filesChanged={!!job?.files_changed}
+              placeholder={composerPlaceholder(job, connected, sent)}
             />
           }
         </main>
-        {right ? (
+        <div className={styles.side} data-open={right}>
           <TaskCard
             job={job}
             events={events.filter((e) => e.revision === job?.revision)}
-            onEdit={() => document.getElementById("message")?.focus()}
-            onStop={() => control.mutate("stop")}
+            collapsed={!right}
             onCollapse={() => setRight(false)}
           />
-        ) : (
-          <button className={styles.panelToggle} onClick={() => setRight(true)}>
+          <button
+            className={styles.panelToggle}
+            inert={right}
+            onClick={() => setRight(true)}
+          >
             Карточка
           </button>
-        )}
+        </div>
       </div>
     </div>
   );

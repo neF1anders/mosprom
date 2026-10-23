@@ -1,115 +1,73 @@
-"""Acceptance rules: no fabricated dimensions, no approval by silence."""
-
 import pytest
 
-from src.backend.domain.models import Conflict, Geometry, Requirement, TaskCard
-from src.backend.domain.rules import assess, comparable, normalize_quantity
+from src.backend.domain.models import (
+    Assumption,
+    Geometry,
+    Question,
+    Requirement,
+    TaskCard,
+    Verdict,
+)
+from src.backend.domain.rules import assess, known, units_question
 
 pytestmark = pytest.mark.unit
 
 
-def card(**kwargs):
-    return TaskCard(purpose="Шестерня привода", **kwargs)
+def card(**extra) -> TaskCard:
+    base = {
+        "job_id": "j",
+        "revision": 1,
+        "geometry": Geometry(readable=True, units="mm", extents=[10, 20, 30]),
+        "requirements": [Requirement(key="t", value="1", verified=True)],
+    }
+    return TaskCard(**{**base, **extra})
 
 
-@pytest.mark.parametrize("units", ["unknown", "", None])
-def test_unknown_units_blocks_parameters_not_materials(units):
-    result = assess(card(geometry=Geometry(readable=True, units=units or "unknown")))
-    assert "assess_materials" in result.allowed_actions
-    assert "select_parameters" not in result.allowed_actions
-    assert any(q.id == "geometry.units" for q in result.questions)
+@pytest.mark.parametrize("value", [None, "", " Не знаю ", "unknown", "неизвестно"])
+def test_dont_know_is_not_an_answer(value):
+    assert not known(value)
+
+
+def test_ready_card_allows_parameter_selection():
+    result = assess(card(), [])
+    assert result.readiness == "ready"
+    assert result.allowed_actions == ["select_parameters"] and result.blocked_actions == {}
 
 
 @pytest.mark.parametrize(
-    "defect",
+    "extra,failed,reason",
     [
-        "boundary_edges",
-        "duplicate_faces",
-        "nonmanifold_edges",
-        "inconsistent_winding",
-        "multiple_shells",
+        ({"geometry": None}, [], "Нужна читаемая модель STL"),
+        ({"requirements": [Requirement(key="t", value="1")]}, [], "Есть неподтверждённые"),
+        ({"questions": [units_question(Geometry(extents=[1, 2, 3]))]}, [], "В каких единицах"),
+        ({}, ["ТЗ.pdf"], "Не прочитаны файлы ТЗ.pdf"),
+        ({"verdict": Verdict(score=0.4, passed=False)}, [], "не прошла итоговую проверку"),
     ],
 )
-def test_defects_do_not_block_independent_work(defect):
-    result = assess(card(geometry=Geometry(readable=True, units="mm", defects=[defect])))
-    assert "assess_materials" in result.allowed_actions
-    assert not result.geometry.physical_volume_confirmed
+def test_blockers(extra, failed, reason):
+    result = assess(card(**extra), failed)
+    assert result.readiness == "blocked" and result.allowed_actions == []
+    assert any(reason in r for r in result.blocked_actions["select_parameters"])
 
 
-@pytest.mark.parametrize("answer", [None, "", "Не знаю", "unknown", "не знаю"])
-def test_conflict_requires_explicit_resolution(answer):
-    conflict = Conflict(id="size", title="Размер", options=["80 мм", "100 мм"], resolution=answer)
-    result = assess(card(conflicts=[conflict]))
-    assert "select_parameters" not in result.allowed_actions
-    assert result.conflicts[0].resolved is False
+def test_answered_dont_know_still_blocks_a_blocking_question():
+    question = Question(id="q", kind="clarify", title="Какая среда", answer="Не знаю")
+    assert assess(card(questions=[question]), []).readiness == "blocked"
 
 
 @pytest.mark.parametrize(
-    ("left", "right"),
+    "extra",
     [
-        ("nominal", "peak"),
-        ("ambient", "brief_contact"),
-        ("shaft", "overall"),
-        ("wet", "dry"),
-        ("20C", "80C"),
+        {"assumptions": [Assumption(text="Комнатная влажность")]},
+        {"unknowns": ["Срок службы"]},
+        {"geometry": Geometry(readable=True, defects=["boundary_edges"])},
+        {"questions": [Question(id="q", kind="clarify", title="Цвет", blocking=False)]},
     ],
 )
-def test_different_conditions_are_not_conflicts(left, right):
-    assert not comparable(
-        Requirement(key="load", value="25", conditions=left),
-        Requirement(key="load", value="75", conditions=right),
-    )
+def test_caveats_make_the_card_preliminary(extra):
+    assert assess(card(**extra), []).readiness == "preliminary"
 
 
-@pytest.mark.parametrize(
-    ("value", "unit", "expected"),
-    [
-        ("1,2", "g/cm3", "1200"),
-        ("10", "cm", "100"),
-        ("1", "m", "1000"),
-        ("25.4", "mm", "25.4"),
-        ("18", "kg", "18"),
-    ],
-)
-def test_normalization_preserves_quantity_kind(value, unit, expected):
-    assert normalize_quantity(value, unit)[0] == expected
-
-
-@pytest.mark.parametrize(
-    "left,right", [("10", "100"), ("1", "10"), ("0.1", "1"), ("12.5", "125"), ("2,5", "25")]
-)
-def test_T08_equivalent_centimeters_and_millimeters_do_not_conflict(left, right):
-    from src.backend.domain.evidence import merge_cards
-
-    result = merge_cards(
-        [
-            card(
-                requirements=[
-                    Requirement(key="size", value=left, unit="cm"),
-                    Requirement(key="size", value=right, unit="mm"),
-                ]
-            )
-        ]
-    )
-    assert not result.conflicts
-
-
-@pytest.mark.parametrize(
-    "question_id", ["model_units", "stl_units", "geometry_units", "stl.units", "model_unit"]
-)
-@pytest.mark.parametrize("units", ["unknown", "mm"])
-def test_T07_model_units_question_uses_one_authoritative_fact(question_id, units):
-    from src.backend.domain.models import Question
-
-    result = assess(
-        card(
-            geometry=Geometry(readable=True, units=units),
-            questions=[
-                Question(id=question_id, title="В каких единицах STL?", reason="Нужен масштаб")
-            ],
-        )
-    )
-    assert len(result.questions) == (1 if units == "unknown" else 0)
-    if result.questions:
-        assert result.questions[0].id == "geometry.units"
-        assert result.questions[0].options == ["mm", "cm", "m", "inch"]
+def test_optional_unverified_requirement_does_not_block():
+    optional = Requirement(key="color", value="чёрный", mandatory=False)
+    assert assess(card(requirements=[optional]), []).readiness == "ready"

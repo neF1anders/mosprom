@@ -1,5 +1,12 @@
 import type { Page } from "@playwright/test";
-import type { Card, Job, ProgressEvent, Snapshot } from "../src/types";
+import type {
+  Attachment,
+  Card,
+  Job,
+  ProgressEvent,
+  Question,
+  Snapshot,
+} from "../src/types";
 export const designStates = [
   "start",
   "analysis",
@@ -15,6 +22,8 @@ export const designStates = [
 export type DesignState = (typeof designStates)[number];
 export async function designFixture(page: Page, state: DesignState) {
   const card: Card = {
+    schema_version: "2.0",
+    job_id: "design",
     revision: state === "revision" ? 2 : 1,
     purpose: "Корпус подшипника, эксплуатация в помещении",
     requirements: [
@@ -28,11 +37,18 @@ export async function designFixture(page: Page, state: DesignState) {
         verified: true,
         provenance: "document",
         sources: [
-          { source_id: "spec", quote: "Рабочая температура до 60 °C", page: 2 },
+          {
+            source_id: "spec:2",
+            quote: "Рабочая температура до 60 °C",
+            page: 2,
+            method: "text",
+          },
         ],
+        superseded: [],
       },
     ],
     preferences: [],
+    production_constraints: [],
     geometry: {
       readable: true,
       units: "mm",
@@ -40,67 +56,66 @@ export async function designFixture(page: Page, state: DesignState) {
       defects: ["duplicate_faces"],
       limitations: ["Физический объём не подтверждён"],
       report_id: null,
+      preview_id: null,
     },
-    assumptions: ["Цвет и внешний вид не важны"],
+    assumptions: [
+      { text: "Цвет и внешний вид не важны", basis: "", consequence: "" },
+    ],
     unknowns: [],
     questions: [],
-    conflicts: [],
+    verdict: { score: 0.9, passed: true, remarks: [] },
     readiness: "preliminary",
-    allowed_actions: [
-      "interpret_requirements",
-      "assess_materials",
-      "select_parameters",
-    ],
+    allowed_actions: ["select_parameters"],
     blocked_actions: {},
   };
-  const question = {
-    id: "temperature",
-    title: "Какая рабочая температура у детали?",
-    reason: "Влияет на выбор материала, температуру стола и сопла",
+  const question: Question = {
+    id: "clarify.temperature",
+    kind: "clarify",
+    title: "Какая рабочая температура у детали",
+    impact: "Влияет на выбор материала, температуру стола и сопла",
     options: ["до 60 °C", "от 60 до 100 °C", "выше 100 °C"],
     answer: null,
     suggested: "до 60 °C",
     basis: "по ТЗ п. 2 «эксплуатация в помещении»",
-    affected_actions: ["select_parameters"],
+    sources: [],
+    blocking: true,
   };
   if (state === "questions")
     card.questions = [
       question,
-      { ...question, id: "load", title: "Какая механическая нагрузка?" },
-      { ...question, id: "material", title: "Какой материал доступен?" },
+      { ...question, id: "clarify.load", title: "Какая механическая нагрузка" },
+      { ...question, id: "clarify.mount", title: "Как деталь крепится" },
     ];
   if (state === "defect")
     card.questions = [
       {
         ...question,
-        id: "defect",
-        title: "Как продолжить?",
-        reason: "Влияет на расход материала и время печати",
+        id: "defect_vs_purpose.mesh",
+        kind: "discrepancy",
+        title: "Как продолжить",
+        impact: "Влияет на расход материала и время печати",
         options: ["Продолжить с этой моделью", "Приложу исправленный STL"],
         suggested: null,
       },
     ];
   if (state === "conflict")
-    card.conflicts = [
+    card.questions = [
       {
-        id: "length",
+        ...question,
+        id: "tz_vs_stl.length",
+        kind: "discrepancy",
         title: "Длина посадочного участка A",
+        impact: "Влияет на масштаб и подбор параметров",
         options: ["ТЗ, п. 1.2, 100 мм", "STL, масштаб 1 к 1, 80 мм"],
+        suggested: null,
+        basis: null,
         sources: [
           {
-            source_id: "spec",
+            source_id: "spec:1",
             quote: "Указано в техническом задании",
             page: 1,
           },
-          {
-            source_id: "mesh",
-            quote: "Измерено по модели, участок A",
-            page: null,
-          },
         ],
-        resolved: false,
-        resolution: null,
-        affected_actions: ["select_parameters"],
       },
     ];
   const waiting = ["questions", "conflict", "defect"].includes(state);
@@ -124,7 +139,8 @@ export async function designFixture(page: Page, state: DesignState) {
       state === "error"
         ? "Модель не отвечает; анализ не завершён, результаты сохранены"
         : null,
-    handoff: state === "done" ? "not_connected" : "not_ready",
+    files_changed: false,
+    next_stage: state === "done" ? "queued" : "not_ready",
     created_at: "2026-10-23T12:00:00Z",
     updated_at: "2026-10-23T12:00:00Z",
   };
@@ -141,20 +157,21 @@ export async function designFixture(page: Page, state: DesignState) {
           {
             ...base,
             event_id: 1,
-            type: "document.completed",
-            message: "Прочитано ТЗ",
+            type: "files.completed",
+            message: "Файлы прочитаны",
           },
           {
             ...base,
             event_id: 2,
-            type: "geometry.completed",
-            message: "Проанализирован STL",
+            type: "stl.completed",
+            status: state === "defect" ? "warning" : "completed",
+            message: "STL проанализирован",
             data: { geometry: card.geometry },
           },
           {
             ...base,
             event_id: 3,
-            type: "requirements.started",
+            type: "interpretation.started",
             status: "running",
             message:
               state === "revision"
@@ -169,7 +186,7 @@ export async function designFixture(page: Page, state: DesignState) {
       type: "stage1.completed",
       message: "Карточка подготовлена",
     });
-  const attachments =
+  const attachments: Attachment[] =
     state === "start" ||
     state === "done" ||
     state === "revision" ||
@@ -282,11 +299,14 @@ export async function designFixture(page: Page, state: DesignState) {
         : path.endsWith("/jobs")
           ? [
               job,
-              ...(state === "start" ? ["Корпус подшипника", "Кронштейн датчика", "Крышка редуктора"] : ["Кронштейн датчика", "Крышка редуктора"]).map((title, i, all) => ({
+              ...(state === "start"
+                ? ["Корпус подшипника", "Кронштейн датчика", "Крышка редуктора"]
+                : ["Кронштейн датчика", "Крышка редуктора"]
+              ).map((title, i, all) => ({
                 ...job,
                 id: String(i),
                 title,
-                updated_at: `2026-10-${all.length === 3 ? [22,21,18][i] : [21,18][i]}T12:00:00Z`,
+                updated_at: `2026-10-${all.length === 3 ? [22, 21, 18][i] : [21, 18][i]}T12:00:00Z`,
               })),
             ]
           : snapshot;
