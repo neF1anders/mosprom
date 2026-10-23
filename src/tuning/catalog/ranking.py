@@ -7,7 +7,9 @@ from tuning.catalog.materials import load_traits
 OK, WARN, FAIL, UNKNOWN, NOT_APPLICABLE = "ok", "warn", "fail", "unknown", "na"
 _SCORE = {OK: 1.0, WARN: 0.4, UNKNOWN: 0.3, FAIL: 0.0}
 _HARD_WEIGHT, _SOFT_WEIGHT = 3.0, 1.0
-_POOL_PREFIXES = ("enduse_", "fiberpart_", "sealant_")
+_POOL_PREFIXES = ("enduse_", "fiberpart_", "sealant_", "generic_")
+# Soluble support filament: never the material of the part itself.
+_SUPPORT_ONLY_MARKER = "pva"
 
 
 def _scale(value, mapping):
@@ -44,10 +46,21 @@ def _uv(material, required, flags):
     return _scale(level, {"good": OK, "fair": WARN, "poor": FAIL}), "uv=%s" % level
 
 
+def _stems_of(item, stems):
+    """Stems for a medium given as our code ("alkali") or as a Russian word ("щёлочи")."""
+    if item in stems:
+        return stems[item]
+    word = item.lower().replace("ё", "е")
+    for code in sorted(stems):
+        if any(stem in word for stem in stems[code]):
+            return stems[code]
+    return [word]
+
+
 def _chemicals(material, required, flags):
     stems = load_traits()["chemical_stems"]
-    text = material.description.lower()
-    matched = [item for item in required if any(stem in text for stem in stems.get(item, [item.lower()]))]
+    text = material.description.lower().replace("ё", "е")
+    matched = [item for item in required if any(stem in text for stem in _stems_of(item, stems))]
     if len(matched) == len(required):
         return OK, "catalog description mentions: %s" % ", ".join(matched)
     if matched:
@@ -157,7 +170,7 @@ def evaluate(material, requirements):
 def rank_materials(materials, requirements):
     # type: (dict, list) -> list
     """Evaluate the printable pool, best first; ties broken by material id for determinism."""
-    pool = [m for m in materials.values() if m.id.startswith(_POOL_PREFIXES)]
+    pool = [m for m in materials.values() if m.id.startswith(_POOL_PREFIXES) and _SUPPORT_ONLY_MARKER not in m.id]
     evaluations = [dict(evaluate(material, requirements), hard_failures=0) for material in pool]
     for evaluation in evaluations:
         evaluation["hard_failures"] = sum(1 for c in evaluation["checks"] if c["hard"] and c["status"] == FAIL)
