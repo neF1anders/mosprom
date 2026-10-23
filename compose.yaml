@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: mosprom
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mosprom_local}
+      POSTGRES_DB: mosprom
+    volumes:
+      - database:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U mosprom -d mosprom"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  api:
+    build:
+      context: .
+      target: runtime
+    environment: &app_environment
+      DATABASE_URL: postgresql+asyncpg://mosprom:${POSTGRES_PASSWORD:-mosprom_local}@db:5432/mosprom
+      DATA_DIR: /data
+      SESSION_SECRET: ${SESSION_SECRET:?Run python scripts/bootstrap.py first}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://api.timeweb.ai/v1}
+      QWEN_MODEL: ${QWEN_MODEL:-dashscope/qwen3.8-flash}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8000}
+      HANDOFF_URL: ${HANDOFF_URL:-}
+    command: [sh, -c, "alembic upgrade head && python scripts/import_knowledge.py && uvicorn src.backend.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["files:/data"]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request,os; r=urllib.request.Request('http://127.0.0.1:8000/api/v1/health',headers={'Host':os.environ['APP_ORIGIN'].split('//')[1]}); urllib.request.urlopen(r)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  worker:
+    build:
+      context: .
+      target: runtime
+    command: [python, -m, src.backend.worker]
+    environment: *app_environment
+    volumes: ["files:/data"]
+    depends_on:
+      api: {condition: service_healthy}
+volumes:
+  database:
+  files:

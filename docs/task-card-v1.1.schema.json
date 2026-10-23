@@ -1,0 +1,483 @@
+{
+  "$defs": {
+    "Conflict": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "affected_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Actions",
+          "type": "array"
+        },
+        "resolution": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolution"
+        },
+        "resolved": {
+          "default": false,
+          "title": "Resolved",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "options"
+      ],
+      "title": "Conflict",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "quote": {
+          "default": "",
+          "title": "Quote",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        }
+      },
+      "required": [
+        "source_id"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Geometry": {
+      "additionalProperties": false,
+      "properties": {
+        "readable": {
+          "default": false,
+          "title": "Readable",
+          "type": "boolean"
+        },
+        "units": {
+          "default": "unknown",
+          "title": "Units",
+          "type": "string"
+        },
+        "coordinate_unit": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "mm"
+          ],
+          "title": "Coordinate Unit",
+          "type": "string"
+        },
+        "extents": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Extents",
+          "type": "array"
+        },
+        "defects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Defects",
+          "type": "array"
+        },
+        "physical_volume_confirmed": {
+          "default": false,
+          "title": "Physical Volume Confirmed",
+          "type": "boolean"
+        },
+        "report_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Report Id"
+        },
+        "preview_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Preview Id"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        }
+      },
+      "title": "Geometry",
+      "type": "object"
+    },
+    "Question": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "affected_actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Actions",
+          "type": "array"
+        },
+        "suggested": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggested"
+        },
+        "basis": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Basis"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "reason"
+      ],
+      "title": "Question",
+      "type": "object"
+    },
+    "Requirement": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "conditions": {
+          "default": "",
+          "title": "Conditions",
+          "type": "string"
+        },
+        "mandatory": {
+          "default": true,
+          "title": "Mandatory",
+          "type": "boolean"
+        },
+        "provenance": {
+          "default": "document",
+          "enum": [
+            "user",
+            "document",
+            "measurement",
+            "knowledge",
+            "assumption"
+          ],
+          "title": "Provenance",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "verified": {
+          "default": true,
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "title": "Requirement",
+      "type": "object"
+    },
+    "StlAnalysis": {
+      "additionalProperties": false,
+      "properties": {
+        "attachment_id": {
+          "title": "Attachment Id",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "report": {
+          "additionalProperties": true,
+          "title": "Report",
+          "type": "object"
+        }
+      },
+      "required": [
+        "attachment_id",
+        "sha256",
+        "report"
+      ],
+      "title": "StlAnalysis",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "default": "1.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "rules_version": {
+      "default": "1",
+      "title": "Rules Version",
+      "type": "string"
+    },
+    "knowledge_version": {
+      "default": "kb001-v1",
+      "title": "Knowledge Version",
+      "type": "string"
+    },
+    "revision": {
+      "default": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "purpose": {
+      "default": "",
+      "title": "Purpose",
+      "type": "string"
+    },
+    "requirements": {
+      "items": {
+        "$ref": "#/$defs/Requirement"
+      },
+      "title": "Requirements",
+      "type": "array"
+    },
+    "preferences": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Preferences",
+      "type": "array"
+    },
+    "geometry": {
+      "$ref": "#/$defs/Geometry"
+    },
+    "source_versions": {
+      "items": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "title": "Source Versions",
+      "type": "array"
+    },
+    "production_constraints": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Production Constraints",
+      "type": "array"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "unknowns": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unknowns",
+      "type": "array"
+    },
+    "questions": {
+      "items": {
+        "$ref": "#/$defs/Question"
+      },
+      "title": "Questions",
+      "type": "array"
+    },
+    "conflicts": {
+      "items": {
+        "$ref": "#/$defs/Conflict"
+      },
+      "title": "Conflicts",
+      "type": "array"
+    },
+    "allowed_actions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Actions",
+      "type": "array"
+    },
+    "blocked_actions": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Blocked Actions",
+      "type": "object"
+    },
+    "readiness": {
+      "default": "blocked",
+      "enum": [
+        "ready",
+        "preliminary",
+        "blocked"
+      ],
+      "title": "Readiness",
+      "type": "string"
+    },
+    "stl_analysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StlAnalysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "answers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Answers",
+      "type": "object"
+    },
+    "resolutions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Resolutions",
+      "type": "object"
+    }
+  },
+  "title": "TaskCard",
+  "type": "object"
+}

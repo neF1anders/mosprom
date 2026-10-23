@@ -1,0 +1,12 @@
+.git
+.idea
+.env
+.env.*
+artifacts
+src/web/node_modules
+src/web/dist
+src/web/test-results
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache

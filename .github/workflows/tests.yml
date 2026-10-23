@@ -1,0 +1,16 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  stage-one:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage-one-acceptance
+          path: artifacts/compose
+      - if: always()
+        run: docker compose -f compose.test.yaml down

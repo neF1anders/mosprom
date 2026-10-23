@@ -1,0 +1,54 @@
+name: mosprom-tests
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: mosprom
+      POSTGRES_PASSWORD: test_only
+      POSTGRES_DB: mosprom_test
+    volumes: ["./tests/init.sql:/docker-entrypoint-initdb.d/init.sql:ro"]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U mosprom -d mosprom_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  model:
+    build: {context: ., target: tests}
+    command: [python, -m, uvicorn, tests.model_server:app, --host, 0.0.0.0, --port, "8101"]
+  api:
+    build: {context: ., target: runtime}
+    environment: &test_environment
+      DATABASE_URL: postgresql+asyncpg://mosprom:test_only@db:5432/mosprom_e2e_test
+      DATA_DIR: /data
+      SESSION_SECRET: test-only-session-secret-never-use-for-real-data
+      QWEN_API_KEY: test-only
+      QWEN_BASE_URL: http://model:8101/v1
+      APP_ORIGIN: http://api:8000
+    command: [sh, -c, "alembic upgrade head && python scripts/import_knowledge.py && uvicorn src.backend.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
+    volumes: ["test-files:/data"]
+    depends_on:
+      db: {condition: service_healthy}
+      model: {condition: service_started}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/api/v1/health',headers={'Host':'api:8000'}))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+  worker:
+    build: {context: ., target: runtime}
+    environment: *test_environment
+    command: [python, -m, src.backend.worker]
+    volumes: ["test-files:/data"]
+    depends_on:
+      api: {condition: service_healthy}
+  tests:
+    build: {context: ., target: tests}
+    environment:
+      TEST_DATABASE_URL: postgresql+asyncpg://mosprom:test_only@db:5432/mosprom_test
+      E2E_BASE_URL: http://api:8000
+      E2E_SESSION_SECRET: test-only-session-secret-never-use-for-real-data
+    volumes: ["./artifacts/compose:/app/artifacts", "./artifacts/compose/playwright:/app/src/web/test-results", "./artifacts/compose/playwright-report:/app/src/web/playwright-report"]
+    depends_on:
+      worker: {condition: service_started}
+volumes:
+  test-files:

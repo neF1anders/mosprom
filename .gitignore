@@ -3,3 +3,17 @@ __pycache__/
 *.png
 /CLAUDE.md
 /AGENTS.md
+.venv/
+.pytest_cache/
+.coverage
+.coverage.*
+artifacts/
+.env
+.env.*
+!.env.example
+node_modules/
+src/web/dist/
+playwright-report/
+test-results/
+.mypy_cache/
+.ruff_cache/
