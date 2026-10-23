@@ -75,6 +75,20 @@ def test_printing_mode_requirement_selects_the_5d_mode(run_tuning, tmp_path):
     assert "cylindrical_layer_height" in {setting["key"] for setting in param_set["settings"]}
 
 
+def test_material_named_by_the_user_matches_the_extruder_filament(run_tuning, tmp_path):
+    code, param_set, err = select(run_tuning, tmp_path, handoff(answers={"material_choice": "PLA"}))
+    assert code == 0, err
+    assert param_set["material"]["value"] == "generic_pla_175"
+
+
+def test_chemical_media_in_russian_are_matched_to_the_catalog_text(run_tuning, tmp_path):
+    payload = handoff(requirements=[requirement("chemical_resistance", "щёлочи, масла")])
+    code, param_set, err = select(run_tuning, tmp_path, payload)
+    assert code == 0, err
+    assert param_set["material"]["value"] == "enduse_pa6"
+    assert [check["status"] for check in param_set["material"]["checks"]] == ["ok"]
+
+
 def test_preliminary_card_is_used_with_a_caveat(run_tuning, tmp_path):
     code, param_set, err = select(run_tuning, tmp_path, handoff(readiness="preliminary"))
     assert code == 0, err

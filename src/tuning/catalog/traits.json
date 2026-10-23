@@ -23,7 +23,15 @@
     "sealant_tpu":      {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
     "sealant_tpu93":    {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
     "sealant_tpu_A95":  {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"},
-    "sealant_tpv80":    {"service_max_c": 100, "hygroscopic": "low", "flexible": true, "stiffness": "low", "friction": "high", "warp": "low"}
+    "sealant_tpv80":    {"service_max_c": 100, "hygroscopic": "low", "flexible": true, "stiffness": "low", "friction": "high", "warp": "low"},
+    "generic_abs_175":  {"tg_c": 105, "service_max_c": 85,  "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "medium", "friction": "medium", "abrasion": "fair", "warp": "high"},
+    "generic_cpe_175":  {"tg_c": 80,  "service_max_c": 70,  "hygroscopic": "low",    "uv": "fair", "flexible": false, "stiffness": "medium", "friction": "medium", "abrasion": "fair", "warp": "low"},
+    "generic_hips_175": {"tg_c": 100, "service_max_c": 75,  "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "low",    "friction": "medium", "abrasion": "poor", "warp": "medium"},
+    "generic_nylon_175": {"tg_c": 50, "service_max_c": 100, "hygroscopic": "high",   "uv": "fair", "flexible": false, "stiffness": "medium", "friction": "low",    "abrasion": "good", "warp": "high"},
+    "generic_pc_175":   {"tg_c": 147, "service_max_c": 115, "hygroscopic": "medium", "uv": "fair", "flexible": false, "stiffness": "high",   "friction": "medium", "abrasion": "fair", "warp": "high"},
+    "generic_petg_175": {"tg_c": 80,  "service_max_c": 70,  "hygroscopic": "low",    "uv": "fair", "flexible": false, "stiffness": "medium", "friction": "medium", "abrasion": "fair", "warp": "low"},
+    "generic_pla_175":  {"tg_c": 60,  "service_max_c": 50,  "hygroscopic": "low",    "uv": "poor", "flexible": false, "stiffness": "medium", "friction": "medium", "abrasion": "poor", "warp": "low"},
+    "generic_tpu_175":  {"service_max_c": 80, "hygroscopic": "high", "flexible": true, "stiffness": "low", "friction": "high", "abrasion": "good", "warp": "low"}
   },
   "chemical_stems": {
     "alkali": ["щелоч"], "acid": ["кислот"], "oil": ["масл", "смазоч"], "fuel": ["бензин", "дизельн", "керосин"],

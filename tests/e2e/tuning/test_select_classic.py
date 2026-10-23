@@ -26,7 +26,7 @@ def test_card_and_stl_give_explained_classic_parameters(run_tuning, write_card, 
     assert "classic_layer_height" in keys and "cylindrical_layer_height" not in keys
     assert keys["support_enable_classic"]["value"] is True
     assert keys["classic_layer_height"]["value"] <= 0.17  # tolerance rule: t >= 0.7
-    material = read_materials(materials_dir)[param_set["material"]["value"]]
+    material = read_materials(materials_dir, load_profile()["filament_mm"])[param_set["material"]["value"]]
     assert hard_rule_violations(param_set, load_profile(), material) == []
 
 

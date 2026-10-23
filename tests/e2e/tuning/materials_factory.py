@@ -8,7 +8,7 @@ _TEMPLATE = """<?xml version='1.0' encoding='utf-8'?>
     <name><brand>Test</brand><material>{label}</material><color></color><label>{label}</label></name>
     <description>{description}</description>
   </metadata>
-  <properties><diameter>1.75</diameter><density>{density}</density></properties>
+  <properties><diameter>{diameter}</diameter><density>{density}</density></properties>
   <settings>
     <setting key="print temperature">{nozzle}</setting>
     <setting key="heated bed temperature">{bed}</setting>
@@ -32,7 +32,11 @@ _MATERIALS = {
     ),
     "enduse_pc": ("Enduse PC", 1.2, 280, 100, 0, 40, "Поликарбонат, термостойкий."),
     "sealant_tpu": ("Sealant TPU", 1.15, 220, 60, 20, 40, "Гибкий термополиуретан, стойкость к маслам."),
+    "generic_pla": ("PLA", 1.24, 200, 60, 100, 50, "Generic PLA, 2.85 mm."),
+    "generic_pla_175": ("PLA", 1.24, 200, 60, 40, 50, "Generic PLA, 1.75 mm."),
 }
+# Filament diameter per file; everything else is 1.75 mm like the extruders of the test printer.
+_DIAMETERS = {"generic_pla": 2.85}
 
 
 def write_materials(directory):
@@ -49,6 +53,7 @@ def write_materials(directory):
                     cooling=cooling,
                     speed=speed,
                     description=description,
+                    diameter=_DIAMETERS.get(material_id, 1.75),
                 )
             )
     return str(directory)

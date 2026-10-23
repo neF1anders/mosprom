@@ -29,8 +29,8 @@ class Preparation(object):
 
     def __init__(self, card, geometry, settings):
         self.card, self.warnings = normalize_card(card)
-        materials = read_materials(_materials_dir(settings))
         self.profile, self.space, self.rules = load_profile(), load_search_space(), load_rules()
+        materials = read_materials(_materials_dir(settings), self.profile["filament_mm"])
         self.choice, material_warnings = choose_material(self.card, materials)
         self.warnings.extend(material_warnings)
         self.material = self.choice.material
