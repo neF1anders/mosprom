@@ -3,7 +3,8 @@
 from typing import Optional  # noqa: F401  (used in type comments)
 
 from tuning.errors import TuningError
-from tuning.geometry.features import SCHEMA
+
+SCHEMA = "geometry/0"
 
 _ROUND = 3
 
@@ -22,10 +23,7 @@ def geometry_from_report(stl_analysis):
     if stl_analysis.get("sha256") and file_hash and file_hash != stl_analysis["sha256"]:
         raise TuningError("stl_analysis.report belongs to another STL (sha256 mismatch)")
     assumptions = [_unit_assumption(report.get("units", {}))]
-    assumptions.append(
-        "overhang area is not in the stage-1 report: supports are not enabled by geometry, "
-        "orientation is taken as loaded"
-    )
+    assumptions.append("доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются")
     measures = report.get("geometry", {})
     low, high = measures.get("bounds") or [None, None]
     if low is None or high is None:
@@ -51,9 +49,9 @@ def geometry_from_report(stl_analysis):
 def _unit_assumption(units):
     unit = units.get("coordinate_unit", "unknown")
     if unit == "mm":
-        return "model coordinates are millimetres (confirmed by stage 1)"
+        return "координаты модели в миллиметрах (подтверждено этапом 1)"
     if unit == "unknown":
-        return "STL units are unknown: coordinates are taken as millimetres"
+        return "единицы STL неизвестны: координаты приняты за миллиметры"
     raise TuningError("unsupported coordinate unit %r in stl_analysis.report" % unit)
 
 

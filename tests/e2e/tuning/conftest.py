@@ -5,7 +5,7 @@ import sys
 
 import pytest
 from materials_factory import write_materials
-from stl_factory import cube, frustum, write_binary
+from stage1_factory import write_handoff
 
 REPOSITORY = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -34,33 +34,16 @@ def run_tuning(materials_dir):
 
 
 @pytest.fixture
-def write_card(tmp_path):
-    def write(**fields):
-        card = {"schema": "task_card/0", "status": "ready", "inputs": {"text": "test part"}}
-        card.update(fields)
-        path = tmp_path / "card.json"
-        path.write_text(json.dumps(card), encoding="utf-8")
-        return str(path)
+def select(run_tuning, tmp_path):
+    """select(handoff, feedback=None) -> (exit code, parameter_set or None, stderr)."""
 
-    return write
+    def run(payload, feedback=None):
+        args = ["select", "--input", write_handoff(tmp_path / "handoff.json", payload)]
+        if feedback is not None:
+            path = tmp_path / "feedback.json"
+            path.write_text(json.dumps(feedback, ensure_ascii=False), encoding="utf-8")
+            args += ["--feedback", str(path)]
+        code, out, err = run_tuning(*args)
+        return code, (json.loads(out) if code == 0 else None), err
 
-
-@pytest.fixture
-def mushroom_stl(tmp_path):
-    path = tmp_path / "mushroom.stl"
-    write_binary(path, frustum(5, 15, 5))
-    return str(path)
-
-
-@pytest.fixture
-def block_stl(tmp_path):
-    path = tmp_path / "block.stl"
-    write_binary(path, cube(20))
-    return str(path)
-
-
-@pytest.fixture
-def tall_stl(tmp_path):
-    path = tmp_path / "tall.stl"
-    write_binary(path, [tuple((x, y, z * 28.0) for x, y, z in triangle) for triangle in cube(10)])
-    return str(path)
+    return run

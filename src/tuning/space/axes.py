@@ -6,7 +6,7 @@ from typing import Any  # noqa: F401  (used in type comments)
 from tuning.serialization import load_json_file
 
 _DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_PROFILE_ID = "hte530v5.2"
+DEFAULT_PROFILE_ID = "hte530v5.2.4"
 
 
 def load_profile(profile_id=DEFAULT_PROFILE_ID):
@@ -42,11 +42,13 @@ class Param(object):
     def __init__(self, definition, context):
         # type: (dict, dict) -> None
         self.id = definition["id"]
+        self.key = definition["key"]
         self.unit = definition.get("unit", "")
         self.kind = definition["kind"]
         self.step = float(definition["step"])
-        self.keys = definition.get("keys", {})
-        self.emit = definition.get("emit")
+        self.baseline = definition["baseline"]
+        self.emit_as = definition.get("emit_as")
+        self.scope = definition.get("scope")
         self.v0 = resolve_number(definition["v0"], context)
         self.v1 = resolve_number(definition["v1"], context)
 
@@ -57,6 +59,10 @@ class Param(object):
     def t_of(self, value):
         # type: (float) -> float
         return (value - self.v0) / (self.v1 - self.v0)
+
+    def clamped_t_of(self, value):
+        # type: (float) -> float
+        return min(max(self.t_of(value), 0.0), 1.0)
 
     def quantize(self, value):
         # type: (float) -> float

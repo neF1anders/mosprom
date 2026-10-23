@@ -1,41 +1,47 @@
-"""Independent check of the hard rules (spec 4.2) on a finished param_set."""
+"""Independent check of the hard rules (spec 4.2) on a finished stage2.parameter_set."""
 
 import math
 from typing import Any  # noqa: F401  (used in type comments)
 
+from tuning.constraints import wall_lines
 
-def _values(param_set):
-    return {setting["key"]: setting["value"] for setting in param_set["settings"]}
+_TOLERANCE = 1e-9
 
 
-def hard_rule_violations(param_set, profile, material):
+def _value(parameter_set, key, default):
+    setting = (parameter_set.get("settings") or {}).get(key)
+    return setting["value"] if setting else default
+
+
+def hard_rule_violations(parameter_set, profile, material):
     # type: (dict, dict, Any) -> list
-    """Return human-readable violations; an empty list means the set respects the hard rules."""
-    values = _values(param_set)
+    """Human-readable violations; an empty list means the set respects the hard rules."""
     found = []
-    for key in ("classic_layer_height", "cylindrical_layer_height"):
-        if key in values and values[key] > 0.8 * profile["nozzle_mm"] + 1e-9:
-            found.append("%s=%s exceeds 0.8 * nozzle" % (key, values[key]))
-    if values.get("wall_line_count", 2) < 2:
-        found.append("wall_line_count < 2")
-    for key in ("top_layers", "bottom_layers"):
-        if key in values and values[key] < 3:
-            found.append("%s < 3" % key)
-    temperature = values.get("material_print_temperature")
-    if temperature is not None:
-        if temperature > profile["temperature_max_c"]:
-            found.append("nozzle temperature above machine limit")
-        nominal = material.print_temperature
-        if nominal is not None and not (nominal - 10 - 1e-9 <= temperature <= nominal + 10 + 1e-9):
-            found.append("nozzle temperature outside the material window")
-    mode = param_set["printing_mode"]["value"]
+    mode = parameter_set["printing_mode"]["value"]
     if mode not in profile["modes"]:
-        found.append("unknown printing mode %s" % mode)
+        return ["unknown printing mode %s" % mode]
+    quality = profile["qualities"].get(parameter_set["quality"]["quality_type"])
+    if quality is None:
+        return ["unknown quality profile %s" % parameter_set["quality"]["quality_type"]]
+    layer = _value(parameter_set, "layer_height", quality["layer_height"])
+    if layer > 0.8 * profile["nozzle_mm"] + _TOLERANCE:
+        found.append("layer %s mm exceeds 0.8 * nozzle" % layer)
+    wall = _value(
+        parameter_set, "wall_thickness", quality["values"].get("wall_thickness", profile["defaults"]["wall_thickness"])
+    )
+    if wall_lines(wall, profile["line_width_mm"]) < 2:
+        found.append("fewer than two walls")
+    skin = _value(parameter_set, "top_bottom_thickness", profile["defaults"]["top_bottom_thickness"])
+    if math.ceil(round(skin / layer, 4)) < 3:
+        found.append("fewer than three top/bottom layers")
+    temperature = _value(parameter_set, "material_print_temperature", material.print_temperature)
+    ceiling = max(profile["temperature_max_c"], material.print_temperature)
+    if temperature > ceiling + _TOLERANCE:
+        found.append("nozzle temperature above the machine limit")
+    if abs(temperature - material.print_temperature) > 10 + _TOLERANCE:
+        found.append("nozzle temperature outside the material window")
+    if not profile["modes"][mode]["heated_bed"] and "material_bed_temperature" in (parameter_set.get("settings") or {}):
+        found.append("bed temperature sent in a mode without a heated bed")
+    if material.diameter is not None and abs(material.diameter - profile["filament_mm"]) > _TOLERANCE:
+        found.append("material filament does not fit the extruder")
     return found
-
-
-def fits_build_volume(size, profile, mode):
-    # type: (list, dict, str) -> bool
-    volume = profile["build_volume_mm"]
-    limits = [volume["width"], volume["depth"], volume["height"][mode]]
-    return all(math.floor(extent * 1000) <= math.floor(limit * 1000) for extent, limit in zip(size, limits))

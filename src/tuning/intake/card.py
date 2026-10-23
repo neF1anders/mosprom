@@ -35,7 +35,7 @@ def check_readiness(card):
         reasons = "; ".join(blocked) or "readiness is blocked"
         raise TuningError("stage 1 blocks parameter selection: %s" % reasons)
     if card.get("readiness") == "preliminary":
-        return ["task card is preliminary (revision %s): the result may change" % card.get("revision")]
+        return ["карточка предварительная (ревизия %s): результат может измениться" % card.get("revision")]
     if card.get("readiness") != "ready":
         raise TuningError("unknown task card readiness %r" % card.get("readiness"))
     return []
@@ -59,11 +59,11 @@ def task_card_from_stage1(card, vocabulary):
         _read_requirement(requirement, requirement_id, vocabulary, task_card, notes)
     _read_answers(card.get("answers") or {}, vocabulary, task_card)
     _read_free_text(card, vocabulary, task_card, notes)
-    notes.assumptions.extend("stage 1 assumption: %s" % text for text in card.get("assumptions") or [])
+    notes.assumptions.extend(text for text in card.get("assumptions") or [])
     notes.warnings.extend("stage 1 unknown: %s" % text for text in card.get("unknowns") or [])
     for conflict in card.get("conflicts") or []:
         if not conflict.get("resolved"):
-            notes.assumptions.append("unresolved stage 1 conflict: %s" % conflict.get("title"))
+            notes.assumptions.append("неразрешённое противоречие этапа 1: %s" % conflict.get("title"))
     return task_card, notes.assumptions, notes.warnings
 
 
@@ -80,7 +80,7 @@ def _with_ids(requirements):
     for requirement in requirements:
         key = requirement.get("key") or "unnamed"
         seen[key] = seen.get(key, 0) + 1
-        yield requirement, key if seen[key] == 1 else "%s#%d" % (key, seen[key])
+        yield requirement, key if seen[key] == 1 else "%s-%d" % (key, seen[key])
 
 
 def _source(requirement):
@@ -98,7 +98,7 @@ def _read_requirement(requirement, requirement_id, vocabulary, task_card, notes)
     key = requirement.get("key")
     label = "%s (%s)" % (requirement_id, requirement.get("label") or key)
     if key in vocabulary["card_fields"]:
-        _read_card_field(vocabulary["card_fields"][key], requirement, label, vocabulary, task_card, notes)
+        _read_card_field(vocabulary["card_fields"][key], requirement, requirement_id, vocabulary, task_card, notes)
         return
     entry = vocabulary["requirements"].get(key)
     if entry is None:
@@ -135,13 +135,14 @@ def _typed_value(entry, requirement, vocabulary):
 
 def _not_interpreted(requirement, label, notes):
     if requirement.get("mandatory"):
-        notes.assumptions.append("mandatory requirement %s is not used by parameter selection" % label)
+        notes.assumptions.append("обязательное требование %s не учтено подбором параметров" % label)
     else:
         notes.warnings.append("requirement %s is not used by parameter selection" % label)
 
 
-def _read_card_field(field, requirement, label, vocabulary, task_card, notes):
+def _read_card_field(field, requirement, requirement_id, vocabulary, task_card, notes):
     text = "%s" % (requirement.get("value"),)
+    label = "%s (%s)" % (requirement_id, requirement.get("label") or requirement.get("key"))
     if field == "quantity":
         try:
             task_card["preferences"]["quantity"] = int(parse_number(text, "upper"))
@@ -150,11 +151,11 @@ def _read_card_field(field, requirement, label, vocabulary, task_card, notes):
     elif field == "load":
         _set_load(text, label, vocabulary, task_card, notes)
     elif field == "printing_mode":
-        _set_printing_mode(text.strip().lower(), label, vocabulary, task_card, notes)
+        _set_printing_mode(text.strip().lower(), requirement_id, vocabulary, task_card, notes)
     elif _source(requirement) == "assumption":
         notes.warnings.append("material %s is not confirmed, catalog ranking is used" % label)
     else:
-        task_card["material"] = {"name": text, "source": "card:" + (requirement.get("provenance") or "unknown")}
+        task_card["material"] = {"name": text, "requirement_id": requirement_id}
 
 
 def _set_load(text, origin, vocabulary, task_card, notes):
@@ -162,23 +163,26 @@ def _set_load(text, origin, vocabulary, task_card, notes):
     for load, phrases in vocabulary["load_phrases"]:
         if any(phrase in lowered for phrase in phrases):
             task_card["part"]["load"] = load
-            notes.assumptions.append("load '%s' read from the text of %s" % (load, origin))
+            notes.assumptions.append("нагрузка «%s» выведена из текста: %s" % (load, origin))
             return
     notes.warnings.append("load of %s not recognised: %r" % (origin, text))
 
 
-def _set_printing_mode(mode, label, vocabulary, task_card, notes):
+def _set_printing_mode(mode, requirement_id, vocabulary, task_card, notes):
     if mode in vocabulary["printing_modes"]:
         task_card["preferences"]["printing_mode"] = mode
+        task_card["preferences"]["printing_mode_requirement_id"] = requirement_id
     else:
-        notes.warnings.append("printing mode %s is not one of %s" % (label, ", ".join(vocabulary["printing_modes"])))
+        notes.warnings.append(
+            "printing mode %s is not one of %s" % (requirement_id, ", ".join(vocabulary["printing_modes"]))
+        )
 
 
 def _read_answers(answers, vocabulary, task_card):
     for question_id, field in sorted(vocabulary["answers"].items()):
         answer = answers.get(question_id)
         if field == "material" and answer and not task_card["material"].get("name"):
-            task_card["material"] = {"name": answer, "source": "card:answer"}
+            task_card["material"] = {"name": answer, "requirement_id": "answer." + question_id}
 
 
 def _read_free_text(card, vocabulary, task_card, notes):
@@ -193,15 +197,15 @@ def _read_free_text(card, vocabulary, task_card, notes):
     if positions:
         task_card["preferences"]["priority"] = [priority for _, priority in sorted(positions)]
         notes.assumptions.append(
-            "priority %s read from the preference text" % ", ".join(task_card["preferences"]["priority"])
+            "приоритеты %s выведены из текста пожеланий" % ", ".join(task_card["preferences"]["priority"])
         )
     if any(phrase in joined for phrase in vocabulary["supports_forbidden_phrases"]):
         task_card["preferences"]["supports_allowed"] = False
-        notes.assumptions.append("supports are forbidden by the preference text")
+        notes.assumptions.append("поддержки запрещены по тексту пожеланий")
     if "load" not in task_card["part"]:
         for constraint in card.get("production_constraints") or []:
             if _matches_load(constraint, vocabulary):
-                _set_load(constraint, "production constraint %r" % constraint, vocabulary, task_card, notes)
+                _set_load(constraint, "ограничение производства «%s»" % constraint, vocabulary, task_card, notes)
                 break
 
 
