@@ -31,8 +31,10 @@
   "card_fields": {
     "quantity": "quantity",
     "load_bearing": "load",
-    "material": "material"
+    "material": "material",
+    "printing_mode": "printing_mode"
   },
+  "printing_modes": ["classic", "cylindrical", "cylindrical_full"],
   "answers": {
     "material_choice": "material"
   },

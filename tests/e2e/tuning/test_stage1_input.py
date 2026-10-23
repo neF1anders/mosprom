@@ -67,6 +67,14 @@ def test_card_not_released_for_selection_is_refused(run_tuning, tmp_path, fields
     assert code == 2 and message in err
 
 
+def test_printing_mode_requirement_selects_the_5d_mode(run_tuning, tmp_path):
+    payload = handoff(requirements=[requirement("printing_mode", "cylindrical")])
+    code, param_set, err = select(run_tuning, tmp_path, payload)
+    assert code == 0, err
+    assert param_set["printing_mode"]["value"] == "cylindrical" and param_set["printing_mode"]["source"] == "card"
+    assert "cylindrical_layer_height" in {setting["key"] for setting in param_set["settings"]}
+
+
 def test_preliminary_card_is_used_with_a_caveat(run_tuning, tmp_path):
     code, param_set, err = select(run_tuning, tmp_path, handoff(readiness="preliminary"))
     assert code == 0, err
