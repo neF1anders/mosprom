@@ -1,3 +1,33 @@
-# Mosprom Wiki
+# mosprom
 
-Статичный сайт: index.html, style.css, app.js, data.js, .nojekyll. Загрузите ВСЕ файлы в корень репозитория GitHub, затем Settings → Pages → Deploy from a branch → main → / (root).
+Основное решение — ассистент-технолог для STE Slicer. Код решения пока не добавлен.
+
+```text
+src/
+  plugin/       Плагин STE Slicer и интеграция с приложением
+  web/          Веб-интерфейс чата
+tests/
+  e2e/          Сквозные проверки пользовательских сценариев
+docs/
+  FEATURES.md   Краткий реестр реализованных фич и их E2E-проверок
+research/
+  wiki/         Вики Фёдора, материалы исследования и исходники сайта
+CONTRIBUTING.md Правила работы с Git и кодом
+AGENTS.md.example Шаблон инструкций для агентов
+CLAUDE.md.example Шаблон локальных настроек участника
+```
+
+Перед работой прочитайте [CONTRIBUTING.md](CONTRIBUTING.md). Реализованные возможности отслеживаем в [реестре фич](docs/FEATURES.md).
+
+Для работы с агентами создайте локальные файлы из шаблонов (если они уже есть, перенесите нужные изменения вручную):
+
+```sh
+cp -n AGENTS.md.example AGENTS.md
+cp -n CLAUDE.md.example CLAUDE.md
+```
+
+[AGENTS.md.example](AGENTS.md.example) задаёт порядок работы агента, [CLAUDE.md.example](CLAUDE.md.example) — личное окружение участника. Заполните локальный `CLAUDE.md`. Оба локальных файла исключены из Git; общие правила разработки хранятся в `CONTRIBUTING.md`.
+
+[Вики Фёдора](research/wiki/ABOUT.md) — справочные материалы и исследование, а не основное решение проекта.
+
+[Текущая концепция команды](research/wiki/concept.html): роли, пять этапов обработки запроса и открытые вопросы.

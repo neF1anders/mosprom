@@ -6,9 +6,10 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307090d'/%3E%3Cpath d='M8 22l8-14 8 14z' fill='none' stroke='%232ee6a6' stroke-width='2.5'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css"></head><body>
 <a class="skip" href="#main">К содержимому</a>
-<header class="top"><div class="top-in"><a class="logo" href="#top">Mosprom Wiki</a><nav aria-label="Разделы"><a href="#task">Задача</a><a href="#arch">Архитектура</a><a href="#stages">Этапы</a><a href="#builds">Сборки</a><a href="#sources">Источники</a></nav></div></header>
+<header class="top"><div class="top-in"><a class="logo" href="#top">Mosprom Wiki</a><nav aria-label="Разделы"><a href="concept.html">Концепция команды</a><a href="#task">Задача</a><a href="#arch">Архитектура</a><a href="#stages">Этапы</a><a href="#builds">Сборки</a><a href="#sources">Источники</a></nav></div></header>
 <div class="hero" id="top"><div class="hero-in"><h1>Mosprom Wiki</h1><p class="sub">Сервис, который сам подбирает параметры FDM-печати: что входит в задачу, из каких этапов она состоит и какие готовые решения есть для каждого этапа.</p></div></div>
 <main id="main">
+<section class="blk" id="team-concept"><div class="sh"><h2>Текущая концепция команды</h2><p>Плагин STE Slicer: чат с Qwen, подбор и валидация параметров, штатный слайсинг и выдача файлов. Команда из пяти человек, задачи и пятиэтапный пайплайн описаны отдельно.</p></div><p><a class="btn pri" href="concept.html">Концепция, роли и открытые вопросы</a></p><p>Ниже сохранён исходный исследовательский обзор Фёдора. Его широкая цепочка, включая парк принтеров и мониторинг, не задаёт объём текущего решения.</p></section>
 <section class="blk" id="task"><div class="sh"><h2>Что в задаче</h2></div>
 <p>Нужен сервис с чатом. Пользователь загружает модель (STL), фото и пишет, что хочет получить. Сервис сам выбирает настройки печати, делает G-код, отправляет его на нужный принтер и следит за печатью.</p>
 <div class="grid g2" style="margin:16px 0">
