@@ -68,3 +68,19 @@ def test_m5_holds_a_parameter_blamed_both_ways_while_m1_gives_up(run_tuning, wri
     assert second["status"] == "proposed"
     assert setting(second, "infill_sparse_density")["value"] == setting(first, "infill_sparse_density")["value"]
     assert setting(second, "wall_line_count")["value"] > setting(first, "wall_line_count")["value"]
+
+
+def test_m5_keeps_moving_other_parameters_when_one_is_stuck_at_its_bound(run_tuning, write_card, block_stl, tmp_path):
+    card = write_card(requirements=[{"id": "R1", "kind": "x", "key": "no_visible_layers", "value": True, "hard": True, "source": "user"}])
+    extra = ("--strategy", "m5", "--max-iterations", "10")
+    result, state = start(run_tuning, tmp_path, card, block_stl, *extra)
+    verdict = {"ok": False, "issues": [issue("classic_layer_height", "too_weak", 1), issue("wall_line_count", "too_weak", 2)]}
+    walls = []
+    for number in range(1, 13):
+        result, state = advance(run_tuning, tmp_path, card, block_stl, state, verdict, number, *extra)
+        if result["status"] != "proposed":
+            break
+        walls.append(setting(result, "wall_line_count")["value"])
+    # It only gives up once every signalled parameter is stuck, after walls were pushed up to their limit.
+    assert result["status"] == "infeasible"
+    assert setting(result, "classic_layer_height")["value"] == 0.1 and walls[-1] == 6 and walls[0] < walls[-1]
