@@ -2,6 +2,8 @@ export interface Evidence {
   source_id: string;
   quote: string;
   page: number | null;
+  method?: "text" | "vision" | "user";
+  artifact_id?: string | null;
 }
 export interface Requirement {
   label?: string;

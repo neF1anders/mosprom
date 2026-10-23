@@ -15,7 +15,19 @@ def test_T02_all_pdf_pages_are_covered(name, pages, tmp_path):
     result = inspect_document(target, "pdf")
     assert len(result["fragments"]) == pages
     assert {f["page"] for f in result["fragments"]} == set(range(1, pages + 1))
-    assert all("25" in f["text"] and "75" in f["text"] for f in result["fragments"])
+    for fragment in result["fragments"]:
+        if fragment["method"] == "vision":
+            assert (tmp_path / fragment["image"]).is_file()
+        else:
+            assert "25" in fragment["text"] and "75" in fragment["text"]
+    if name == "scan.pdf":
+        assert result["fragments"][0]["method"] == "vision"
+        assert not result["fragments"][0]["text"].strip()
+    assert all(f["method"] == "vision" for f in result["fragments"])
+    assert len(result["artifacts"]) == pages
+    if name == "mixed.pdf":
+        assert "25" in result["fragments"][0]["text"]
+        assert not result["fragments"][1]["text"].strip()
 
 
 @pytest.mark.parametrize(

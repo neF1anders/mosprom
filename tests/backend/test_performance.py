@@ -78,7 +78,7 @@ async def test_A04_event_cursor_uses_constant_query_count(pg, count):
     record("A04.cursor", history=count, queries=len(queries), seconds=time.perf_counter() - start)
 
 
-@pytest.mark.parametrize("operation", ["qwen", "stl", "ocr", "database", "events"])
+@pytest.mark.parametrize("operation", ["qwen", "stl", "pdf_render", "database", "events"])
 async def test_A03_long_operation_does_not_block_health(pg, http, operation):
     started = asyncio.Event()
     release = asyncio.Event()

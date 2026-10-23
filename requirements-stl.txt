@@ -1,6 +1,0 @@
-trimesh==5.1.1
-numpy==2.3.4
-scipy==1.16.2
-rtree==1.4.1
-networkx==3.5
-matplotlib==3.10.7

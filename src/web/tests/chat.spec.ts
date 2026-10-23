@@ -34,6 +34,7 @@ for (const name of [
   "text.pdf",
   "scan.pdf",
   "mixed.pdf",
+  "photo.png",
 ]) {
   test(`T02 T03 document ${name}`, async ({ page }) => {
     await upload(page, name);
@@ -53,6 +54,26 @@ for (const name of [
         .filter({ hasText: /75/ })
         .first(),
     ).toBeVisible();
+    if (name.endsWith(".pdf") || name === "photo.png") {
+      const panel = page.getByRole("complementary", {
+        name: "Карточка задания",
+      });
+      await panel.locator("summary").filter({ hasText: /25/ }).first().click();
+      const image = panel
+        .getByRole("link", { name: "Посмотреть страницу" })
+        .first();
+      await expect(image).toBeVisible();
+      const response = await page.request.get(
+        (await image.getAttribute("href"))!,
+      );
+      expect(response.ok()).toBe(true);
+      expect(response.headers()["content-type"]).toContain("image/png");
+      if (name === "scan.pdf" || name === "photo.png") {
+        await expect(
+          panel.getByText(/прочитано по изображению/).first(),
+        ).toBeVisible();
+      }
+    }
   });
 }
 for (const [name, expected] of [

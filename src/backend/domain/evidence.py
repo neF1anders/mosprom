@@ -9,24 +9,16 @@ from .rules import known, normalize_quantity
 
 
 def validate_evidence(card: TaskCard, sources: dict[str, dict]) -> TaskCard:
-    """O(total citation text): quoted evidence, not model confidence, establishes provenance."""
+    """Text quotes are matched; visual readings retain their actual page image."""
     normalized = {key: " ".join(source.get("text", "").split()) for key, source in sources.items()}
     for requirement in card.requirements:
         valid = bool(requirement.sources)
         quoted_numbers: set[str] = set()
         for evidence in requirement.sources:
-            source = sources.get(evidence.source_id, {})
             quote = " ".join(evidence.quote.split())
-            text = normalized.get(evidence.source_id, "")
             quoted_numbers.update(numbers(quote))
-            page_valid = evidence.page is None or evidence.page == source.get("page")
-            valid = (
-                valid
-                and bool(quote)
-                and quote in text
-                and not source.get("uncertain", False)
-                and page_valid
-            )
+            supported = _citation_supported(evidence, sources, normalized)
+            valid = valid and supported
         requirement.verified = (
             requirement.verified
             and valid
@@ -44,6 +36,24 @@ def validate_evidence(card: TaskCard, sources: dict[str, dict]) -> TaskCard:
                 )
             )
     return card
+
+
+def _citation_supported(evidence: Evidence, sources: dict, normalized: dict) -> bool:
+    source = sources.get(evidence.source_id, {})
+    quote = " ".join(evidence.quote.split())
+    evidence.method, evidence.artifact_id = "text", None
+    if not source or not quote or source.get("uncertain", False):
+        return False
+    if evidence.page is not None and evidence.page != source.get("page"):
+        return False
+    evidence.artifact_id = source.get("image")
+    if quote in normalized.get(evidence.source_id, ""):
+        evidence.method = "user" if source.get("method") == "user" else "text"
+        return True
+    if source.get("method") != "vision" or not source.get("image"):
+        return False
+    evidence.method = "vision"
+    return evidence.page == source.get("page") and evidence.page is not None
 
 
 def _conflicts(requirements: list[Requirement]) -> list[Conflict]:
@@ -120,7 +130,9 @@ def apply_answers(
         requirement.value = answer
         requirement.verified = True
         requirement.provenance = "user"
-        requirement.sources = [Evidence(source_id=source_id, quote=f"{key} = {answer}")]
+        requirement.sources = [
+            Evidence(source_id=source_id, quote=f"{key} = {answer}", method="user")
+        ]
     for conflict in card.conflicts:
         conflict.resolution = resolutions.get(conflict.id)
         conflict.resolved = known(conflict.resolution)

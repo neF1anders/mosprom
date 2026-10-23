@@ -1,16 +1,15 @@
 # Анализ STL
 
-`src/mesh_analysis.py` — самостоятельный CLI и функция `analyze_stl(path, ...)` для первого этапа ассистента. Требуется Python 3.11+ для закреплённого набора зависимостей. Код не рассчитан на Python 3.5 внутри STE Slicer. Согласование вспомогательного процесса с организаторами остаётся отдельным вопросом.
+`src/mesh_analysis.py` — самостоятельный CLI и функция `analyze_stl(path, ...)` для первого этапа ассистента. Требуется Python 3.11 для закреплённого набора зависимостей. Код не рассчитан на Python 3.5 внутри STE Slicer. Согласование вспомогательного процесса с организаторами остаётся отдельным вопросом.
 
 ## Запуск
 
 ```sh
-python3.11 -m venv .venv
-.venv/bin/python -m pip install -r requirements-stl.txt
-.venv/bin/python src/mesh_analysis.py /path/to/model.stl --output-dir artifacts/stl-analysis --preview
+uv sync --locked
+uv run --locked python src/mesh_analysis.py /path/to/model.stl --output-dir artifacts/stl-analysis --preview
 ```
 
-На Windows используется `.venv\Scripts\python.exe`. Можно передать несколько файлов или папок; папки обходятся рекурсивно, расширение STL проверяется без учёта регистра.
+Команды `uv run` одинаковы на macOS, Linux и Windows. Можно передать несколько файлов или папок; папки обходятся рекурсивно, расширение STL проверяется без учёта регистра.
 
 По умолчанию масштаб **неизвестен**. Если пользователь или проект достоверно задаёт миллиметры, добавьте `--units mm`. `--units cm|m|inch` переводит координаты в миллиметры. Сам STL не подтверждает единицы; источник всегда записан как указание вызывающей стороны. PNG показывает исходные координаты файла.
 
@@ -47,8 +46,8 @@ python3.11 -m venv .venv
 ## Проверки
 
 ```sh
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python -m pytest --cov=src --cov-report=term-missing --cov-fail-under=80
+uv sync --locked
+uv run --locked pytest --cov=src --cov-report=term-missing --cov-fail-under=80
 ```
 
 Тесты содержат аналитические геометрические примеры, испорченные сетки и сквозной запуск CLI. CI выполняет тот же набор на Ubuntu и Windows. Локальный прогон на macOS сам по себе не подтверждает Windows-интеграцию со STE Slicer.

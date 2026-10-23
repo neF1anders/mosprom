@@ -80,3 +80,62 @@ def test_T08_approval_does_not_transfer_to_changed_conflict():
         ]
     )
     assert first.conflicts[0].id != changed.conflicts[0].id
+
+
+def test_visual_requirement_keeps_page_and_image_evidence():
+    result = validate_evidence(
+        TaskCard(
+            requirements=[
+                Requirement(
+                    key="nominal",
+                    value="25",
+                    sources=[Evidence(source_id="scan:1", quote="Nominal 25 Nm", page=1)],
+                )
+            ]
+        ),
+        {"scan:1": {"text": "", "method": "vision", "image": "scan-page-1.png", "page": 1}},
+    )
+    requirement = result.requirements[0]
+    assert requirement.verified
+    assert requirement.sources[0].method == "vision"
+    assert requirement.sources[0].artifact_id == "scan-page-1.png"
+    assert not result.questions
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing_source",
+        "missing_page",
+        "wrong_page",
+        "missing_image",
+        "wrong_number",
+        "uncertain",
+        "unreadable",
+    ],
+)
+def test_visual_requirement_cannot_bypass_source_checks(case):
+    source = {
+        "text": "",
+        "method": "vision",
+        "image": "scan-page-1.png",
+        "page": 1,
+        "uncertain": case == "uncertain",
+    }
+    if case == "missing_image":
+        source.pop("image")
+    requirement = Requirement(
+        key="nominal",
+        value="75" if case == "wrong_number" else "25",
+        verified=case != "unreadable",
+        sources=[
+            Evidence(
+                source_id="missing" if case == "missing_source" else "scan:1",
+                quote="Nominal 25 Nm",
+                page=None if case == "missing_page" else 2 if case == "wrong_page" else 1,
+            )
+        ],
+    )
+    result = validate_evidence(TaskCard(requirements=[requirement]), {"scan:1": source})
+    assert not result.requirements[0].verified
+    assert result.questions

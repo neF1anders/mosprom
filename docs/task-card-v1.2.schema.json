@@ -81,6 +81,28 @@
           ],
           "default": null,
           "title": "Page"
+        },
+        "method": {
+          "default": "text",
+          "enum": [
+            "text",
+            "vision",
+            "user"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "artifact_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Id"
         }
       },
       "required": [
@@ -339,7 +361,7 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {
-      "default": "1.1",
+      "default": "1.2",
       "title": "Schema Version",
       "type": "string"
     },

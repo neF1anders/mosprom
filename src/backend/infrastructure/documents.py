@@ -77,19 +77,6 @@ def _docx(path: Path, limits: InputLimits) -> dict[str, Any]:
     return {"fragments": [_fragment("\n".join(blocks), 1)], "artifacts": []}
 
 
-def _ocr(image, timeout: float = 30) -> tuple[str, bool]:
-    import pytesseract
-
-    data = pytesseract.image_to_data(
-        image, lang="rus+eng", output_type=pytesseract.Output.DICT, timeout=timeout
-    )
-    words = [
-        (word, float(score)) for word, score in zip(data["text"], data["conf"]) if word.strip()
-    ]
-    uncertain = any(score < 85 and any(c.isdigit() for c in word) for word, score in words)
-    return " ".join(word for word, _ in words), uncertain
-
-
 def _pdf(path: Path, limits: InputLimits) -> dict[str, Any]:
     import pypdfium2
     from pypdf import PdfReader
@@ -127,30 +114,23 @@ def page_deadline(seconds: float):
         signal.signal(signal.SIGALRM, previous)
 
 
-def _thumbnail(image, path: Path, suffix: str) -> str:
+def _image_artifact(image, path: Path, suffix: str) -> str:
     artifact = f"{path.name}-{suffix}.png"
     preview = image.convert("RGB")
-    preview.thumbnail((1024, 1024))
+    preview.thumbnail((2048, 2048))
     preview.save(path.parent / artifact)
     return artifact
 
 
 def _pdf_page(path, number, page, rendered, limits):
     text = page.extract_text(extraction_mode="layout") or ""
-    # Image XObjects can contain extra requirements on a page with a text layer.
-    if len(text.strip()) >= 30 and not page.images:
-        return _fragment(text, number), None
     pdf_page = rendered[number - 1]
     width, height = pdf_page.get_size()
     if width * height * 4 > limits.image_pixels:
         raise AppError("Страница PDF превышает лимит рендера 25 мегапикселей", "pixel_limit", 413)
     image = pdf_page.render(scale=2).to_pil()
-    artifact = _thumbnail(image, path, f"page-{number}")
-    recognized, uncertain = _ocr(image, limits.page_seconds)
-    combined = text + "\n" + recognized if text.strip() else recognized
-    return _fragment(
-        combined, number, method="ocr", uncertain=uncertain or not combined.strip(), image=artifact
-    ), artifact
+    artifact = _image_artifact(image, path, f"page-{number}")
+    return _fragment(text, number, method="vision", image=artifact), artifact
 
 
 def _image(path: Path, limits: InputLimits) -> dict[str, Any]:
@@ -163,10 +143,9 @@ def _image(path: Path, limits: InputLimits) -> dict[str, Any]:
             raise AppError("Изображение превышает 25 мегапикселей", "pixel_limit", 413)
         image.verify()
     with Image.open(path) as image:
-        text, uncertain = _ocr(image, limits.page_seconds)
-        artifact = _thumbnail(image, path, "preview")
+        artifact = _image_artifact(image, path, "preview")
     return {
-        "fragments": [_fragment(text, 1, method="ocr", uncertain=uncertain, image=artifact)],
+        "fragments": [_fragment("", 1, method="vision", image=artifact)],
         "artifacts": [artifact],
     }
 

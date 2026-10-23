@@ -51,9 +51,18 @@ export function TaskCard({
   onStop?: () => void;
 }) {
   const card = job?.card;
-  const geometry = events.reduce<Geometry | undefined>((previous, event) => event.type === "geometry.completed" ? event.data.geometry as Geometry : previous, undefined) || card?.geometry;
-  const running = !!job && ["running", "queued", "stopping"].includes(job.status);
-  const requirements = card?.requirements.filter(requirement => requirement.mandatory) || [];
+  const geometry =
+    events.reduce<Geometry | undefined>(
+      (previous, event) =>
+        event.type === "geometry.completed"
+          ? (event.data.geometry as Geometry)
+          : previous,
+      undefined,
+    ) || card?.geometry;
+  const running =
+    !!job && ["running", "queued", "stopping"].includes(job.status);
+  const requirements =
+    card?.requirements.filter((requirement) => requirement.mandatory) || [];
   const dimensions = geometry?.extents
     .map((x) => Number(x.toFixed(3)))
     .join(" × ");
@@ -93,7 +102,11 @@ export function TaskCard({
       <Field
         title="Обязательные требования"
         state={
-          requirements.length ? (unresolved || running ? "warn" : "done") : "empty"
+          requirements.length
+            ? unresolved || running
+              ? "warn"
+              : "done"
+            : "empty"
         }
       >
         {requirements.length ? (
@@ -115,7 +128,19 @@ export function TaskCard({
                     <small>
                       {source.source_id}
                       {source.page ? ` · стр ${source.page}` : ""}
+                      {source.method === "vision"
+                        ? " · прочитано по изображению"
+                        : ""}
                     </small>
+                    {source.artifact_id && (
+                      <a
+                        href={`/api/v1/jobs/${job?.id}/artifacts/${encodeURIComponent(source.artifact_id)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Посмотреть страницу
+                      </a>
+                    )}
                   </blockquote>
                 ))}
               </details>
@@ -183,13 +208,15 @@ export function TaskCard({
       <Field
         title="Готовность"
         state={
-          running ? "warn" : card
-            ? card.readiness === "blocked"
-              ? "error"
-              : "done"
-            : job?.status === "running"
-              ? "warn"
-              : "empty"
+          running
+            ? "warn"
+            : card
+              ? card.readiness === "blocked"
+                ? "error"
+                : "done"
+              : job?.status === "running"
+                ? "warn"
+                : "empty"
         }
       >
         {events.length ? (

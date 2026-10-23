@@ -110,7 +110,7 @@ async def test_full_report_is_identical_in_storage_export_and_one_handoff(pg, ht
     assert final["card"]["stl_analysis"] == expected
     assert exported == final["card"] == captured[-1]["card"]
     assert captured[-1]["idempotency_key"] == f"{job_id}:{final['revision']}"
-    assert exported["schema_version"] == "1.1"
+    assert exported["schema_version"] == "1.2"
     assert exported["requirements"] and exported["requirements"][0]["sources"]
     assert exported["answers"]["geometry.units"] == "mm"
     assert "STL-only-marker" not in json.dumps(model.requests)

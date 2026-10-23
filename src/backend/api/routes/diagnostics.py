@@ -22,5 +22,7 @@ async def capabilities(services: Services):
         "model_configured": bool(services.settings.qwen_api_key),
         "stage2_connected": bool(services.settings.handoff_url),
         "web_search": False,
+        "document_mode": "multimodal",
+        "local_ocr": False,
         "events": "sse",
     }

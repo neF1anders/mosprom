@@ -106,7 +106,7 @@ test("T13 card with confirmed units has downloadable current revision", async ({
   expect(result.ok()).toBe(true);
   const card = await result.json();
   expect(card.geometry.units).toBe("mm");
-  expect(card.schema_version).toBe("1.1");
+  expect(card.schema_version).toBe("1.2");
   expect(card.stl_analysis.attachment_id).toBeTruthy();
   expect(card.stl_analysis.sha256).toMatch(/^[a-f0-9]{64}$/);
   expect(card.stl_analysis.report.file.sha256).toBe(card.stl_analysis.sha256);

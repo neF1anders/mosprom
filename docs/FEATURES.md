@@ -5,10 +5,10 @@
 | ID | Что умеет пользователь | E2E-проверка |
 | --- | --- | --- |
 | STL-001 | Анализировать STL командой: проверки сетки, геометрия, сечения, выборочные хорды и отчёты JSON/Markdown/PNG | `tests/e2e/test_stl_cli.py` — пакет файлов, Unicode, повреждённый STL, отчёты и изображение |
-| WEB-001 | Создать чат, загрузить STL/PDF/DOCX/TXT/MD/JPG/PNG, увидеть ошибки файлов | `src/web/tests/chat.spec.ts`, `recovery.spec.ts` |
+| WEB-001 | Создать чат, загрузить STL/PDF/DOCX/TXT/MD/JPG/PNG и прочитать PDF/изображения мультимодальной моделью, увидеть ошибки файлов | `src/web/tests/chat.spec.ts`, `recovery.spec.ts` |
 | WEB-002 | Ответить на пакет вопросов и разрешить конфликт источников | `src/web/tests/chat.spec.ts` — T07/T08 |
 | WEB-003 | Остановить, возобновить, внести правки и восстановить чат после refresh | `src/web/tests/recovery.spec.ts` — T11/T12 |
-| WEB-004 | Просмотреть проверки и источники, скачать единую карточку JSON 1.1 с полным STL-отчётом | `src/web/tests/chat.spec.ts`, `recovery.spec.ts` — T09/T13, полный отчёт совпадает с исходным JSON |
+| WEB-004 | Просмотреть проверки и источники, скачать единую карточку JSON 1.2 с полным STL-отчётом | `src/web/tests/chat.spec.ts`, `recovery.spec.ts` — T09/T13, полный отчёт совпадает с исходным JSON |
 | WEB-005 | Пользоваться интерфейсом Figma, клавиатурой и сворачивать панели | `src/web/tests/figma.spec.ts`, `visual.spec.ts`, `chat.spec.ts` — T14 |
 
 Вики в `research/wiki/` — справочные материалы и в этот реестр не входит.

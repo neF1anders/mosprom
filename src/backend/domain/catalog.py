@@ -5,7 +5,7 @@ from typing import Callable
 
 from .models import TaskCard
 
-RULES_VERSION = "2"
+RULES_VERSION = "3"
 
 
 @dataclass(frozen=True)

@@ -37,6 +37,8 @@ class Evidence(Value):
     source_id: str
     quote: str = ""
     page: int | None = None
+    method: Literal["text", "vision", "user"] = "text"
+    artifact_id: str | None = None
 
 
 class Requirement(Value):
@@ -106,7 +108,8 @@ class InterpretationCard(Value):
     readiness: Literal["ready", "preliminary", "blocked"] = "blocked"
 
 
-CARD_SCHEMA_VERSION = "1.1"
+CARD_SCHEMA_VERSION = "1.2"
+DOCUMENT_VERSION = "documents-v2-vision"
 
 
 class StlAnalysis(Value):
@@ -165,6 +168,7 @@ class Attachment(Value):
     error: str | None = None
     fragments: list[dict[str, Any]] = Field(default_factory=list)
     artifacts: list[str] = Field(default_factory=list)
+    parser_version: str = ""
 
 
 class Event(Value):

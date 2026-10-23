@@ -17,6 +17,12 @@ async def complete(request: Request):
         text = next(item["text"] for item in text if item["type"] == "text")
     context = json.loads(text)
     sources = context.get("sources", {})
+    images = payload["messages"][1]["content"]
+    actual_images = (
+        sum(part.get("type") == "image_url" for part in images) if isinstance(images, list) else 0
+    )
+    if actual_images != sum(bool(source.get("image")) for source in sources.values()):
+        return JSONResponse({"error": "missing page image"}, status_code=400)
     combined = "\n".join(s["text"] for s in sources.values())
     if "TEST_PROVIDER_401" in combined:
         return JSONResponse({"error": "synthetic authorization failure"}, status_code=401)
@@ -24,7 +30,7 @@ async def complete(request: Request):
         return {"choices": [{"message": {"role": "assistant", "content": "invalid"}}]}
     if "TEST_DELAY" in combined:
         await asyncio.sleep(2)
-    requirements = source_requirements(sources)
+    requirements = source_requirements(sources) + visual_requirements(sources)
     questions = []
     if "TEST_QUESTIONS" in combined:
         questions = [
@@ -96,3 +102,21 @@ def source_requirements(sources):
                 }
             )
     return requirements
+
+
+def visual_requirements(sources):
+    # Controlled provider reads known synthetic fixtures, never a production fallback.
+    return [
+        {
+            "key": f"{source_id}.{kind}",
+            "value": value,
+            "unit": "Nm",
+            "sources": [{"source_id": source_id, "page": source["page"], "quote": quote}],
+        }
+        for source_id, source in sources.items()
+        if source.get("image")
+        for kind, value, quote in [
+            ("nominal", "25", "Nominal 25 Nm"),
+            ("peak", "75", "Peak 75 Nm"),
+        ]
+    ]

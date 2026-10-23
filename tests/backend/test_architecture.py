@@ -1,10 +1,37 @@
 import ast
+import sys
+import tomllib
 from pathlib import Path
 
 import pytest
+from packaging.requirements import Requirement
 
 pytestmark = pytest.mark.architecture
 ROOT = Path("src/backend")
+
+
+def _imports(node: ast.AST) -> list[str]:
+    if isinstance(node, ast.Import):
+        return [alias.name for alias in node.names]
+    if isinstance(node, ast.ImportFrom):
+        return [node.module or ""]
+    return []
+
+
+def test_runtime_dependencies_cover_lazy_production_imports():
+    config = tomllib.loads(Path("pyproject.toml").read_text())
+    packages = {Requirement(line).name.lower() for line in config["project"]["dependencies"]}
+    distributions = {"PIL": "pillow", "docx": "python-docx", "mpl_toolkits": "matplotlib"}
+    for path in [*ROOT.rglob("*.py"), Path("src/mesh_analysis.py")]:
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom) and node.level:
+                continue
+            external = (
+                {name.split(".")[0] for name in _imports(node)} - sys.stdlib_module_names - {"src"}
+            )
+            for name in external:
+                package = distributions.get(name, name.lower().replace("_", "-"))
+                assert package in packages, (path, node.lineno, package)
 
 
 @pytest.mark.parametrize(
@@ -23,11 +50,7 @@ def test_A01_import_boundaries(folder, forbidden):
     for path in files:
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
-            names = []
-            if isinstance(node, ast.Import):
-                names = [item.name for item in node.names]
-            if isinstance(node, ast.ImportFrom):
-                names = [node.module or ""]
+            names = _imports(node)
             assert not any(
                 part in name.split(".") or part in name for name in names for part in forbidden
             ), (path, names)

@@ -136,7 +136,7 @@ async def test_T07_answers_recompute_and_unknown_is_not_fact(pg, answer):
 
 
 async def test_T13_ready_card_without_connected_handoff(pg):
-    from src.backend.domain.models import Attachment
+    from src.backend.domain.models import DOCUMENT_VERSION, Attachment
 
     pg.pipeline.extraction.model = ModelDouble()
     pg.pipeline.geometry = GeometryDouble()
@@ -150,6 +150,7 @@ async def test_T13_ready_card_without_connected_handoff(pg):
             sha256="a" * 64,
             size=1,
             status="completed",
+            parser_version=DOCUMENT_VERSION,
         )
         job.units = "mm"
         job.active_stl = a.id

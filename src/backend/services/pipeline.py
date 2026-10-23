@@ -108,7 +108,10 @@ class Pipeline:
             cards.append(validate_evidence(candidate, sources))
         card = merge_cards(cards)
         card.revision, card.geometry = job.revision, geometry
-        card.source_versions = [{"id": a.id, "sha256": a.sha256} for a in attachments]
+        card.source_versions = [
+            {"id": a.id, "sha256": a.sha256, "parser_version": a.parser_version}
+            for a in attachments
+        ]
         card.source_versions.append({"id": job.id, "revision": str(job.revision)})
         if known(job.answers.get("purpose")):
             card.purpose = job.answers["purpose"]

@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 
 from ..domain.errors import AppError
-from ..domain.models import Attachment, Job
+from ..domain.models import DOCUMENT_VERSION, Attachment, Job
 from ..ports.operations import Files
 from ..ports.persistence import UowFactory
 from .runtime import Runtime
@@ -21,16 +21,18 @@ class PreparationService:
         ]
         for attachment in active:
             await runtime.check()
-            if attachment.status != "pending":
+            if not self._needs_preparation(attachment):
                 continue
             await runtime.event(
                 "document.started", f"Проверяю {attachment.filename}", attachment_id=attachment.id
             )
             try:
+                attachment.fragments = []
                 result = await self.files.inspect(attachment.id, attachment.kind)
                 attachment.fragments = result["fragments"]
                 attachment.artifacts = result["artifacts"]
                 attachment.status = "completed"
+                attachment.parser_version = DOCUMENT_VERSION
             except AppError as exc:
                 attachment.status, attachment.error = "failed", exc.message
             async with self.uow() as uow:
@@ -43,6 +45,12 @@ class PreparationService:
                 attachment_id=attachment.id,
             )
         return active
+
+    @staticmethod
+    def _needs_preparation(attachment: Attachment) -> bool:
+        return attachment.status == "pending" or (
+            attachment.status == "completed" and attachment.parser_version != DOCUMENT_VERSION
+        )
 
     async def sources(self, job: Job, attachments: list[Attachment]) -> dict:
         result = {}
@@ -57,6 +65,7 @@ class PreparationService:
                         "page": None,
                         "uncertain": False,
                         "revision": message["revision"],
+                        "method": "user",
                     }
             if len(messages) < 100:
                 break
@@ -67,6 +76,7 @@ class PreparationService:
                     **fragment,
                     "attachment_id": attachment.id,
                     "filename": attachment.filename,
+                    "parser_version": attachment.parser_version,
                 }
         return result
 
