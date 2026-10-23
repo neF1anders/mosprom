@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI помощник печати</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true"></span>
+    <h1>AI помощник печати</h1>
+    <span id="printer" class="chip" title="Активный принтер">принтер не выбран</span>
+  </div>
+  <div class="top-actions">
+    <button id="reset" class="ghost" type="button">Новый чат</button>
+    <button id="open-settings" class="ghost" type="button">Настройки</button>
+  </div>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main class="layout">
+  <section class="chat" aria-label="Чат">
+    <div id="log" class="log" aria-live="polite">
+      <div class="empty" id="empty">
+        <h2>Опишите задачу печати</h2>
+        <p>Например: «Кронштейн под нагрузку, PETG, без поддержек». Приложите STL или фото детали. Ассистент сам настроит слайсер, нарежет модель и объяснит решения.</p>
+      </div>
+    </div>
+    <div id="thinking" class="thinking" hidden><span></span><span></span><span></span> Работаю…</div>
+    <div class="scenarios" id="scenarios" role="group" aria-label="Сценарии"></div>
+    <div id="attachments" class="attachments"></div>
+    <form id="composer" class="composer">
+      <button id="attach" class="icon" type="button" title="Прикрепить STL, OBJ, 3MF, PNG или JPG" aria-label="Прикрепить файл">+</button>
+      <input id="file" type="file" accept=".stl,.obj,.3mf,.png,.jpg,.jpeg" multiple hidden>
+      <textarea id="text" rows="2" placeholder="Опишите задачу или выберите сценарий. Enter отправляет, Shift+Enter переносит строку."></textarea>
+      <button id="send" class="primary" type="submit">Отправить</button>
+    </form>
+  </section>
+
+  <aside class="side" aria-label="Состояние">
+    <section class="card">
+      <h3>Что изменено</h3>
+      <div id="changes" class="changes"><p class="muted">Пока ничего не менялось.</p></div>
+    </section>
+    <section class="card">
+      <h3>Слайсер</h3>
+      <dl id="state" class="state"></dl>
+    </section>
+    <section class="card">
+      <h3>Слайсинг</h3>
+      <div class="progress"><div id="bar"></div></div>
+      <p id="slicing" class="muted">Не запускался.</p>
+      <ul id="files" class="files"></ul>
+    </section>
+  </aside>
+</main>
+
+<dialog id="settings">
+  <form method="dialog" id="settings-form">
+    <h2>Настройки LLM</h2>
+    <p class="muted">Подходит любой OpenAI-совместимый API с вызовом инструментов. Ключ хранится в настройках слайсера на этом компьютере.</p>
+    <label>Base URL<input id="cfg-url" type="url" required></label>
+    <label>Модель<input id="cfg-model" type="text" required></label>
+    <label>API key<input id="cfg-key" type="password" autocomplete="off" placeholder="ключ"></label>
+    <div class="dialog-actions">
+      <button value="cancel" class="ghost" type="submit" formnovalidate>Отмена</button>
+      <button id="cfg-save" class="primary" type="button">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+    "name": "AI Assistant",
+    "author": "Loops",
+    "version": "0.1.0",
+    "description": "LLM chat assistant for STE Slicer: local web chat and an MCP server over the slicer API.",
+    "api": 5,
+    "i18n-catalog": "steslicer"
+}
