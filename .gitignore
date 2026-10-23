@@ -3,3 +3,26 @@ __pycache__/
 *.png
 /CLAUDE.md
 /AGENTS.md
+
+# Local environments and tool caches
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.py[cod]
+dist/
+build/
+*.egg-info/
+
+# Secrets
+.env
+.env.*
+
+# Case materials and working data (never committed, see CONTRIBUTING)
+/.scratch/
+*.stl
+*.zip
+
+# Slicing results
+*.gcode
+*.3mf
