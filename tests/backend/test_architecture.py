@@ -46,7 +46,7 @@ def test_runtime_dependencies_cover_lazy_production_imports():
     ],
 )
 def test_A01_import_boundaries(folder, forbidden):
-    files = list((ROOT / folder).glob("*.py"))
+    files = list((ROOT / folder).rglob("*.py"))
     assert any(p.stat().st_size for p in files), f"{folder} has no implementation"
     for path in files:
         tree = ast.parse(path.read_text())
@@ -74,5 +74,5 @@ def test_A01_application_branch_nesting_at_most_two():
             visit(child, current, inline or isinstance(node, ast.IfExp))
 
     for folder in ["domain", "services", "agents", "api", "api/routes", "infrastructure"]:
-        for path in (ROOT / folder).glob("*.py"):
+        for path in (ROOT / folder).rglob("*.py"):
             visit(ast.parse(path.read_text()))

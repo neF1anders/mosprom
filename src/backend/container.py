@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from functools import cached_property
+
 from .agents.runner import AgentRunner
 from .agents.stage1 import Stage1, Stage1Settings
 from .agents.tools import ToolBox
 from .config import Settings
+from .domain.catalog import Catalog
+from .infrastructure.catalog import load_catalog, load_requirement_keys
 from .infrastructure.database import database
 from .infrastructure.files import LocalFiles
 from .infrastructure.notifier import PostgresNotifier
@@ -34,6 +38,7 @@ class Container:
             max_tokens=settings.qwen_max_tokens,
         )
         self.notifier = PostgresNotifier(settings.database_url)
+        self.requirement_keys = load_requirement_keys(settings.requirement_keys_path)
         commands = Commands(self.uow)
         self.jobs = JobService(self.uow, self.notifier)
         self.sessions = SessionService(self.uow, settings.session_secret)
@@ -54,6 +59,11 @@ class Container:
                 job_images=settings.limits.job_images,
             ),
         )
+
+    @cached_property
+    def catalog(self) -> Catalog:
+        """Read on first use: only the worker selects and checks parameters."""
+        return load_catalog(self.settings.build_dir, self.settings.printer)
 
     async def close(self) -> None:
         await self.notifier.close()
