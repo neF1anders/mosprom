@@ -15,6 +15,7 @@ from .infrastructure.files import LocalFiles
 from .infrastructure.notifier import PostgresNotifier
 from .infrastructure.queue import queue_app
 from .infrastructure.qwen import QwenClient
+from .pipeline.parameters import ParameterPipeline, PipelineSettings
 from .services.answers import AnswerService
 from .services.artifacts import ArtifactService
 from .services.commands import Commands
@@ -23,6 +24,8 @@ from .services.jobs import JobService
 from .services.messages import MessageService
 from .services.sessions import SessionService
 from .services.uploads import UploadService
+from .tuning.select import select_parameters
+from .validation import check
 
 
 class Container:
@@ -65,6 +68,18 @@ class Container:
     def catalog(self) -> Catalog:
         """Read on first use: only the worker selects and checks parameters."""
         return load_catalog(self.settings.build_dir, self.settings.printer)
+
+    @cached_property
+    def pipeline(self) -> ParameterPipeline:
+        """Parameter selection and its check, bound to the build catalog and the codes."""
+        catalog, keys = self.catalog, self.requirement_keys
+        return ParameterPipeline(
+            self.uow,
+            catalog,
+            lambda card, feedback: select_parameters(card, catalog, keys, feedback),
+            lambda parameter_set: check(parameter_set, catalog),
+            PipelineSettings(timeout_seconds=self.settings.parameters_timeout_seconds),
+        )
 
     async def close(self) -> None:
         await self.notifier.close()

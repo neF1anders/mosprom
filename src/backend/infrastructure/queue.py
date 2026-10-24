@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 STAGE1_TASK = "stage1.run"
 STAGE1_QUEUE = "stage1"
-# Stage two registers a handler with this name; its payload is {job_id, revision}.
+# Parameter selection and its check run as this task; its payload is {job_id, revision}.
 STAGE2_TASK = "stage2.select_parameters"
 STAGE2_QUEUE = "stage2"
 

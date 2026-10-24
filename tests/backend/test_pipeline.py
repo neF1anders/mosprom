@@ -15,10 +15,11 @@ from sqlalchemy import text
 from src.backend.agents.runner import RunContext
 from src.backend.agents.store import RunStore
 from src.backend.domain.errors import AppError
-from src.backend.domain.models import Status, TaskCard
+from src.backend.domain.models import Requirement, Status, StlAnalysis, TaskCard
 from src.backend.domain.parameters import CheckResult, Feedback, Issue, ParameterSet
 from src.backend.infrastructure.catalog import load_catalog
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
+from src.mesh_analysis import analyze_stl
 
 pytestmark = pytest.mark.integration
 CATALOG = load_catalog(Path("knowledge/ste_5.2.4"), "hte530v5.2.4")
@@ -103,7 +104,7 @@ def pipeline(pg, steps, select=None, timeout: float = 5) -> ParameterPipeline:
     )
 
 
-async def ready_job(http, pg) -> str:
+async def ready_job(http, pg, **card) -> str:
     """A job whose stage one just handed a ready card over, as RunStore.finish does."""
     job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
     await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
@@ -112,7 +113,7 @@ async def ready_job(http, pg) -> str:
         return None
 
     ctx = RunContext(job_id=job_id, revision=1, run_id="r", check=nothing, event=nothing)
-    card = TaskCard(job_id=job_id, revision=1, readiness="ready")
+    card = TaskCard(job_id=job_id, revision=1, readiness="ready", **card)
     await RunStore(pg.uow).finish(ctx, card, "Задание разобрано, передаю на подбор параметров")
     return job_id
 
@@ -325,3 +326,31 @@ async def test_the_parameter_set_of_the_current_revision_is_served(pg, http, oth
     assert (await other.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 404
     await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
     assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 409
+
+
+async def test_the_real_selection_and_check_complete_a_ready_card(pg, http):
+    stl = Path("tests/fixtures/box.stl")
+    report = analyze_stl(stl, units="mm")
+    analysis = StlAnalysis(attachment_id="att", sha256=report["file"]["sha256"], report=report)
+    job_id = await ready_job(
+        http,
+        pg,
+        purpose="Корпус датчика",
+        requirements=[
+            Requirement(key="service_temp_max_c", value="80", unit="°C", verified=True),
+            Requirement(key="load_bearing", value="cyclic", verified=True),
+        ],
+        stl_analysis=analysis,
+    )
+    await pg.pipeline.run(job_id, 1)
+    done = await job(pg, job_id)
+    assert (done.status, done.stage) == (Status.COMPLETED, "done")
+    served = ParameterSet.model_validate(
+        (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json()
+    )
+    assert served.card_ref.job_id == job_id and served.printer == "hte530v5.2.4"
+    assert served.materials["0"].id in pg.catalog.materials
+    # The selected material has to hold 80 °C: the check of the requirement passed.
+    temperature = next(c for c in served.materials["0"].checks if c.key == "service_temp_max_c")
+    assert temperature.status in ("ok", "unknown")
+    assert done.parameters.check in ("ok", "attention")
