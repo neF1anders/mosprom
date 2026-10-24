@@ -168,4 +168,48 @@ describe("stages after the interpretation follow their own events", () => {
     expect(state("Подбор параметров")).toBe("warn");
     expect(state("Валидация")).toBe("done");
   });
+  it("the result opens when the pipeline ends after its row was already done", () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const events = [
+      event("stage1.completed"),
+      step("parameters.completed", 1, "completed"),
+      step("validation.started", 1, "running"),
+    ];
+    const working = {
+      id: "j",
+      revision: 1,
+      status: "running",
+      stage: "validation",
+    };
+    const view = (job: Job) => (
+      <QueryClientProvider client={client}>
+        <Progress events={events} job={job} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(working as Job));
+    const row = () => screen.getByText("Подбор параметров").closest("details");
+    expect(row()).not.toHaveAttribute("open");
+    const parameters = {
+      iteration: 1,
+      printing_mode: "3D",
+      quality_type: "Fine",
+      material: "PETG",
+      changed_settings: 0,
+      unsatisfied: 0,
+      status: "proposed",
+      check: "ok",
+    };
+    rerender(
+      view({
+        ...working,
+        status: "completed",
+        stage: "done",
+        parameters,
+      } as Job),
+    );
+    expect(row()).toHaveAttribute("open");
+    expect(screen.getByText("Что подобрано")).toBeVisible();
+  });
 });
