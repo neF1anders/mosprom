@@ -263,7 +263,7 @@ export async function designFixture(page: Page, state: DesignState) {
           agent: "interpreter",
           call,
           attempt: 1,
-          text: "В ТЗ сказано про эксплуатацию в помещении, значит рабочая температура, скорее всего, до 60 градусов. ",
+          text: "The spec says indoor use, so the working temperature is probably up to 60 degrees. ",
         },
       },
       {
@@ -276,7 +276,21 @@ export async function designFixture(page: Page, state: DesignState) {
           agent: "interpreter",
           call,
           attempt: 1,
-          text: "Прямого числа нет, поэтому это пока допущение, и я вынесу его на вопрос. Проверяю, нет ли требований по нагрузке на посадочное место",
+          text: "There is no direct number, so this stays an assumption and goes to a question. Checking for load requirements on the seat",
+        },
+      },
+      {
+        ...base,
+        event_id: 14,
+        type: "agent.narration",
+        status: "running",
+        message:
+          "Прямой температуры в ТЗ нет, выношу её на вопрос и проверяю нагрузку на посадочное место",
+        data: {
+          agent: "interpreter",
+          call,
+          attempt: 1,
+          text: "Прямой температуры в ТЗ нет, выношу её на вопрос и проверяю нагрузку на посадочное место",
         },
       },
       {

@@ -11,7 +11,7 @@ const STATE_EVENTS =
 export function useJobEvents(selected: string, enabled: boolean) {
   const client = useQueryClient();
   const [events, setEvents] = useState<ProgressEvent[]>([]);
-  // Reasoning comes in many pieces; it is kept per model call, apart from the timeline events.
+  // Reasoning and the narrator's phrases are kept per model call, apart from the timeline events.
   const [thoughts, setThoughts] = useState<Record<string, CallThoughts>>({});
   const [connected, setConnected] = useState(true);
   const [epoch, setEpoch] = useState(0);
@@ -40,7 +40,10 @@ export function useJobEvents(selected: string, enabled: boolean) {
     };
     source.onmessage = (message) => {
       const update: ProgressEvent = JSON.parse(message.data);
-      if (update.type === "agent.thinking") {
+      if (
+        update.type === "agent.thinking" ||
+        update.type === "agent.narration"
+      ) {
         if (seen.has(update.event_id)) return;
         seen.add(update.event_id);
         setThoughts((previous) => addThought(previous, update));

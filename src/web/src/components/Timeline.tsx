@@ -74,17 +74,7 @@ export function ActionRow({
     </div>
   );
 }
-// The newest words of the reasoning are lighter while they arrive.
-function tail(text: string) {
-  const short =
-    text.length > 280
-      ? `…${text.slice(text.indexOf(" ", text.length - 280))}`
-      : text;
-  const cut = short.lastIndexOf(" ", short.length - 24);
-  if (cut < short.length / 2) return [short, ""];
-  return [short.slice(0, cut), short.slice(cut)];
-}
-// A running agent: its reasoning as it goes and what it does now, Figma node 132:350.
+// A running agent: the narrator's phrase about its reasoning and what it does now, Figma node 132:350.
 export function AgentCard({
   agent,
   highlighted,
@@ -94,8 +84,7 @@ export function AgentCard({
   highlighted: boolean;
   onOpen: () => void;
 }) {
-  const thought = agent.thoughts[agent.thoughts.length - 1]?.text || "";
-  const [head, fresh] = tail(thought.trim());
+  const phrase = agent.said.at(-1)?.text;
   const action = agent.actions[agent.actions.length - 1];
   return (
     <button
@@ -109,10 +98,10 @@ export function AgentCard({
         <Icon name={agent.icon} size={18} />
         {agent.title}
       </span>
-      {thought && (
-        <span className={styles.reasoning}>
-          {head}
-          <span>{fresh}</span>
+      {phrase && (
+        // A new phrase fades in over the old one.
+        <span key={phrase} className={styles.reasoning}>
+          {phrase}
         </span>
       )}
       {action && <ActionRow action={action} plain />}

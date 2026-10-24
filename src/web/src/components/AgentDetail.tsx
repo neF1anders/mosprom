@@ -1,4 +1,5 @@
-import { seconds, type AgentRun } from "../timeline";
+import { useState } from "react";
+import { seconds, type AgentRun, type Retold, type Thought } from "../timeline";
 import { ActionRow } from "./Timeline";
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
@@ -11,6 +12,45 @@ function clock(ms: number) {
 function age(index: number, count: number) {
   if (index === count - 1) return "now";
   return index === count - 2 ? "recent" : "old";
+}
+// The reasoning as the model wrote it, often in English.
+function Original({ thoughts }: { thoughts: Thought[] }) {
+  return (
+    <div className={styles.original} lang="en">
+      {thoughts.map((thought, index) => (
+        <p key={index}>{thought.text.trim()}</p>
+      ))}
+    </div>
+  );
+}
+// A narrator's phrase; a click opens the reasoning it retells.
+function Phrase({ item }: { item: Retold }) {
+  const [open, setOpen] = useState(false);
+  if (!item.original.length) return <p>{item.text}</p>;
+  return (
+    <>
+      <button aria-expanded={open} onClick={() => setOpen(!open)}>
+        <p>{item.text}</p>
+      </button>
+      {open && <Original thoughts={item.original} />}
+    </>
+  );
+}
+// Without the narrator's phrases the reasoning stays behind a button.
+function Unretold({ thoughts }: { thoughts: Thought[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        className={styles.reveal}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {open ? "Скрыть размышление модели" : "Показать размышление модели"}
+      </button>
+      {open && <Original thoughts={thoughts} />}
+    </>
+  );
 }
 // An agent's train of thought in the right panel, Figma screen 18.
 export function AgentDetail({
@@ -44,17 +84,25 @@ export function AgentDetail({
           </small>
         </div>
       </div>
-      {agent.thoughts.length > 0 && (
+      {agent.said.length > 0 && (
         <>
           <h3>Ход мыслей</h3>
           <ol className={styles.thoughts}>
-            {agent.thoughts.map((thought, index) => (
-              <li key={index} data-age={age(index, agent.thoughts.length)}>
-                <time>{clock(thought.at - agent.started)}</time>
-                <p>{thought.text.trim()}</p>
+            {agent.said.map((item, index) => (
+              <li key={item.at} data-age={age(index, agent.said.length)}>
+                <time>{clock(item.at - agent.started)}</time>
+                <div>
+                  <Phrase item={item} />
+                </div>
               </li>
             ))}
           </ol>
+        </>
+      )}
+      {!agent.said.length && agent.thoughts.length > 0 && (
+        <>
+          <h3>Ход мыслей</h3>
+          <Unretold thoughts={agent.thoughts} />
         </>
       )}
       {agent.actions.length > 0 && (

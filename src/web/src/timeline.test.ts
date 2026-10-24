@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { addThought, buildTimeline, paragraphs, summaries } from "./timeline";
+import {
+  addThought,
+  buildTimeline,
+  paragraphs,
+  retell,
+  summaries,
+} from "./timeline";
 import type { Attachment, Job, ProgressEvent } from "./types";
 
 let id = 0;
@@ -333,12 +339,80 @@ describe("agents and their reasoning", () => {
       event("agent.thinking", "running", { call, attempt: 2, text: "Вторая" }),
     );
     expect(two[call].chunks.map((c) => c.text)).toEqual(["Вторая"]);
-    // A late translation of the first attempt does not bring it back.
+    // A late phrase of the first attempt does not bring it back.
     const late = addThought(
       two,
-      event("agent.thinking", "running", { call, attempt: 1, text: "Поздняя" }),
+      event("agent.narration", "running", {
+        call,
+        attempt: 1,
+        text: "Поздняя",
+      }),
     );
-    expect(late[call].chunks.map((c) => c.text)).toEqual(["Вторая"]);
+    expect(late).toBe(two);
+  });
+  it("keeps the narrator's phrases apart from the reasoning", () => {
+    const thoughts = [
+      event(
+        "agent.thinking",
+        "running",
+        { call, attempt: 1, text: "Reading the spec. " },
+        "",
+        1,
+      ),
+      event(
+        "agent.narration",
+        "running",
+        { call, attempt: 1, text: "Читаю ТЗ" },
+        "",
+        3,
+      ),
+      event(
+        "agent.thinking",
+        "running",
+        { call, attempt: 1, text: "Torque is 2 N m." },
+        "",
+        4,
+      ),
+    ].reduce(addThought, {});
+    const stages = buildTimeline({
+      events: [
+        event("files.completed"),
+        event(
+          "agent.started",
+          "running",
+          { agent: "interpreter", call },
+          "",
+          0,
+        ),
+      ],
+      job: job(),
+      thoughts,
+    });
+    const [agent] = stage(stages, "understanding").agents;
+    expect(agent.said).toEqual([
+      {
+        at: at(3),
+        text: "Читаю ТЗ",
+        original: [{ at: at(1), text: "Reading the spec. Torque is 2 N m." }],
+      },
+    ]);
+    expect(agent.thoughts).toHaveLength(1);
+  });
+  it("gives each phrase the reasoning since the phrase before", () => {
+    const said = [
+      { at: 3, text: "Читаю ТЗ" },
+      { at: 8, text: "Сверяю момент" },
+    ];
+    const told = retell(said, [
+      { at: 1, text: "Reading" },
+      { at: 5, text: "Torque" },
+      { at: 9, text: "\n\nStill torque" },
+    ]);
+    expect(told.map((t) => t.original.map((o) => o.text))).toEqual([
+      ["Reading"],
+      ["Torque", "Still torque"],
+    ]);
+    expect(retell([], [{ at: 1, text: "Reading" }])).toEqual([]);
   });
   it("splits reasoning into paragraphs across pieces", () => {
     expect(
