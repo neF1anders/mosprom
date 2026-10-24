@@ -51,12 +51,12 @@ ParameterSet 0.2
 `why` — тексты этих правил на русском.
 
 **Что включает правила:**
-- первый приоритет (`strength` / `speed` / `accuracy` / `cost`) — **только первый**;
+- первый приоритет (`strength` / `speed` / `accuracy` / `cost`) — **только первый**. Он берётся из кода `priority` карточки, а без кода из текста пожеланий;
 - нагрузка `part.load`;
-- требования `req.<код>` / `reqhard.<код>`;
+- требования `req.<код>` / `reqhard.<код>`, в том числе коды выбора вроде `part_class` (значение только из `options` словаря);
 - `pref.supports_allowed`, `pref.printing_mode`, `pref.quantity`;
 - факты материала `material.speed`, `material.cooling_pct`;
-- геометрия: `geometry.needs_repair`, `geometry.min_wall_estimate_mm`, `geometry.volume_mm3`, `geometry.surface_area_mm2`. Доли нависаний в отчёте STL нет, поэтому правила по нависаниям не срабатывают.
+- геометрия: `geometry.needs_repair`, `geometry.min_wall_estimate_mm`, `geometry.volume_mm3`, `geometry.surface_area_mm2`, `geometry.overhang_area_fraction` (`overhangs.area_fraction` отчёта STL). Без раздела `overhangs` правила по нависаниям не срабатывают, и в ответе остаётся допущение.
 
 ## 1. Сводка: параметр → алгоритм
 
@@ -81,10 +81,11 @@ ParameterSet 0.2
 | `support_enable` | нависания, `supports_allowed`, `no_supports` | `true` при доле нависаний > 0,05 и разрешённых поддержках | при `true` | S, G |
 | `support_type`, `support_angle` | — | значения сборки (everywhere, 50°) | нет | D |
 | `adhesion_type` | режим | формула сборки: brim в 3D / 5D Spiral, raft в 5D | при вето / ограничении | D |
-| 5D: `cylindrical_mode_base_diameter`, `non_printing_base_diameter` | диаметр отверстия (нет во входе) | по умолчанию 6 мм + допущение | нет (пока) | D |
+| 5D: `cylindrical_mode_base_diameter` | `revolution.bore.diameter_mm` отчёта STL | диаметр отверстия, округлённый вниз до 0,5 мм; без отверстия или меньше 4 мм (`minimum_value` сборки) остаются 6 мм и допущение | при отверстии от 4 мм | D |
+| 5D: `non_printing_base_diameter` | — | значение сборки 6 мм | нет (пока) | D |
 | 5D: `cylindrical_layer_height`, `support_enable_cylindrical`, `cylindrical_raft_thickness`, `cylindrical_raft_diameter` | — | формулы сборки от `layer_height`, `support_enable`, диаметра основания, плота | нет | D |
 | 5D: `cylindrical_layer_height_0`, `cylindrical_raft_type`, `cylindrical_raft_base_height`, `support_enable_top_support` | — | значения сборки (0,3; solid; 15; false) | нет (пока) | D |
-| `models[].transform.rotation` | нависания (нет во входе) | единичная матрица, «как загружено» | всегда | — |
+| `models[].transform.rotation` | кандидаты `orientations` (пока не читаются) | единичная матрица, «как загружено» | всегда | — |
 | `models[].transform.position` | габариты, режим | центр рабочей области: 3D x = −9,5, 5D — ось (0, 0); z = ½ высоты | всегда | D |
 
 ## 2. Параметры по отдельности
@@ -185,13 +186,13 @@ ParameterSet 0.2
 ### 2.12 Поддержки: `support_enable`, `support_type`, `support_angle`, `support_enable_top_support`
 - **`SUPPORT-OVERHANG`:** доля нависаний > 0,05 (S «> 45°»; порог G), поддержки разрешены, нет жёсткого запрета → `support_enable = true`. Отправляется общий ключ: `support_enable_classic` / `_cylindrical` следуют формулой (D).
 - **`SUPPORT-FORBIDDEN-OVERHANG`:** нависания есть, поддержки запрещены → `unsatisfied: no_supports`.
-- **Сейчас** нависаний во входе нет, поэтому `support_enable` остаётся `false` с допущением в ответе. `support_type`, `support_angle`, `support_enable_top_support` — значения сборки.
+- Доля берётся из `overhangs.area_fraction` отчёта STL (ориентация «как в файле»). Если раздела нет, `support_enable` остаётся `false` с допущением в ответе. `support_type`, `support_angle`, `support_enable_top_support` — значения сборки.
 
 ### 2.13 `adhesion_type`
 - Формула сборки (D, 5.2.4): `brim` в 3D и 5D Spiral, `raft` в `cylindrical_full`. Правил нет, отправляется только по ограничению.
 
 ### 2.14 5D-ключи
-- **Диаметр основания.** `cylindrical_mode_base_diameter` — диаметр цилиндра, которым слайсер режет модель в 5D: внутри 3D, снаружи 5D, `StartSliceJob` (D). Где он действует, видно по условию `enabled` в сборке. Вместе с `non_printing_base_diameter` он должен зависеть от диаметра отверстия детали. Его во входе нет, поэтому остаются 6 мм сборки с допущением в ответе. В тестовых G-code Stereotech — 10–20 мм.
+- **Диаметр основания.** `cylindrical_mode_base_diameter` — диаметр цилиндра, которым слайсер режет модель в 5D: внутри 3D, снаружи 5D, `StartSliceJob` (D). Где он действует, видно по условию `enabled` в сборке. Он равен диаметру отверстия детали из `revolution.bore.diameter_mm` отчёта STL, округлённому вниз до 0,5 мм, `source: assumption:stl.revolution.bore`. Отправляется только в режимах, где ключ действует. Без отверстия или при значении меньше 4 мм (`minimum_value` сборки) остаются 6 мм сборки с допущением в ответе. Ограничение этапа 3 на этот ключ важнее отверстия. `non_printing_base_diameter` остаётся значением сборки. В тестовых G-code Stereotech — 10–20 мм.
 - **Формулы сборки:** `cylindrical_layer_height` (= `layer_height`), `support_enable_cylindrical` (= `support_enable`), `cylindrical_raft_thickness`, `cylindrical_raft_diameter`.
 - **Значения сборки:** `cylindrical_layer_height_0` 0,3, `cylindrical_raft_type` solid, `cylindrical_raft_base_height` 15.
 
@@ -237,7 +238,8 @@ ParameterSet 0.2
   - адгезия по формуле режима;
   - материалы только 1,75 мм;
   - положение модели.
-- **Не исправлено (нет данных):** ориентация, поддержки по нависаниям, диаметр основания и плот 5D — ждут от анализатора STL нависаний по направлениям, оси вращения и диаметра отверстия.
+- **Исправлено по контракту этапа 1** ([stage1-contract.md](../stage1-contract.md)): поддержки по доле нависаний, диаметр основания 5D по отверстию, приоритеты кодом `priority`, коды выбора, коды в процентах.
+- **Не исправлено:** ориентация и ось 5D (кандидаты `orientations` и ось `revolution` пока не читаются), плот 5D и `non_printing_base_diameter`.
 
 ## 6. Что проверено, а что нет
 

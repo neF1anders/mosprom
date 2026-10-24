@@ -21,6 +21,7 @@ from ..domain.formulas import evaluate
 from ..domain.models import Value
 
 EXTRUDER = "0"
+BASE_DIAMETER_KEY = "cylindrical_mode_base_diameter"
 _NOTHING: Mapping[str, Any] = MappingProxyType({})
 
 
@@ -61,6 +62,8 @@ class Mode:
     temperature_max: float
     # Diameter of the cylinder the slicer prints around in 5D; None where it does not apply.
     base_diameter: float | None
+    # The narrowest such cylinder the build accepts (its ``minimum_value``).
+    base_diameter_min: float
     qualities: Mapping[str, QualityOption]
     catalog: Catalog = field(repr=False, compare=False)
 
@@ -114,6 +117,7 @@ def _mode(catalog: Catalog, name: str) -> Mode:
     value = partial(slicer_value, catalog, name, above=_NOTHING)
     width = float(value("machine_width"))
     warning = catalog.definition("material_print_temperature")["maximum_value_warning"]
+    base = catalog.definition(BASE_DIAMETER_KEY)
     return Mode(
         name=name,
         label=catalog.definition("printing_mode")["options"][name],
@@ -126,6 +130,7 @@ def _mode(catalog: Catalog, name: str) -> Mode:
         line_width=float(value("line_width")),
         temperature_max=float(evaluate(str(warning), value)),
         base_diameter=_base_diameter(catalog, name),
+        base_diameter_min=float(evaluate(str(base.get("minimum_value", 0)), value)),
         qualities=MappingProxyType(_qualities(catalog, name)),
         catalog=catalog,
     )
@@ -144,12 +149,11 @@ def _usable_x(width: float, disallowed: list[list[list[float]]]) -> tuple[float,
 
 
 def _base_diameter(catalog: Catalog, mode: str) -> float | None:
-    key = "cylindrical_mode_base_diameter"
     lookup = partial(slicer_value, catalog, mode, above=_NOTHING)
-    enabled = catalog.definition(key).get("enabled", True)
+    enabled = catalog.definition(BASE_DIAMETER_KEY).get("enabled", True)
     if isinstance(enabled, str) and not evaluate(enabled, lookup):
         return None
-    return lookup(key)
+    return lookup(BASE_DIAMETER_KEY)
 
 
 def _qualities(catalog: Catalog, mode: str) -> dict[str, QualityOption]:
