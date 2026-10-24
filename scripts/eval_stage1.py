@@ -25,6 +25,7 @@ from sqlalchemy import text
 from src.backend.config import Settings
 from src.backend.container import Container
 from src.backend.domain.models import Job
+from src.backend.domain.requirement_keys import RequirementKeys
 
 REFERENCE = json.loads(Path("tests/eval/reference.json").read_text())
 DEFAULT_DATABASE = "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom_eval"
@@ -37,8 +38,11 @@ def texts(card: dict) -> list[str]:
     ]
 
 
-def score(number: str, card: dict) -> dict:
+def score(number: str, card: dict, codes: RequirementKeys) -> dict:
+    """Facts found, rules kept, and how many requirements use a code parameter selection reads."""
     reference, found = REFERENCE[number], texts(card)
+    requirements = card.get("requirements", [])
+    coded = sum(codes.get(r.get("key", "")) is not None for r in requirements)
     matched = [
         any(all(re.search(p, t) for p in group) for t in found) for group in reference["must"]
     ]
@@ -53,6 +57,7 @@ def score(number: str, card: dict) -> dict:
         "matched": sum(matched),
         "missed": [g for g, ok in zip(reference["must"], matched) if not ok],
         "rules_passed": all(rules),
+        "codes": f"{coded}/{len(requirements)}",
     }
 
 
@@ -135,7 +140,7 @@ async def main() -> None:
                 "example": number,
                 "status": result["job"]["status"],
                 "error": result["job"]["error"],
-                **score(number, card),
+                **score(number, card, container.requirement_keys),
                 "requirements": len(card.get("requirements", [])),
                 "questions": sum(q.get("answer") is None for q in card.get("questions", [])),
                 "judge": verdict.get("score"),
