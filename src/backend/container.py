@@ -58,6 +58,7 @@ class Container:
                 timeout_seconds=settings.stage1_timeout_seconds,
                 job_images=settings.limits.job_images,
             ),
+            self.requirement_keys,
         )
 
     @cached_property
