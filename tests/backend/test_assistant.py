@@ -8,6 +8,7 @@ from src.backend.agents.assistant import (
     FALLBACK,
     INVESTIGATE,
     LOG,
+    REPLY,
     START,
     UPDATE,
     Assistant,
@@ -81,13 +82,22 @@ async def said(text):
 said.texts = []
 
 
-async def test_a_plain_reply_follows_the_chat_rules():
-    agent, model = assistant(assistant=[reply("Привет — чем помочь?")])
+async def test_every_step_must_call_a_tool_and_the_reply_is_one():
+    """Regression: the agent wrote «принято» to typed answers and called nothing."""
+    answer = reply("", tool_calls=[call(REPLY, {"text": "Привет — чем помочь?"})])
+    agent, model = assistant(assistant=[answer])
     decision = await agent.decide(situation(), said)
     assert decision.action == "reply" and decision.text == "Привет, чем помочь?"
     request = model.requests["assistant"][0]
-    assert {t["function"]["name"] for t in request["tools"]} == {START, UPDATE, LOG, INVESTIGATE}
-    assert request["thinking"] is False
+    names = {t["function"]["name"] for t in request["tools"]}
+    assert names == {REPLY, START, UPDATE, LOG, INVESTIGATE}
+    assert (request["tool_choice"], request["thinking"]) == ("required", False)
+
+
+async def test_a_provider_ignoring_the_requirement_still_answers_in_text():
+    agent, _ = assistant(assistant=[reply("Привет — чем помочь?")])
+    decision = await agent.decide(situation(), said)
+    assert decision.action == "reply" and decision.text == "Привет, чем помочь?"
 
 
 async def test_a_new_project_starts_with_its_title_and_notes():
@@ -145,8 +155,13 @@ async def test_an_investigation_says_so_first_and_answers_from_the_analyst():
     agent, model = assistant(
         assistant=[
             reply(
-                "Сейчас посмотрю, как я это решал",
-                tool_calls=[call(INVESTIGATE, {"question": "Почему PETG"})],
+                "",
+                tool_calls=[
+                    call(
+                        INVESTIGATE,
+                        {"question": "Почему PETG", "say": "Сейчас посмотрю, как я это решал"},
+                    )
+                ],
             ),
             reply("Потому что PETG держит 70 градусов"),
         ],
@@ -171,12 +186,12 @@ async def test_the_journal_is_read_by_its_tool():
     assert "Колесо конвейера" in model.requests["assistant"][1]["messages"][-1]["content"]
 
 
-async def test_the_last_step_has_no_tools_and_an_empty_answer_falls_back():
+async def test_the_last_step_offers_only_the_reply_and_an_empty_answer_falls_back():
     looping = reply("", tool_calls=[call(LOG, {})])
     agent, model = assistant(assistant=[looping, looping, looping, reply("")])
     decision = await agent.decide(situation(), said)
     assert decision.text == FALLBACK
-    assert model.requests["assistant"][-1]["tools"] == []
+    assert [t["function"]["name"] for t in model.requests["assistant"][-1]["tools"]] == [REPLY]
 
 
 def test_the_state_tells_the_work_the_open_questions_and_the_new_files():

@@ -280,7 +280,11 @@ async def test_files_sent_with_a_message_stay_with_it_and_start_the_first_projec
     assert job.projects[0].first_message == message["seq"]
     assert await todo(pg, "stage1") == [{"job_id": job_id, "revision": 1, "start": True}]
     tools = model.requests["assistant"][0]["tools"]
-    assert [t["function"]["name"] for t in tools][:2] == ["start_project", "update_project"]
+    assert [t["function"]["name"] for t in tools][:3] == [
+        "reply",
+        "start_project",
+        "update_project",
+    ]
     job = await run(pg, job_id, script())
     assert {f.filename for f in job.card.files} == {"box.stl", "task.txt"}
     assert job.status == Status.QUEUED

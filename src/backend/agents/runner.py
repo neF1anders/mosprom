@@ -116,6 +116,7 @@ class AgentRunner:
         tools: list[dict[str, Any]],
         ctx: RunContext,
         step: int = 1,
+        tool_choice: str | None = None,
     ) -> ModelReply:
         """One plain reply in a chat, where calling a tool is the decision itself.
 
@@ -125,7 +126,7 @@ class AgentRunner:
         await ctx.check()
         trace = Trace(spec, ctx, step, messages)
         async with CallEvents(spec, ctx, step, self.clock, narrate=self.narrate) as events:
-            reply = await self._complete(spec, messages, tools, trace, events)
+            reply = await self._complete(spec, messages, tools, trace, events, tool_choice)
             await self._record(trace.done(reply, [], None))
         return reply
 
@@ -182,6 +183,7 @@ class AgentRunner:
         tools: list[dict[str, Any]],
         trace: Trace,
         events: CallEvents,
+        tool_choice: str | None = None,
     ) -> ModelReply:
         """A failed call is traced before it is raised; the reasoning streams to the chat."""
         try:
@@ -192,6 +194,7 @@ class AgentRunner:
                 thinking=spec.thinking,
                 budget=spec.budget,
                 on_reasoning=events.thoughts,
+                **({"tool_choice": tool_choice} if tool_choice else {}),
             )
         except AppError as exc:
             await self._record(trace.done(None, [], exc.message))

@@ -42,6 +42,7 @@ class ModelClient(Protocol):
         thinking: bool,
         budget: int | None = None,
         on_reasoning: Reasoning | None = None,
+        tool_choice: str | None = None,
     ) -> ModelReply: ...
 
 

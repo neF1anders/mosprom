@@ -61,7 +61,9 @@ class QwenClient:
         thinking: bool,
         budget: int | None = None,
         on_reasoning: Reasoning | None = None,
+        tool_choice: str | None = None,
     ) -> ModelReply:
+        """``tool_choice`` "required" makes the model act by a tool, never by text alone."""
         settings = self.settings()
         if not settings.configured:
             raise AppError(
@@ -81,6 +83,8 @@ class QwenClient:
             payload["thinking_budget"] = budget
         if tools:
             payload["tools"] = tools
+        if tools and tool_choice:
+            payload["tool_choice"] = tool_choice
         # Transient failures get two retries after the original attempt; others fail at once.
         for attempt in range(3):
             think = partial(_forward, on_reasoning, attempt + 1)
