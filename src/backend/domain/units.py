@@ -61,7 +61,9 @@ _LINEAR: dict[str, tuple[str, str]] = {
     "об/мин": ("rotation", "1"),
 }
 _TEMPERATURE = {"c", "°c", "с°", "°с", "k", "к", "f", "°f"}
-_NUMBER = re.compile(r"(?<![\w.,])-?\d+(?:[.,]\d+)?")
+# A number does not continue a word, a list or a dotted version ("v.2", "1.5.7"), but may
+# follow the two dots of a range ("-10..70").
+_NUMBER = re.compile(r"(?<![\w,])(?<![^.]\.)(?<!^\.)-?\d+(?:[.,]\d+)?")
 
 
 def canonical(unit: str | None) -> str:
