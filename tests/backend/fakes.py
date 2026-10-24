@@ -11,11 +11,13 @@ from src.backend.agents.runner import RunContext
 from src.backend.ports.operations import ModelReply
 
 
-def reply(content: Any = "", tool_calls=None, finish_reason: str | None = None) -> ModelReply:
+def reply(
+    content: Any = "", tool_calls=None, finish_reason: str | None = None, reasoning: str = "думаю"
+) -> ModelReply:
     text = content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
     reason = finish_reason or ("tool_calls" if tool_calls else "stop")
     raw = {"choices": [{"message": {"content": text}}], "usage": {"total_tokens": 1}}
-    return ModelReply(text, tool_calls or [], reason, "думаю", {"total_tokens": 1}, raw)
+    return ModelReply(text, tool_calls or [], reason, reasoning, {"total_tokens": 1}, raw)
 
 
 def call(name: str, arguments: dict, call_id: str = "c1") -> dict:
@@ -32,7 +34,14 @@ class ScriptedModel:
         self.requests: dict[str, list] = defaultdict(list)
 
     async def complete(
-        self, messages, tools, *, agent: str, thinking: bool, budget: int | None = None
+        self,
+        messages,
+        tools,
+        *,
+        agent: str,
+        thinking: bool,
+        budget: int | None = None,
+        on_reasoning=None,
     ) -> ModelReply:
         self.requests[agent].append(
             {
@@ -48,7 +57,11 @@ class ScriptedModel:
             raise item
         if callable(item):
             item = item(messages)
-        return await item if inspect.isawaitable(item) else item
+        item = await item if inspect.isawaitable(item) else item
+        # Like a provider answering in one body, the whole reasoning arrives at once.
+        if on_reasoning is not None and item.reasoning:
+            await on_reasoning(item.reasoning, 1)
+        return item
 
 
 class Traces:

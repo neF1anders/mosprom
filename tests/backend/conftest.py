@@ -15,7 +15,7 @@ TEST_DATABASE = os.environ.get(
 )
 TABLES = (
     "jobs, messages, attachments, events, receipts, operation_cache, knowledge, agent_calls, "
-    "stage_results, procrastinate_jobs, procrastinate_events"
+    "stage_results, queued_messages, procrastinate_jobs, procrastinate_events"
 )
 
 
@@ -34,6 +34,8 @@ async def pg(tmp_path):
             slicer_folder=tmp_path / "slicer",
             qwen_api_key="test",
             app_origin="http://localhost:8000",
+            # Scripted replies go to the agents in order; a narrator would take some of them.
+            narrate_reasoning=False,
         )
     )
     container = app.state.container

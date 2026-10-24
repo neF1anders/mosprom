@@ -6,7 +6,7 @@ before each step and again when the step's result is written.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from ..domain.errors import OperationCancelled
 from ..domain.models import Event, Job, Status
@@ -14,6 +14,13 @@ from ..domain.transitions import transition
 from ..ports.persistence import UowFactory
 
 HALTED = {Status.STOPPING, Status.STOPPED}
+# Called by a stage between its steps with the job and the revision of its work; delivers
+# the messages queued meanwhile and tells whether a correction replaced that work.
+SafePoint = Callable[[str, int], Awaitable[bool]]
+
+
+async def no_safe_point(job_id: str, revision: int) -> bool:
+    return False
 
 
 def ensure_current(revision: int, status: Status, expected: int) -> None:

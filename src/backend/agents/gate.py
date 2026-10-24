@@ -11,28 +11,32 @@ import json
 import re
 from typing import Any
 
+import json_repair
+
 from .context import Inputs
 
 START = "start_pipeline"
-_TOOL = re.compile(r"\s*<tool_start_pipeline>\s*(.*?)\s*</tool_start_pipeline>\s*", re.S)
 # Enough of each document to judge what it describes, short enough for a quick reply.
 DOCUMENT_CHARS = 6000
 NO_TEXT = "Пользователь прислал файлы без текста"
 _CJK = re.compile(r"[㐀-鿿豈-﫿]")
 
 
-def split_tool(text: str) -> tuple[str, dict[str, Any]]:
+def split_tool(
+    text: str, name: str = START, parameters: dict[str, Any] | None = None
+) -> tuple[str, dict[str, Any]]:
     """The tool's own block of the prompt becomes the tool's description."""
-    match = _TOOL.search(text)
+    block = re.compile(rf"\s*<tool_{name}>\s*(.*?)\s*</tool_{name}>\s*", re.S)
+    match = block.search(text)
     tool = {
         "type": "function",
         "function": {
-            "name": START,
+            "name": name,
             "description": match.group(1) if match else "",
-            "parameters": {"type": "object", "properties": {}},
+            "parameters": parameters or {"type": "object", "properties": {}},
         },
     }
-    return _TOOL.sub("\n", text).strip() + "\n", tool
+    return block.sub("\n", text).strip() + "\n", tool
 
 
 def gate_messages(
@@ -67,7 +71,17 @@ def _documents(inputs: Inputs) -> str:
 
 
 def started(tool_calls: list[dict[str, Any]]) -> bool:
-    return any(call.get("function", {}).get("name") == START for call in tool_calls)
+    return called(tool_calls, START) is not None
+
+
+def called(tool_calls: list[dict[str, Any]], name: str) -> dict[str, Any] | None:
+    """The arguments of the first call of the tool, None when it was not called."""
+    for call in tool_calls:
+        function = call.get("function", {})
+        if function.get("name") == name:
+            arguments = json_repair.loads(function.get("arguments") or "{}")
+            return arguments if isinstance(arguments, dict) else {}
+    return None
 
 
 def clean(text: str) -> str:

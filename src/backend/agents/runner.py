@@ -20,6 +20,7 @@ from ..domain.errors import AppError
 from ..domain.models import AgentCall, Source, now
 from ..ports.operations import ModelClient, ModelReply
 from ..ports.persistence import UowFactory
+from .events import CallEvents, Clock, Narrate, notify, preview
 
 if TYPE_CHECKING:
     from .tools import ToolBox
@@ -67,8 +68,19 @@ def prompt(name: str) -> str:
 
 
 class AgentRunner:
-    def __init__(self, model: ModelClient, tools: ToolBox, uow: UowFactory, version: str = ""):
-        self.model, self.tools, self.uow, self.version = model, tools, uow, version
+    def __init__(
+        self,
+        model: ModelClient,
+        tools: ToolBox,
+        uow: UowFactory,
+        model_name: Callable[[], str] = lambda: "",
+        clock: Clock = time.monotonic,
+        narrate: Narrate | None = None,
+    ):
+        # Read per call: a model saved in the chat neither reuses nor overwrites another's cache.
+        self.model, self.tools, self.uow, self.model_name = model, tools, uow, model_name
+        # The chat gets a Russian phrase about the reasoning; the agents never see it.
+        self.clock, self.narrate = clock, narrate
 
     async def run(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> Any:
         return await self.converse(spec, [{"role": "user", "content": content}], ctx)
@@ -88,7 +100,8 @@ class AgentRunner:
                 await uow.traces.record(Trace(spec, ctx, 0, []).cached(key))
                 await uow.commit()
         if cached is not None:
-            return spec.output.model_validate(cached)
+            async with CallEvents(spec, ctx, 0, self.clock, cached=True):
+                return spec.output.model_validate(cached)
         output, dropped = await self._loop(spec, [self._system(spec), *turns], ctx)
         if not dropped:
             async with self.uow() as uow:
@@ -110,14 +123,9 @@ class AgentRunner:
         """
         await ctx.check()
         trace = Trace(spec, ctx, 1, messages)
-        try:
-            reply = await self.model.complete(
-                messages, tools, agent=spec.name, thinking=spec.thinking, budget=spec.budget
-            )
-        except AppError as exc:
-            await self._record(trace.done(None, [], exc.message))
-            raise
-        await self._record(trace.done(reply, [], None))
+        async with CallEvents(spec, ctx, 1, self.clock, narrate=self.narrate) as events:
+            reply = await self._complete(spec, messages, tools, trace, events)
+            await self._record(trace.done(reply, [], None))
         return reply
 
     def _key(self, spec: AgentSpec, turns: list[dict[str, Any]], ctx: RunContext) -> str:
@@ -130,7 +138,7 @@ class AgentRunner:
                 spec.tools,
                 spec.thinking,
                 spec.budget,
-                self.version,
+                self.model_name(),
                 redact(turns, ctx.images),
             ],
             ensure_ascii=False,
@@ -158,32 +166,52 @@ class AgentRunner:
             # Each step stores only what it added, so a long dialog is not written again.
             trace = Trace(spec, ctx, step, messages[recorded:], recorded)
             recorded = len(messages)
-            try:
-                reply = await self.model.complete(
-                    messages,
-                    schemas,
-                    agent=spec.name,
-                    thinking=spec.thinking,
-                    budget=spec.budget,
-                )
-            except AppError as exc:
-                await self._record(trace.done(None, [], exc.message))
-                raise
-            if not (reply.tool_calls and schemas):
-                await self._record(trace.done(reply, [], None))
-                if reply.finish_reason == "length":
-                    raise AppError("Ответ модели оборван по длине", "model_truncated", 502)
-                output, dropped = parse_output(reply.content, spec.output)
-                if dropped:
-                    await ctx.event(
-                        "agent.dropped", f"{spec.title}, часть ответа отброшена", dropped=dropped
-                    )
-                return output, dropped
-            executed = await self._tools(spec, reply, messages, ctx, seen)
-            await self._record(trace.done(reply, executed, None))
+            async with CallEvents(spec, ctx, step, self.clock, narrate=self.narrate) as events:
+                reply = await self._complete(spec, messages, schemas, trace, events)
+                if not (reply.tool_calls and schemas):
+                    return await self._answer(spec, reply, trace, ctx)
+                executed = await self._tools(spec, reply, messages, ctx, seen, events.id)
+                await self._record(trace.done(reply, executed, None))
         raise RuntimeError("The last step is offered without tools, so it always answers")
 
-    async def _tools(self, spec, reply, messages, ctx, seen) -> list[dict[str, Any]]:
+    async def _complete(
+        self,
+        spec: AgentSpec,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        trace: Trace,
+        events: CallEvents,
+    ) -> ModelReply:
+        """A failed call is traced before it is raised; the reasoning streams to the chat."""
+        try:
+            reply = await self.model.complete(
+                messages,
+                tools,
+                agent=spec.name,
+                thinking=spec.thinking,
+                budget=spec.budget,
+                on_reasoning=events.thoughts,
+            )
+        except AppError as exc:
+            await self._record(trace.done(None, [], exc.message))
+            raise
+        await events.thoughts.close()
+        return reply
+
+    async def _answer(
+        self, spec: AgentSpec, reply: ModelReply, trace: Trace, ctx: RunContext
+    ) -> tuple[Any, list[str]]:
+        await self._record(trace.done(reply, [], None))
+        if reply.finish_reason == "length":
+            raise AppError("Ответ модели оборван по длине", "model_truncated", 502)
+        output, dropped = parse_output(reply.content, spec.output)
+        if dropped:
+            await ctx.event(
+                "agent.dropped", f"{spec.title}, часть ответа отброшена", dropped=dropped
+            )
+        return output, dropped
+
+    async def _tools(self, spec, reply, messages, ctx, seen, call_id) -> list[dict[str, Any]]:
         messages.append(
             {"role": "assistant", "content": reply.content, "tool_calls": reply.tool_calls}
         )
@@ -194,7 +222,7 @@ class AgentRunner:
             # A repeated identical call gets the same answer instead of a new execution.
             signature = name + json.dumps(arguments, sort_keys=True, ensure_ascii=False)
             if signature not in seen:
-                seen[signature] = await self._call_tool(spec, name, arguments, ctx)
+                seen[signature] = await self._call_tool(spec, name, arguments, ctx, call_id)
             result = dict(seen[signature])
             images.extend(result.pop("images", []))
             executed.append({"name": name, "arguments": arguments, "result": result})
@@ -209,20 +237,30 @@ class AgentRunner:
             messages.append({"role": "user", "content": images})
         return executed
 
-    async def _call_tool(self, spec, name, arguments, ctx) -> dict[str, Any]:
+    async def _call_tool(self, spec, name, arguments, ctx, call_id) -> dict[str, Any]:
+        """A tool's answer reaches the chat as a short preview; an error is a warning there."""
         if name not in spec.tools:
             return {"error": "Этот инструмент недоступен"}
-        await ctx.event(
-            "tool.called",
-            f"{spec.title}, {self.tools.title(name)}",
+        title = f"{spec.title}, {self.tools.title(name)}"
+        await ctx.event("tool.called", title, agent=spec.name, tool=name, arguments=arguments)
+        started = self.clock()
+        try:
+            result = await self.tools.call(name, arguments, ctx)
+        except AppError as exc:
+            result = {"error": exc.message}
+        failed = "error" in result
+        await notify(
+            ctx.event,
+            "tool.finished",
+            f"{title}, {'ошибка' if failed else 'готово'}",
+            "warning" if failed else "completed",
             agent=spec.name,
             tool=name,
-            arguments=arguments,
+            call=call_id,
+            duration_ms=int((self.clock() - started) * 1000),
+            result_preview=preview(result),
         )
-        try:
-            return await self.tools.call(name, arguments, ctx)
-        except AppError as exc:
-            return {"error": exc.message}
+        return result
 
     async def _record(self, call: AgentCall) -> None:
         async with self.uow() as uow:

@@ -32,7 +32,7 @@ from ..domain.slicing import GcodeCheck, SliceReport
 from ..domain.transitions import transition
 from ..ports.operations import Slicer
 from ..ports.persistence import UnitOfWork, UowFactory
-from .store import JobStore, ensure_current
+from .store import JobStore, SafePoint, ensure_current, no_safe_point
 
 Select = Callable[[TaskCard, Feedback | None], ParameterSet]
 Check = Callable[[ParameterSet], CheckResult]
@@ -70,11 +70,13 @@ class ParameterPipeline:
         slicer: Slicer,
         check_gcode: CheckGcode,
         settings: PipelineSettings,
+        *,
+        safe_point: SafePoint = no_safe_point,
     ):
         self.store = ParameterStore(uow)
         self.catalog, self.select, self.check = catalog, select, check
         self.slicer, self.check_gcode = slicer, check_gcode
-        self.settings = settings
+        self.settings, self.safe_point = settings, safe_point
 
     async def run(self, job_id: str, revision: int) -> None:
         try:
@@ -102,9 +104,13 @@ class ParameterPipeline:
                 feedback = run.feedback if run else None
                 run = Run(await self._select(job, step, card, feedback))
                 step = await self._selected(job, step, run)
-                continue
-            assert run is not None, "every pass starts with a selection"
-            step = await self._steps[step.stage](job, step, run)
+            else:
+                assert run is not None, "every pass starts with a selection"
+                step = await self._steps[step.stage](job, step, run)
+            # Messages queued meanwhile are read before the next step spends its time, and
+            # after the last one, when the job is done.
+            if await self.safe_point(job_id, revision):
+                return
 
     @property
     def _steps(self) -> dict[str, Callable[[Job, Step, Run], Awaitable[Step | None]]]:
