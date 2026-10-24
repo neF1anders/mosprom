@@ -32,6 +32,9 @@ from threading import Thread
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+# Organizer examples whose facts are transcribed; the folder "1. Шестерня" is case "1".
+REFERENCE = Path("tests/eval/reference.json")
+
 
 @dataclass
 class CaseExpectation:
@@ -281,6 +284,8 @@ def _fill_result(client: ApiClient, job_id: str, job_data: dict, result: CaseRes
         except Exception as e:
             result.error = f"Не удалось получить параметры: {e}"
     summary = job_data.get("parameters") or {}
+    # The check of stage 3 left remarks when the set it passed on needs attention.
+    result.validation_remarks = int(summary.get("check") == "attention")
     result.iterations = max(
         summary.get("iteration", 0), (result.parameters or {}).get("iteration", 0)
     )
@@ -398,7 +403,7 @@ def load_cases_from_json(
     path: Path, base_dir: Path
 ) -> list[tuple[str, str, list[Path], CaseExpectation]]:
     """Загружает случаи из eval_cases.json."""
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     cases = []
 
     for case in data.get("cases", []):
@@ -428,7 +433,7 @@ def load_cases_from_organizer(
     if not reference_path.exists():
         reference_data = {}
     else:
-        reference_data = json.loads(reference_path.read_text())
+        reference_data = json.loads(reference_path.read_text(encoding="utf-8"))
 
     cases = []
     for folder in sorted(organizer_dir.iterdir()):
@@ -543,7 +548,7 @@ def write_report(results: list[CaseResult], metrics: dict, out_dir: Path) -> Non
             f"{r.gcode_result or '-'} | {r.elapsed_seconds:.1f} | {exp_summary or '-'} |\n"
         )
 
-    (out_dir / "report.md").write_text("".join(report_lines))
+    (out_dir / "report.md").write_text("".join(report_lines), encoding="utf-8")
 
 
 class _MockApi(BaseHTTPRequestHandler):
@@ -644,15 +649,15 @@ def selftest() -> int:
         server.shutdown()
 
 
-def _session_secret() -> str | None:
-    """SESSION_SECRET из переменной среды или из .env в текущей папке."""
-    secret = os.environ.get("SESSION_SECRET")
+def _env(name: str) -> str | None:
+    """Значение из переменной среды или из .env в текущей папке."""
+    value = os.environ.get(name)
     env_path = Path(".env")
-    if not secret and env_path.exists():
-        for line in env_path.read_text().splitlines():
-            if line.startswith("SESSION_SECRET="):
+    if not value and env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith(name + "="):
                 return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return secret
+    return value
 
 
 def main() -> int:
@@ -663,11 +668,16 @@ def main() -> int:
 
     parser.add_argument("--cases", type=Path, help="Путь к eval_cases.json")
     parser.add_argument("--organizer-dir", type=Path, help="Папка 'Примеры деталей'")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000", help="Base URL стенда")
+    parser.add_argument(
+        "--base-url", help="Base URL стенда, по умолчанию APP_ORIGIN, иначе http://localhost:8000"
+    )
     parser.add_argument("--user-id", default="local", help="User ID для авторизации")
     parser.add_argument("--timeout", type=float, default=900, help="Таймаут на случай в секундах")
     parser.add_argument(
-        "--out-dir", type=Path, default=Path("results"), help="Папка для результатов"
+        "--out-dir",
+        type=Path,
+        default=Path("artifacts/eval-pipeline"),
+        help="Папка для результатов",
     )
     parser.add_argument("--only", nargs="+", help="Запустить только указанные case ID")
     parser.add_argument(
@@ -680,7 +690,7 @@ def main() -> int:
     if args.selftest:
         return selftest()
 
-    session_secret = _session_secret()
+    session_secret = _env("SESSION_SECRET")
     if not session_secret or len(session_secret) < 32:
         print("Ошибка: SESSION_SECRET не найден или слишком короткий", file=sys.stderr)
         print("Укажите SESSION_SECRET в .env или переменной среды", file=sys.stderr)
@@ -692,8 +702,7 @@ def main() -> int:
         base_dir = args.cases.parent
         cases = load_cases_from_json(args.cases, base_dir)
     elif args.organizer_dir:
-        reference_path = Path("pipeline/tests/eval/reference.json")
-        cases = load_cases_from_organizer(args.organizer_dir, reference_path)
+        cases = load_cases_from_organizer(args.organizer_dir.expanduser(), REFERENCE)
     else:
         parser.error("Укажите --cases или --organizer-dir")
 
@@ -705,7 +714,8 @@ def main() -> int:
         return 1
 
     # Создаём клиент
-    client = ApiClient(args.base_url, session_secret, args.user_id)
+    base_url = args.base_url or _env("APP_ORIGIN") or "http://localhost:8000"
+    client = ApiClient(base_url, session_secret, args.user_id)
 
     try:
         client.authenticate()
@@ -751,7 +761,8 @@ def main() -> int:
                 },
                 ensure_ascii=False,
                 indent=2,
-            )
+            ),
+            encoding="utf-8",
         )
 
         print(
@@ -764,7 +775,9 @@ def main() -> int:
 
     # Записываем отчёты
     write_report(results, metrics, run_dir)
-    (run_dir / "summary.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2))
+    (run_dir / "summary.json").write_text(
+        json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     print(f"\nГотово. Результаты в {run_dir}/")
     print(
