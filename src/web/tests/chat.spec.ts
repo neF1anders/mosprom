@@ -9,21 +9,23 @@ import {
   pipelineDone,
   send,
   settled,
+  task,
   upload,
 } from "./helpers";
 
 test.beforeEach(async ({ page }) => open(page));
 
 test("T12 refresh preserves messages and questions", async ({ page }) => {
-  await send(page, "TEST_QUESTIONS Шестерня привода");
+  await task(page, "TEST_QUESTIONS Шестерня привода");
   await settled(page);
+  const window = page.getByRole("region", { name: "Уточняющие вопросы" });
+  await expect(window).toBeVisible();
   await page.reload();
   await expect(
     page.getByText("TEST_QUESTIONS Шестерня привода", { exact: true }).first(),
   ).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "Уточняющие вопросы" }),
-  ).toBeVisible();
+  await expect(window).toBeVisible();
+  await expect(window.getByText("Вопрос 1 из 2")).toBeVisible();
 });
 for (const [name, expected] of [
   ["empty.txt", "Файл пуст"],
@@ -78,7 +80,8 @@ for (const name of [
   "photo.png",
 ]) {
   test(`T02 T03 document ${name}`, async ({ page }) => {
-    await upload(page, name);
+    // The model goes with the document, or the gate only talks about it.
+    await upload(page, name, "box.stl");
     await settled(page);
     await page.getByLabel("Показать требования", { exact: true }).click();
     await expect(
@@ -95,6 +98,15 @@ for (const name of [
         .filter({ hasText: /75/ })
         .first(),
     ).toBeVisible();
+    // A value named by a requirement code reaches the card under that code.
+    if (name === "task.txt")
+      await expect(
+        page
+          .getByRole("complementary", { name: "Карточка задания" })
+          .locator("summary")
+          .filter({ hasText: "Максимальная рабочая температура детали" })
+          .filter({ hasText: /от 10 до 70 °C/ }),
+      ).toBeVisible();
     if (name.endsWith(".pdf") || name === "photo.png") {
       const panel = page.getByRole("complementary", {
         name: "Карточка задания",
@@ -131,46 +143,72 @@ for (const [name, expected] of [
     ).toBeVisible();
   });
 }
-for (const option of ["mm", "cm", "m", "inch", "Не знаю"]) {
-  test(`T07 units are asked first ${option}`, async ({ page }) => {
-    await upload(page, "box.stl");
-    await settled(page);
-    await expect(
-      page.getByRole("heading", { name: "В каких единицах создан STL" }),
-    ).toBeVisible();
-    await answer(page, option);
-    await answered(page, "В каких единицах создан STL", option);
-    await settled(page);
-    if (option === "Не знаю")
-      await expect(page.getByText("Раньше вы ответили Не знаю")).toBeVisible();
-  });
-}
 for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
   test(`T08 disagreeing sources ${choice}`, async ({ page }) => {
-    await upload(page, "conflict.txt");
+    await upload(page, "conflict.txt", "box.stl");
     await settled(page);
     const window = page.getByRole("region", { name: "Уточняющие вопросы" });
     await expect(window.getByText("Нужно ваше подтверждение")).toBeVisible();
+    await expect(
+      window.getByRole("heading", {
+        name: "Источники расходятся, Длина детали",
+      }),
+    ).toBeVisible();
     await expect(window.getByRole("button", { pressed: true })).toHaveCount(0);
     if (choice === "90 мм") {
       await window.getByLabel("Свой ответ").fill(choice);
       await window.getByRole("button", { name: "Отправить ответы" }).click();
     } else await answer(page, choice);
     await answered(page, "Источники расходятся, Длина детали", choice);
-    await settled(page);
+    // The checker takes the answers in its own dialog and asks nothing more.
+    await pipelineDone(page);
+    await expect(window).toHaveCount(0);
+    if (choice === "Не знаю") {
+      const card = page.getByRole("complementary", {
+        name: "Карточка задания",
+      });
+      await expect(
+        card.getByText(
+          "Не удалось уточнить · Источники расходятся, Длина детали",
+        ),
+      ).toBeVisible();
+      await expect(
+        card.getByText(
+          "Источники расходятся, Длина детали, принято без ответа",
+          {
+            exact: false,
+          },
+        ),
+      ).toBeAttached();
+    }
   });
 }
+test("T08 a model that disagrees with the specification asks which is right", async ({
+  page,
+}) => {
+  await task(page, "TEST_STL_MISMATCH Длина детали 100 мм");
+  await settled(page);
+  const window = page.getByRole("region", { name: "Уточняющие вопросы" });
+  await expect(window.getByText("Нужно ваше подтверждение")).toBeVisible();
+  await expect(
+    window.getByRole("heading", { name: "Длина в ТЗ 100 мм, в модели 30 мм" }),
+  ).toBeVisible();
+  await answer(page, "Верна модель STL");
+  await answered(page, "Длина в ТЗ 100 мм, в модели 30 мм", "Верна модель STL");
+  await pipelineDone(page);
+});
 test("T09 tool call is visible in the journal", async ({ page }) => {
-  await send(page, "TEST_TOOL Перевести дюймы");
+  await task(page, "TEST_TOOL Перевести дюймы");
   await settled(page);
   await page.getByLabel("Показать журнал вызовов", { exact: true }).click();
   await expect(
-    page.getByText("Разбор ТЗ, переводит единицы", { exact: true }),
+    page.getByText("Разбор задания, переводит единицы", { exact: true }),
   ).toBeVisible();
 });
 for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
   test(`T10 ${message}`, async ({ page }) => {
-    await send(page, message);
+    // A refused call fails at the gate, a broken answer at the interpreter.
+    await task(page, message);
     await expect(
       page.getByRole("button", { name: "Повторить позже" }),
     ).toBeVisible();
@@ -184,8 +222,8 @@ for (const text of [
   "Нужна стойкость к маслу",
 ]) {
   test(`T11 edit ${text}`, async ({ page }) => {
-    await send(page, "Шестерня привода");
-    await settled(page);
+    await task(page, "Шестерня привода");
+    await pipelineDone(page);
     await send(page, text);
     await expect(page.getByText(text, { exact: true }).first()).toBeVisible();
     await settled(page);
@@ -193,7 +231,7 @@ for (const text of [
     await expect(page.getByText(text, { exact: true }).first()).toBeVisible();
   });
 }
-test("T15 off-topic message gets a short reply without a run", async ({
+test("T15 off-topic message gets a reply from the gate without a run", async ({
   page,
 }) => {
   await send(page, "TEST_OFFTOPIC Какая погода");
@@ -206,12 +244,29 @@ test("T15 off-topic message gets a short reply without a run", async ({
   await settled(page);
   const card = page.getByRole("complementary", { name: "Карточка задания" });
   await expect(card.getByText("Нет данных").first()).toBeVisible();
-  // The declined message never reaches the agents, so the purpose comes from the new one.
-  await send(page, "Шестерня привода");
-  await settled(page);
+  // A task with a model starts the work; the small talk does not describe the part.
+  await task(page, "Шестерня привода");
+  await pipelineDone(page);
   await expect(
     card.getByText("Шестерня привода", { exact: true }),
   ).toBeVisible();
+});
+test("T15 the gate asks for details once, the next message starts the work", async ({
+  page,
+}) => {
+  await task(page, "TEST_GATE_ASK Деталь");
+  await expect(
+    page.getByRole("main").getByText(/Расскажите подробнее о детали/),
+  ).toBeVisible();
+  await settled(page);
+  const card = page.getByRole("complementary", { name: "Карточка задания" });
+  await expect(card.getByText("Нет данных").first()).toBeVisible();
+  // The gate would ask again for this marker, but after its request it is not called.
+  await send(page, "TEST_GATE_ASK Шестерня привода");
+  await pipelineDone(page);
+  await expect(
+    page.getByRole("main").getByText(/Расскажите подробнее о детали/),
+  ).toHaveCount(1);
 });
 for (const width of [390, 600, 800, 1100, 1440]) {
   test(`T14 viewport ${width}`, async ({ page }) => {
@@ -239,13 +294,11 @@ test("T14 keyboard send and panels", async ({ page }) => {
 test("T13 a ready card goes through every stage to a project", async ({
   page,
 }) => {
-  await send(page, "Шестерня привода");
-  await upload(page, "box.stl");
-  await settled(page);
-  await answer(page, "mm");
+  await task(page, "Шестерня привода");
   await pipelineDone(page);
   const timeline = page.getByRole("region", { name: "Ход работы" });
   const stages = [
+    "Интерпретация задания",
     "Подбор параметров",
     "Валидация",
     "Слайсинг",
@@ -270,11 +323,8 @@ test("T13 a ready card goes through every stage to a project", async ({
 test("T18 a model larger than the printer asks for attention", async ({
   page,
 }) => {
-  await send(page, "Шестерня привода");
-  await upload(page, "box.stl");
-  await settled(page);
-  // In metres the box is 10 by 20 by 30 m, larger than every working area.
-  await answer(page, "m");
+  // The model is 10 by 20 by 30 m, larger than every working area.
+  await task(page, "Шестерня привода", "large.stl");
   await expect(
     page.getByRole("status").filter({ hasText: "Параметры требуют внимания" }),
   ).toBeVisible();
@@ -290,10 +340,7 @@ test("T18 a model larger than the printer asks for attention", async ({
 test("T16 the parameter set downloads as the server keeps it", async ({
   page,
 }) => {
-  await send(page, "Кронштейн датчика");
-  await upload(page, "box.stl");
-  await settled(page);
-  await answer(page, "mm");
+  await task(page, "Кронштейн датчика");
   await pipelineDone(page);
   const link = page.getByRole("link", { name: "Скачать параметры JSON" });
   const [download] = await Promise.all([
@@ -315,10 +362,7 @@ test("T16 the parameter set downloads as the server keeps it", async ({
   expect(saved.printer).toBe("hte530v5.2.4");
 });
 test("T17 an edit after a ready card is processed", async ({ page }) => {
-  await send(page, "Шестерня привода");
-  await upload(page, "box.stl");
-  await settled(page);
-  await answer(page, "mm");
+  await task(page, "Шестерня привода");
   const done = page.getByRole("status").filter({ hasText: PIPELINE_DONE });
   await expect(done).toBeVisible();
   const job = new URL(page.url()).searchParams.get("job");
@@ -334,4 +378,11 @@ test("T17 an edit after a ready card is processed", async ({ page }) => {
     })
     .toEqual([before + 1, "completed"]);
   await expect(done).toBeVisible();
+  // The edit names a requirement code, so the new card carries it.
+  const card = (await snapshot()).card;
+  expect(
+    card.requirements.find(
+      (r: { key: string }) => r.key === "dimensional_tol_mm",
+    )?.value,
+  ).toBe("0,1");
 });
