@@ -1,16 +1,16 @@
 """Stage-one task card (``TaskCard`` 2.0) -> what parameter selection reads from it.
 
 Requirement codes, kinds and units come from the dictionary shared with stage one
-(``knowledge/requirement_keys.json``); a requirement under another key is reported as not taken
-into account. Free text is read only for a ban on supports, the load and, when the card has no
-``priority`` code, the priorities, by the phrases of ``phrases.json``; every such inference is
-told to the user as an assumption.
+(``knowledge/requirement_keys.json``); a requirement under another key, or under a code no step
+of the selection reads, is reported as not taken into account. Free text is read only for a ban
+on supports, the load and, when the card has no ``priority`` code, the priorities, by the
+phrases of ``phrases.json``; every such inference is told to the user as an assumption.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Collection, Iterator, Sequence
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -32,6 +32,9 @@ _BASIS: dict[str, Basis] = {
     "assumption": "assumption",
 }
 _LIST_SEPARATORS = re.compile(r"[,;]")
+# Codes that describe the part rather than demand anything of the print: when no step reads
+# them there is nothing to tell the user, only the log.
+_DESCRIPTIVE = frozenset({"part_class"})
 
 
 class _Booleans(Value):
@@ -42,7 +45,6 @@ class _Booleans(Value):
 class Phrases(Value):
     note: str
     booleans: _Booleans
-    material_answers: list[str]
     load_phrases: list[tuple[str, list[str]]]
     priority_phrases: dict[str, list[str]]
     supports_forbidden_phrases: list[str]
@@ -112,11 +114,11 @@ class _Draft:
     material: MaterialRequest | None = None
 
 
-def read_card(card: TaskCard, keys: RequirementKeys) -> TuningInput:
+def read_card(card: TaskCard, keys: RequirementKeys, read: Collection[str]) -> TuningInput:
+    """``read``: the codes a step of the selection reads besides the card fields below."""
     draft = _Draft(assumptions=_readiness_notes(card))
     for requirement, requirement_id in _with_ids(card.requirements):
-        _read_requirement(draft, requirement, requirement_id, keys)
-    _read_answers(draft, card)
+        _read_requirement(draft, requirement, requirement_id, keys, read)
     wishes = " ".join(text for text in card.preferences if text).lower()
     priority = _priority(draft, wishes)
     supports_allowed = _supports_allowed(draft, wishes)
@@ -188,7 +190,11 @@ def _with_ids(requirements: Sequence[Requirement]) -> Iterator[tuple[Requirement
 
 
 def _read_requirement(
-    draft: _Draft, requirement: Requirement, requirement_id: str, keys: RequirementKeys
+    draft: _Draft,
+    requirement: Requirement,
+    requirement_id: str,
+    keys: RequirementKeys,
+    read: Collection[str],
 ) -> None:
     label = f"{requirement_id} ({requirement.label or requirement.key})"
     entry = keys.get(requirement.key)
@@ -200,7 +206,7 @@ def _read_requirement(
         card_field(draft, requirement, requirement_id, label, entry)
         return
     reader = _VALUES.get(entry.kind)
-    if reader is None:
+    if reader is None or entry.key not in read:
         _not_interpreted(draft, requirement, label)
         return
     try:
@@ -222,7 +228,7 @@ def _basis(requirement: Requirement) -> Basis:
 
 
 def _not_interpreted(draft: _Draft, requirement: Requirement, label: str) -> None:
-    if requirement.mandatory:
+    if requirement.mandatory and requirement.key not in _DESCRIPTIVE:
         draft.assumptions.append(f"обязательное требование {label} не учтено подбором параметров")
     else:
         draft.warnings.append(f"requirement {label} is not used by parameter selection")
@@ -248,13 +254,6 @@ def _items(requirement: Requirement, entry: RequirementKey) -> tuple[str, ...]:
     return found
 
 
-def _choice(requirement: Requirement, entry: RequirementKey) -> str:
-    value = requirement.value.strip().lower()
-    if value not in entry.options:
-        raise Unreadable(f"expected one of {', '.join(entry.options)}, got {requirement.value!r}")
-    return value
-
-
 def _read_quantity(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
@@ -270,6 +269,11 @@ def _read_load(
     code = requirement.value.strip().lower()
     if code in entry.options:
         draft.load = code
+        _note_unconfirmed(
+            draft,
+            requirement,
+            f"нагрузка «{code}» в карточке не подтверждена и принята как допущение",
+        )
         return
     _set_load(draft, requirement.value, label)
 
@@ -280,6 +284,11 @@ def _read_printing_mode(
     mode = requirement.value.strip().lower()
     if mode in entry.options:
         draft.mode = ModeRequest(mode, requirement_id)
+        _note_unconfirmed(
+            draft,
+            requirement,
+            f"режим печати {mode} в карточке не подтверждён и принят как допущение",
+        )
         return
     draft.warnings.append(
         f"printing mode {requirement_id} is not one of {', '.join(entry.options)}"
@@ -303,10 +312,17 @@ def _read_priority(
     if unknown:
         draft.warnings.append(f"priority {label}: {', '.join(unknown)} not one of {options}")
     draft.priority = known
+    _note_unconfirmed(
+        draft,
+        requirement,
+        f"приоритеты {', '.join(known)} в карточке не подтверждены и приняты как допущение",
+    )
+
+
+def _note_unconfirmed(draft: _Draft, requirement: Requirement, text: str) -> None:
+    """A card field taken from an unconfirmed requirement is told to the user as an assumption."""
     if _basis(requirement) == "assumption":
-        draft.assumptions.append(
-            f"приоритеты {', '.join(known)} в карточке не подтверждены и приняты как допущение"
-        )
+        draft.assumptions.append(text)
 
 
 def _read_material(
@@ -331,26 +347,23 @@ _VALUES: dict[str, Callable[[Requirement, RequirementKey], RequirementValue]] = 
     "number": _number,
     "flag": _flag,
     "list": _items,
-    "choice": _choice,
 }
+
+
+def _first_match(phrases: Sequence[str], text: str) -> int | None:
+    """Where the earliest phrase of ``phrases.json`` is found in the lowercase text, if any."""
+    found = [match.start() for phrase in phrases if (match := re.search(phrase, text))]
+    return min(found, default=None)
 
 
 def _set_load(draft: _Draft, text: str, origin: str) -> None:
     lowered = text.lower()
     for load, phrases in PHRASES.load_phrases:
-        if any(phrase in lowered for phrase in phrases):
+        if _first_match(phrases, lowered) is not None:
             draft.load = load
             draft.assumptions.append(f"нагрузка «{load}» выведена из текста: {origin}")
             return
     draft.warnings.append(f"load of {origin} not recognised: {text!r}")
-
-
-def _read_answers(draft: _Draft, card: TaskCard) -> None:
-    answers = {question.id: question.answer for question in card.questions if question.answer}
-    for question_id in sorted(PHRASES.material_answers):
-        answer = answers.get(question_id)
-        if answer and draft.material is None:
-            draft.material = MaterialRequest(answer, f"requirement:answer.{question_id}")
 
 
 def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
@@ -359,9 +372,9 @@ def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
         return draft.priority
     positions = []
     for priority, phrases in sorted(PHRASES.priority_phrases.items()):
-        hits = [wishes.find(phrase) for phrase in phrases if phrase in wishes]
-        if hits:
-            positions.append((min(hits), priority))
+        first = _first_match(phrases, wishes)
+        if first is not None:
+            positions.append((first, priority))
     found = tuple(priority for _, priority in sorted(positions))
     if found:
         draft.assumptions.append(f"приоритеты {', '.join(found)} выведены из текста пожеланий")
@@ -369,7 +382,7 @@ def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
 
 
 def _supports_allowed(draft: _Draft, wishes: str) -> bool:
-    if any(phrase in wishes for phrase in PHRASES.supports_forbidden_phrases):
+    if _first_match(PHRASES.supports_forbidden_phrases, wishes) is not None:
         draft.assumptions.append("поддержки запрещены по тексту пожеланий")
         return False
     return True
@@ -378,6 +391,6 @@ def _supports_allowed(draft: _Draft, wishes: str) -> bool:
 def _read_production_load(draft: _Draft, constraints: Sequence[str]) -> None:
     for constraint in constraints:
         lowered = constraint.lower()
-        if any(phrase in lowered for _, phrases in PHRASES.load_phrases for phrase in phrases):
+        if any(_first_match(phrases, lowered) is not None for _, phrases in PHRASES.load_phrases):
             _set_load(draft, constraint, f"ограничение производства «{constraint}»")
             return

@@ -41,7 +41,7 @@ def dumped(payload: dict) -> str:
 
 
 def test_golden_cases_cover_the_author_cards_and_the_eval_run():
-    assert len(CASES) == 39
+    assert len(CASES) == 38
     assert sum(name.startswith("eval-") for name in CASES) == 7
     assert sum((FIXTURES / name / "feedback.json").exists() for name in CASES) == 9
 

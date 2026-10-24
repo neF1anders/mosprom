@@ -146,6 +146,35 @@ def test_wall_thickness_constraint_counts_lines(select):
     assert (walls["value"], walls["source"]) == (2.0, "constraint:C1")
 
 
+def test_limits_are_kept_on_the_step_grid(select):
+    # The nearest step went past the limit (35 for at most 33) and still counted as applied.
+    second = select(card(), feedback(constraint("C1", "speed_print", "max", 33)))
+    assert second["settings"]["speed_print"]["value"] == 30
+    assert applied(second) == {"C1": "applied"}
+    hot = select(card(), feedback(constraint("C1", "material_print_temperature", "max", 243)))
+    assert hot["settings"]["material_print_temperature"]["value"] <= 243
+
+
+@pytest.mark.parametrize(
+    ("fields", "op", "thickness", "meets"),
+    [(STRONG, "max", 1.1, float.__le__), ({}, "min", 0.9, float.__ge__)],
+)
+def test_wall_thickness_limit_counts_whole_lines_toward_the_limit(
+    select, fields, op, thickness, meets
+):
+    # The nearest line count sent 1.2 mm for at most 1.1 and left 0.8 mm for at least 0.9.
+    second = select(card(**fields), feedback(constraint("C1", "wall_thickness", op, thickness)))
+    walls = second["settings"].get("wall_thickness", {"value": 0.8})
+    assert meets(float(walls["value"]), thickness)
+    assert applied(second) == {"C1": "applied"}
+
+
+def test_limit_no_line_count_meets_is_not_applied(select):
+    second = select(card(), feedback(constraint("C1", "wall_thickness", "eq", 1.1)))
+    assert applied(second) == {"C1": "not_applied"}
+    assert "constraint:C1" in [item["requirement_id"] for item in second["unsatisfied"]]
+
+
 def test_unsupported_constraint_is_reported_not_silently_dropped(select):
     second = select(card(), feedback(constraint("C1", "speed_print", "ne", 60)))
     assert applied(second) == {"C1": "not_applied"}
