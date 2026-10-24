@@ -45,7 +45,11 @@ def choose_quality(
     ]
     pool = inside or permitted or sorted(qualities)
     name = min(
-        pool, key=lambda n: (abs(qualities[n].layer_height - target), qualities[n].layer_height)
+        pool,
+        key=lambda option: (
+            abs(qualities[option].layer_height - target),
+            qualities[option].layer_height,
+        ),
     )
     profile = qualities[name]
     if not inside:

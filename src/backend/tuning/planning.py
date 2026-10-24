@@ -32,7 +32,6 @@ class AxisPlan:
     shift: float = 0.0
     low: float = 0.0
     high: float = 1.0
-    rule_ids: tuple[str, ...] = ()
     # Rules that shift the axis, in the order they fired.
     moving_rule_ids: tuple[str, ...] = ()
     low_rule: str | None = None
@@ -93,7 +92,7 @@ def limit_axis(
     """Hard limits in the value domain (None = open), from a rule or a check constraint."""
     low, high = t_interval_for_limits(axis, minimum, maximum)
     entry = _lower_high(_raise_low(plan.axes[axis.id], rule_id, low), rule_id, high)
-    return plan.with_axis(axis.id, _touch(entry, rule_id, moves=False))
+    return plan.with_axis(axis.id, entry)
 
 
 def find_conflicts(plan: Plan) -> list[Conflict]:
@@ -118,7 +117,7 @@ def plan_unmet(
         rule = rules.get(rule_id)
         if rule is None:
             return rule_id
-        found = [i for key in requirement_keys(rule) for i in requirement_ids.get(key, [])]
+        found = [id_ for key in requirement_keys(rule) for id_ in requirement_ids.get(key, [])]
         return found[0] if found else f"rule:{rule_id}"
 
     unmet = [
@@ -167,12 +166,11 @@ def resolve_t(entry: AxisPlan, baseline_t: float) -> tuple[float, str | None]:
     return t, None
 
 
-def _touch(entry: AxisPlan, rule_id: str, moves: bool) -> AxisPlan:
-    if rule_id not in entry.rule_ids:
-        entry = replace(entry, rule_ids=(*entry.rule_ids, rule_id))
-    if moves and rule_id not in entry.moving_rule_ids:
-        entry = replace(entry, moving_rule_ids=(*entry.moving_rule_ids, rule_id))
-    return entry
+def _shift(entry: AxisPlan, rule_id: str, delta: float) -> AxisPlan:
+    moving = entry.moving_rule_ids
+    if rule_id not in moving:
+        moving = (*moving, rule_id)
+    return replace(entry, shift=entry.shift + delta, moving_rule_ids=moving)
 
 
 def _raise_low(entry: AxisPlan, rule_id: str, bound: float) -> AxisPlan:
@@ -189,9 +187,8 @@ def _apply(
     """Mode votes are counted by the mode choice, not by the plan."""
     match action:
         case ShiftAction():
-            entry = plan.axes[action.param]
-            entry = replace(entry, shift=entry.shift + action.delta)
-            return plan.with_axis(action.param, _touch(entry, rule_id, moves=True))
+            entry = _shift(plan.axes[action.param], rule_id, action.delta)
+            return plan.with_axis(action.param, entry)
         case BoundAction():
             return plan.with_axis(action.param, _bound(plan.axes[action.param], action, rule_id))
         case LimitAction():
@@ -215,4 +212,4 @@ def _bound(entry: AxisPlan, action: BoundAction, rule_id: str) -> AxisPlan:
         entry = _raise_low(entry, rule_id, action.min_t)
     if action.max_t is not None:
         entry = _lower_high(entry, rule_id, action.max_t)
-    return _touch(entry, rule_id, moves=False)
+    return entry

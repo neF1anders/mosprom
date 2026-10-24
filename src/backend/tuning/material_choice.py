@@ -102,9 +102,10 @@ def _shown(value: RequirementValue) -> str:
 
 def _source_assumptions(requirements: Sequence[CardRequirement]) -> list[str]:
     return [
-        f"требование {r.id} = {_shown(r.value)} — допущение, а не подтверждённый факт"
-        for r in requirements
-        if r.basis == "assumption"
+        f"требование {requirement.id} = {_shown(requirement.value)} — допущение, "
+        "а не подтверждённый факт"
+        for requirement in requirements
+        if requirement.basis == "assumption"
     ]
 
 
@@ -147,7 +148,9 @@ def _ranked(
         material=best.material,
         source=f"rule:{RANK_RULE_ID}",
         why=f"лучший из {len(ranked)} материалов каталога по требованиям задания; {_summary(best)}",
-        alternatives=tuple(Alternative(e.material.id, _summary(e)) for e in ranked[1:3]),
+        alternatives=tuple(
+            Alternative(other.material.id, _summary(other)) for other in ranked[1:3]
+        ),
         checks=best.checks,
         unmet=unmet,
         assumptions=(*_source_assumptions(requirements), *_check_assumptions(best)),
@@ -157,15 +160,17 @@ def _ranked(
 
 
 def _failed_ids(evaluation: Evaluation) -> set[str]:
-    return {c.requirement_id for c in evaluation.checks if c.hard and c.status == "fail"}
+    return {
+        check.requirement_id for check in evaluation.checks if check.hard and check.status == "fail"
+    }
 
 
 def _catalog_conflicts(ranked: Sequence[Evaluation]) -> list[Unmet]:
     """Hard requirements no material meets alone, and pairs no single material meets together."""
     failures = [_failed_ids(evaluation) for evaluation in ranked]
-    checkable = {c.requirement_id for e in ranked for c in e.checks if c.hard}
-    alone = sorted(i for i in checkable if all(i in failed for failed in failures))
-    found = [Unmet(i, "ни один материал каталога его не выполняет") for i in alone]
+    checkable = {check.requirement_id for item in ranked for check in item.checks if check.hard}
+    alone = sorted(key for key in checkable if all(key in failed for failed in failures))
+    found = [Unmet(key, "ни один материал каталога его не выполняет") for key in alone]
     rest = sorted(checkable - set(alone))
     for first, second in itertools.combinations(rest, 2):
         if all(first in failed or second in failed for failed in failures):
