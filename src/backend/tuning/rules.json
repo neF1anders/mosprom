@@ -89,7 +89,7 @@
      "then": [{"op": "set_discrete", "param": "support_enable", "value": true}]},
     {"id": "SUPPORT-FORBIDDEN-OVERHANG", "source": "S 4.2", "reason": "поддержки запрещены, а у модели есть нависания",
      "when": {"all": [{"fact": "print.mode", "op": "==", "value": "classic"}, {"fact": "geometry.overhang_area_fraction", "op": ">", "value": 0.05}, {"fact": "req.no_supports", "op": "==", "value": true}, {"fact": "reqhard.no_supports", "op": "==", "value": true}]},
-     "then": [{"op": "unsatisfied", "requirement_key": "no_supports", "why": "у модели есть нависания, поддержки запрещены: нужен подбор ориентации"}]},
+     "then": [{"op": "unsatisfied", "requirement_key": "no_supports", "why": "у модели есть нависания, а поддержки запрещены: в выбранной ориентации требование не выполнить"}]},
     {"id": "SUPPORT-WISH-OVERHANG", "source": "S 4.2", "reason": "печать без поддержек только пожелание, а у модели есть нависания",
      "when": {"all": [{"fact": "print.mode", "op": "==", "value": "classic"}, {"fact": "geometry.overhang_area_fraction", "op": ">", "value": 0.05}, {"fact": "pref.supports_allowed", "op": "==", "value": true}, {"fact": "req.no_supports", "op": "==", "value": true}, {"fact": "reqhard.no_supports", "op": "==", "value": false}]},
      "then": [{"op": "unsatisfied", "requirement_key": "no_supports", "why": "у модели есть нависания, поэтому поддержки включены вопреки пожеланию печатать без них"}]},
