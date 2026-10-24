@@ -80,7 +80,7 @@ for (const name of [
   "photo.png",
 ]) {
   test(`T02 T03 document ${name}`, async ({ page }) => {
-    // The model goes with the document, or the gate only talks about it.
+    // The model goes with the document, or the assistant only talks about it.
     await upload(page, name, "box.stl");
     await settled(page);
     const panel = page.getByRole("complementary", {
@@ -206,11 +206,15 @@ test("T09 tool call is visible in the timeline", async ({ page }) => {
 });
 for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
   test(`T10 ${message}`, async ({ page }) => {
-    // A refused call fails at the gate, a broken answer at the interpreter.
     await task(page, message);
-    await expect(
-      page.getByRole("button", { name: "Повторить", exact: true }),
-    ).toBeVisible();
+    // A refused call leaves the assistant without an answer, which it says; a broken
+    // answer fails the work at the interpreter.
+    if (message === "TEST_PROVIDER_401")
+      await expect(page.getByText(/модель не отвечает/)).toBeVisible();
+    else
+      await expect(
+        page.getByRole("button", { name: "Повторить", exact: true }),
+      ).toBeVisible();
   });
 }
 for (const text of [
@@ -230,7 +234,7 @@ for (const text of [
     await expect(page.getByText(text, { exact: true }).first()).toBeVisible();
   });
 }
-test("T15 off-topic message gets a reply from the gate without a run", async ({
+test("T15 off-topic message gets a reply from the assistant without a run", async ({
   page,
 }) => {
   await send(page, "TEST_OFFTOPIC Какая погода");
@@ -265,7 +269,7 @@ test("T15 a reply in the chat after the project keeps the project", async ({
   // Nothing ran again: the timeline and the files are those of the work before.
   const job = new URL(page.url()).searchParams.get("job");
   const snapshot = await (await page.request.get(`/api/v1/jobs/${job}`)).json();
-  expect(snapshot.job.work_revision).toBeLessThan(snapshot.job.revision);
+  expect(snapshot.job.work_revision).toBe(snapshot.job.revision);
   expect(snapshot.job.status).toBe("completed");
   const timeline = page.getByRole("region", { name: "Ход работы" });
   for (const title of ["Подбор параметров", "Слайсинг"])
@@ -277,7 +281,7 @@ test("T15 a reply in the chat after the project keeps the project", async ({
   const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
   expect(project.status()).toBe(200);
 });
-test("T15 the gate asks for details once, the next message starts the work", async ({
+test("T15 the assistant asks for details, the next message starts the work", async ({
   page,
 }) => {
   await task(page, "TEST_GATE_ASK Деталь");
@@ -287,8 +291,8 @@ test("T15 the gate asks for details once, the next message starts the work", asy
   await settled(page);
   const card = page.getByRole("complementary", { name: "Карточка задания" });
   await expect(card.getByText("Нет данных").first()).toBeVisible();
-  // The gate would ask again for this marker, but after its request it is not called.
-  await send(page, "TEST_GATE_ASK Шестерня привода");
+  // The model sent with the first message still waits for a project.
+  await send(page, "Шестерня привода");
   await pipelineDone(page);
   await expect(
     page.getByRole("main").getByText(/Расскажите подробнее о детали/),
