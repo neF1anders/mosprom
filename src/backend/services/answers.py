@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ..domain.errors import AppError, RevisionConflict
 from ..domain.models import Answer, Event, Job, Message, Status, now
-from ..domain.rules import known
+from ..domain.rules import canonical, known
 from ..domain.units import STL_UNITS
 from ..ports.persistence import UnitOfWork
 from .commands import Commands, changed
@@ -23,21 +23,21 @@ class AnswerService:
             questions = {q.id: q for q in job.card.questions}
             if not set(answers).issubset(questions):
                 raise AppError("Вопрос больше не актуален", "unknown_question", 409)
-            units = answers.get("units", "")
+            # Every way of saying "unknown" is stored as one value the interface recognises.
+            values = {key: canonical(value) for key, value in answers.items()}
+            units = values.get("units", "")
             if known(units) and units not in STL_UNITS:
                 raise AppError("Выберите mm, cm, m или inch")
             if known(units):
                 job.units = units
-            for key, value in answers.items():
-                job.answers[key] = Answer(
-                    title=questions[key].title, value=value.strip(), revision=revision
-                )
+            for key, value in values.items():
+                job.answers[key] = Answer(title=questions[key].title, value=value, revision=revision)
             if job.status == Status.RUNNING and job.phase == "deep":
-                await joined(uow, job, answers)
+                await joined(uow, job, values)
             else:
                 await changed(uow, job, "Ответы сохранены")
-            text = "\n".join(f"{questions[k].title}, {v.strip()}" for k, v in answers.items())
-            await uow.jobs.message(
+            text = "\n".join(f"{questions[k].title}, {v}" for k, v in values.items())
+            await uow.messages.add(
                 Message(
                     job_id=job.id, revision=job.revision, role="user", kind="answers", text=text
                 )
@@ -53,7 +53,7 @@ async def joined(uow: UnitOfWork, job: Job, answers: dict[str, str]) -> None:
     assert job.card is not None
     for question in job.card.questions:
         if question.id in answers:
-            question.answer = answers[question.id].strip()
+            question.answer = answers[question.id]
     job.updated_at = now()
     await uow.jobs.save(job)
     await uow.events.append(

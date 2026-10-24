@@ -97,7 +97,7 @@ export interface Message {
   id: string;
   seq: number;
   role: string;
-  kind?: "chat" | "answers";
+  kind?: "chat" | "answers" | "offtopic";
   text: string;
   revision: number;
 }
@@ -126,10 +126,12 @@ export const statusLabel: Record<string, string> = {
   completed: "Первый этап завершён",
   pending: "Ждёт отправки",
 };
+// The server stores every way of saying "unknown" as this one value.
 export const UNKNOWN_ANSWER = "Не знаю";
 export function answered(question: Question) {
-  return (
-    !!question.answer?.trim() &&
-    question.answer.trim().toLowerCase() !== UNKNOWN_ANSWER.toLowerCase()
-  );
+  return !!question.answer?.trim() && question.answer !== UNKNOWN_ANSWER;
+}
+const ACTIVE = new Set(["running", "queued", "stopping"]);
+export function isRunning(job?: Job | null) {
+  return !!job && ACTIVE.has(job.status);
 }

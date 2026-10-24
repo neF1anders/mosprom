@@ -1,19 +1,12 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from ..domain.models import Event, Job, Status, now
+from ..domain.hashing import fingerprint
+from ..domain.models import Attachment, Event, Job, Status, now
 from ..domain.transitions import transition
 from ..ports.persistence import UnitOfWork, UowFactory
-
-
-def fingerprint(payload: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()
-    ).hexdigest()
 
 
 async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
@@ -25,11 +18,13 @@ async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
     job.files_changed = False
     job.next_stage = "not_ready"
     job.phase = None
-    await uow.jobs.save(job)
-    for attachment in await uow.jobs.attachments(job.id):
+    attachments = await uow.attachments.list(job.id)
+    for attachment in attachments:
         if attachment.draft:
             attachment.draft = False
-            await uow.jobs.attachment(attachment)
+            await uow.attachments.save(attachment)
+    await apply_stl(uow, job, attachments)
+    await uow.jobs.save(job)
     await uow.queue.stage1(job.id, job.revision)
     await uow.events.append(
         Event(
@@ -40,6 +35,31 @@ async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
             message=message,
         )
     )
+
+
+def reset_units(job: Job) -> None:
+    """A different STL needs its scale confirmed again."""
+    job.units = "unknown"
+    job.answers.pop("units", None)
+
+
+async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) -> None:
+    """A sent STL replaces the previous one; until the send, the previous one stays in use.
+
+    Removing an unsent STL therefore leaves the earlier model and its confirmed scale intact.
+    """
+    stls = [a for a in attachments if a.active and a.kind == "stl"]
+    new = next((a for a in stls if a.id != job.active_stl), None)
+    current = next((a for a in stls if a.id == job.active_stl), None)
+    if new is not None:
+        if current is not None:
+            current.active = False
+            await uow.attachments.save(current)
+        job.active_stl = new.id
+        reset_units(job)
+    elif current is None and job.active_stl is not None:
+        job.active_stl = None
+        reset_units(job)
 
 
 async def attached(uow: UnitOfWork, job: Job, message: str, files_changed: bool = True) -> None:
@@ -72,11 +92,11 @@ class Commands:
     ) -> dict[str, Any]:
         key, digest = f"{job_id}:{request_id}", fingerprint(payload)
         async with self.uow() as uow:
-            previous = await uow.jobs.receipt(key, digest)
+            previous = await uow.receipts.find(key, digest)
             if previous is not None:
                 return previous
             job = await uow.jobs.get(job_id, user_id=user_id, lock=True)
             result = await operation(uow, job)
-            await uow.jobs.remember(key, digest, result)
+            await uow.receipts.remember(key, digest, result)
             await uow.commit()
             return result

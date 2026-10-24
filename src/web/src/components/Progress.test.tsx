@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Progress } from "./Progress";
-import type { ProgressEvent } from "../types";
+import type { Job, ProgressEvent } from "../types";
 
 const event = (type: string, status = "completed"): ProgressEvent => ({
   event_id: 1,
@@ -47,5 +47,34 @@ describe("timeline reflects actual events", () => {
     expect(
       screen.getByText("STL проанализирован").closest("details"),
     ).toHaveAttribute("data-state", "warn");
+  });
+  it.each([
+    ["stopped", "wait"],
+    ["failed", "warn"],
+  ])("a %s run leaves no step spinning", (status, state) => {
+    const job = { status, next_stage: "not_ready" } as Job;
+    render(
+      <Progress
+        events={[event("interpretation.started", "running")]}
+        job={job}
+      />,
+    );
+    for (const title of ["Интерпретация задания", "ТЗ разобрано по аспектам"])
+      expect(screen.getByText(title).closest("details")).toHaveAttribute(
+        "data-state",
+        state,
+      );
+  });
+  it("a running job keeps its open step running", () => {
+    const job = { status: "running", next_stage: "not_ready" } as Job;
+    render(
+      <Progress
+        events={[event("interpretation.started", "running")]}
+        job={job}
+      />,
+    );
+    expect(
+      screen.getByText("ТЗ разобрано по аспектам").closest("details"),
+    ).toHaveAttribute("data-state", "run");
   });
 });

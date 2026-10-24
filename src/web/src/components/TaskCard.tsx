@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Audit } from "./Audit";
-import type { Evidence, Geometry, Job, ProgressEvent } from "../types";
-import { answered, statusLabel, UNKNOWN_ANSWER } from "../types";
+import { modelSize } from "../format";
+import type { Card, Evidence, Geometry, Job, ProgressEvent } from "../types";
+import { answered, isRunning, statusLabel, UNKNOWN_ANSWER } from "../types";
 import styles from "../App.module.css";
 
 const methodLabels: Record<string, string> = {
@@ -37,6 +38,16 @@ const defectLabels: Record<string, string> = {
   inconsistent_winding: "Несогласованные нормали",
   topology_unchecked: "Топология не проверена",
 };
+// A section is empty without data, otherwise done unless something needs a look.
+function presence(present: boolean, attention: boolean) {
+  if (!present) return "empty";
+  return attention ? "warn" : "done";
+}
+function readiness(card: Card | null | undefined, running: boolean) {
+  if (running) return "warn";
+  if (!card) return "empty";
+  return card.readiness === "blocked" ? "error" : "done";
+}
 function Field({
   title,
   state = "empty",
@@ -84,13 +95,10 @@ export function TaskCard({
     ) ||
     card?.geometry ||
     undefined;
-  const running =
-    !!job && ["running", "queued", "stopping"].includes(job.status);
+  const running = isRunning(job);
   const requirements =
     card?.requirements.filter((requirement) => requirement.mandatory) || [];
-  const dimensions = geometry?.extents
-    .map((x) => Number(x.toFixed(3)))
-    .join(" × ");
+  const size = modelSize(geometry);
   const unresolved = card?.questions.filter((q) => !answered(q)).length || 0;
   const defects = geometry?.defects.map((d) => defectLabels[d] || d) || [];
   const remarks =
@@ -136,13 +144,7 @@ export function TaskCard({
       </Field>
       <Field
         title="Обязательные требования"
-        state={
-          requirements.length
-            ? unresolved || running
-              ? "warn"
-              : "done"
-            : "empty"
-        }
+        state={presence(requirements.length > 0, unresolved > 0 || running)}
       >
         {requirements.length ? (
           <details className={styles.cardDisclosure}>
@@ -173,14 +175,9 @@ export function TaskCard({
           <p>Нет данных</p>
         )}
       </Field>
-      <Field
-        title="Геометрия"
-        state={dimensions ? (defects.length ? "warn" : "done") : "empty"}
-      >
+      <Field title="Геометрия" state={presence(!!size, defects.length > 0)}>
         <p>
-          {dimensions
-            ? `${dimensions} ${geometry?.units === "unknown" ? "в единицах файла" : geometry?.units}`
-            : "Нет данных"}
+          {size || "Нет данных"}
           {defects.length ? ` · ${defects.join(", ")}` : ""}
         </p>
         {geometry?.report_id && (
@@ -207,7 +204,7 @@ export function TaskCard({
       </Field>
       <Field
         title="Допущения и неизвестные"
-        state={unknowns.length ? "warn" : card ? "done" : "empty"}
+        state={presence(!!card, unknowns.length > 0)}
       >
         {unknowns.length ? (
           <details className={styles.cardDisclosure}>
@@ -228,20 +225,7 @@ export function TaskCard({
             <p key={q.id}>Не удалось уточнить · {q.title}</p>
           ))}
       </Field>
-      <Field
-        title="Готовность"
-        state={
-          running
-            ? "warn"
-            : card
-              ? card.readiness === "blocked"
-                ? "error"
-                : "done"
-              : job?.status === "running"
-                ? "warn"
-                : "empty"
-        }
-      >
+      <Field title="Готовность" state={readiness(card, running)}>
         {events.length ? (
           <details className={styles.cardDisclosure}>
             <summary

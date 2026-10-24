@@ -75,17 +75,22 @@ class AgentRunner:
         """An agent's result is reused while its prompt, model and own input stay the same.
 
         Each agent sees only the data it depends on, so an answer or a new STL unit reruns
-        just the agents that read it.
+        just the agents that read it. A reply that lost items to validation is not reused:
+        another call may well return them.
         """
         key = self._key(spec, content, ctx)
         async with self.uow() as uow:
-            cached = await uow.jobs.cache(key)
+            cached = await uow.cache.get(key)
+            if cached is not None:
+                await uow.traces.record(Trace(spec, ctx, 0, []).cached(key))
+                await uow.commit()
         if cached is not None:
             return spec.output.model_validate(cached)
-        output = await self._run(spec, content, ctx)
-        async with self.uow() as uow:
-            await uow.jobs.cache_put(key, output.model_dump(mode="json"))
-            await uow.commit()
+        output, dropped = await self._run(spec, content, ctx)
+        if not dropped:
+            async with self.uow() as uow:
+                await uow.cache.put(key, output.model_dump(mode="json"))
+                await uow.commit()
         return output
 
     def _key(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> str:
@@ -107,20 +112,25 @@ class AgentRunner:
         )
         return "agent:" + hashlib.sha256(data.encode()).hexdigest()
 
-    async def _run(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> Any:
+    async def _run(
+        self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext
+    ) -> tuple[Any, list[str]]:
         schema = json.dumps(spec.output.model_json_schema(), ensure_ascii=False)
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": prompt(spec.name) + "\n\nСхема ответа JSON\n" + schema},
             {"role": "user", "content": content},
         ]
         seen: dict[str, dict[str, Any]] = {}
+        recorded = 0
         for step in range(1, spec.max_steps + 1):
             await ctx.check()
             final = step == spec.max_steps
             schemas = [] if final else self.tools.schemas(spec.tools)
             if final and spec.tools:
                 messages.append({"role": "user", "content": FINAL_STEP})
-            trace = Trace(spec, ctx, step, messages)
+            # Each step stores only what it added, so a long dialog is not written again.
+            trace = Trace(spec, ctx, step, messages[recorded:], recorded)
+            recorded = len(messages)
             try:
                 reply = await self.model.complete(
                     messages,
@@ -141,9 +151,10 @@ class AgentRunner:
                     await ctx.event(
                         "agent.dropped", f"{spec.title}, часть ответа отброшена", dropped=dropped
                     )
-                return output
+                return output, dropped
             executed = await self._tools(spec, reply, messages, ctx, seen)
             await self._record(trace.done(reply, executed, None))
+        raise RuntimeError("The last step is offered without tools, so it always answers")
 
     async def _tools(self, spec, reply, messages, ctx, seen) -> list[dict[str, Any]]:
         messages.append(
@@ -193,10 +204,17 @@ class AgentRunner:
 
 
 class Trace:
-    def __init__(self, spec: AgentSpec, ctx: RunContext, step: int, messages: list):
+    def __init__(
+        self, spec: AgentSpec, ctx: RunContext, step: int, messages: list, offset: int = 0
+    ):
         self.spec, self.ctx, self.step = spec, ctx, step
-        self.request = {"messages": redact(messages, ctx.images)}
+        self.request = {"messages": redact(messages, ctx.images), "offset": offset}
         self.started, self.clock = now(), time.perf_counter()
+
+    def cached(self, key: str) -> AgentCall:
+        """A reused result is logged too, so the journal shows why no call was made."""
+        call = self.done(None, [], None)
+        return call.model_copy(update={"request": {"cache_key": key}, "cached": True})
 
     def done(self, reply: ModelReply | None, tools: list, error: str | None) -> AgentCall:
         return AgentCall(

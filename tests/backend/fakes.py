@@ -63,17 +63,17 @@ class Cache:
     def __init__(self):
         self.values: dict[str, Any] = {}
 
-    async def cache(self, key):
+    async def get(self, key):
         return self.values.get(key)
 
-    async def cache_put(self, key, value):
+    async def put(self, key, value):
         self.values.setdefault(key, value)
 
 
 class FakeUow:
     def __init__(self):
         self.traces = Traces()
-        self.jobs = Cache()
+        self.cache = Cache()
 
     def __call__(self):
         return self

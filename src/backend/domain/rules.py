@@ -7,10 +7,16 @@ from .units import STL_UNITS
 
 RULES_VERSION = "4"
 UNKNOWN = {"", "не знаю", "unknown", "неизвестно"}
+# The one spelling of "unknown" stored and shown; the interface checks only this value.
+UNKNOWN_ANSWER = "Не знаю"
 
 
 def known(value: str | None) -> bool:
     return value is not None and value.strip().casefold() not in UNKNOWN
+
+
+def canonical(value: str) -> str:
+    return value.strip() if known(value) else UNKNOWN_ANSWER
 
 
 def units_question(geometry: Geometry) -> Question:

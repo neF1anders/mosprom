@@ -20,10 +20,10 @@ class SessionService:
         digest = hashlib.sha256(token.encode()).hexdigest()
         async with self.uow() as uow:
             key = "launch:" + digest
-            if await uow.jobs.receipt(key, digest) is not None:
+            if await uow.receipts.find(key, digest) is not None:
                 raise AppError(
                     "Ссылка запуска уже использована, откройте новую", "used_launch_token", 401
                 )
-            await uow.jobs.remember(key, digest, {"used": True})
+            await uow.receipts.remember(key, digest, {"used": True})
             await uow.commit()
         return sign_token(self.secret, "session", int(time.time()) + SESSION_SECONDS, user_id)

@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, MetaData, String, Table, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    false,
+)
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
 
 metadata = MetaData()
@@ -79,5 +91,6 @@ agent_calls = Table(
     Column("response", JSONB),
     Column("tools", JSONB, nullable=False),
     Column("error", Text),
+    Column("cached", Boolean, nullable=False, server_default=false()),
 )
 Index("ix_agent_calls_job", agent_calls.c.job_id, agent_calls.c.revision)

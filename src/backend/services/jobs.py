@@ -1,17 +1,25 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
 from ..domain.errors import AppError, RevisionConflict
+from ..domain.hashing import fingerprint
 from ..domain.models import Event, Job, Status
 from ..domain.transitions import transition
+from ..ports.operations import Notifier
 from ..ports.persistence import UnitOfWork, UowFactory
-from .commands import Commands, fingerprint
+from .commands import Commands
+
+EVENT_PAGE = 100
+# A quiet stream still sends a heartbeat this often, so proxies and browsers keep it open.
+HEARTBEAT_SECONDS = 15
 
 
 class JobService:
-    def __init__(self, uow: UowFactory):
-        self.uow = uow
+    def __init__(self, uow: UowFactory, notifier: Notifier):
+        self.uow, self.notifier = uow, notifier
         self.commands = Commands(uow)
 
     async def rename(self, user_id: str, job_id: str, request_id: str, title: str):
@@ -38,13 +46,13 @@ class JobService:
     async def create(self, user_id: str, request_id: str, title: str) -> dict[str, Any]:
         async with self.uow() as uow:
             key, digest = f"create:{user_id}:{request_id}", fingerprint(title)
-            previous = await uow.jobs.receipt(key, digest)
+            previous = await uow.receipts.find(key, digest)
             if previous is not None:
                 return previous
             job = Job(user_id=user_id, title=title)
             result = job.model_dump(mode="json")
             await uow.jobs.save(job)
-            await uow.jobs.remember(key, digest, result)
+            await uow.receipts.remember(key, digest, result)
             await uow.events.append(
                 Event(
                     job_id=job.id,
@@ -69,10 +77,11 @@ class JobService:
     ) -> dict[str, Any]:
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
-            messages = await uow.jobs.messages(job_id, before)
-            attachments = await uow.jobs.attachments(job_id)
+            messages = await uow.messages.list(job_id, before)
+            attachments = await uow.attachments.list(job_id)
+        # The full STL report is for the card export and stage two, not for the chat view.
         return {
-            "job": job.model_dump(mode="json"),
+            "job": job.model_dump(mode="json", exclude={"card": {"stl_analysis"}}),
             "messages": messages,
             "attachments": [
                 a.model_dump(mode="json", exclude={"fragments"}) for a in attachments if a.active
@@ -80,13 +89,35 @@ class JobService:
             "message_cursor": messages[0]["seq"] if len(messages) == 100 else None,
         }
 
-    async def ensure_owner(self, user_id: str, job_id: str) -> None:
-        async with self.uow() as uow:
-            await uow.jobs.get(job_id, user_id=user_id)
+    async def follow(
+        self, user_id: str, job_id: str, after: int | None
+    ) -> AsyncIterator[Event | None]:
+        """Events after the cursor, then each new one as it commits; None is a heartbeat.
 
-    async def events(self, job_id: str, after: int = 0):
+        Without a cursor the stream starts at the current revision: older history is never
+        shown, so it is not replayed on every open.
+        """
         async with self.uow() as uow:
-            return await uow.events.list(job_id, after)
+            job = await uow.jobs.get(job_id, user_id=user_id)
+            cursor = after if after is not None else await uow.events.start(job_id, job.revision)
+        return self._stream(job_id, cursor)
+
+    async def _stream(self, job_id: str, cursor: int) -> AsyncIterator[Event | None]:
+        async with self.notifier.watch(job_id) as changed:
+            while True:
+                # Cleared before the read: an event committed after it wakes the wait below.
+                changed.clear()
+                async with self.uow() as uow:
+                    batch = await uow.events.list(job_id, cursor, EVENT_PAGE)
+                for event in batch:
+                    cursor = event.event_id
+                    yield event
+                if len(batch) == EVENT_PAGE:
+                    continue
+                try:
+                    await asyncio.wait_for(changed.wait(), HEARTBEAT_SECONDS)
+                except TimeoutError:
+                    yield None
 
     async def current_card(self, user_id: str, job_id: str) -> dict[str, Any]:
         async with self.uow() as uow:

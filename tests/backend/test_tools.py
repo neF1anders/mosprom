@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 
 import pytest
 from PIL import Image
@@ -7,23 +8,12 @@ from PIL import Image
 from src.backend.agents.context import ContentBuilder, collect
 from src.backend.agents.tools import ToolBox
 from src.backend.domain.errors import AppError
+from src.backend.domain.geometry import summarize
 from src.backend.domain.models import Answer, Attachment, Geometry, Source
 
 from .fakes import context
 
 pytestmark = pytest.mark.unit
-
-
-class Knowledge:
-    async def search(self, query, material_id, property_name, conditions, offset):
-        record = {
-            "id": "enduse_abs.density",
-            "text": "Enduse ABS плотность",
-            "property": "density",
-            "value": "1.05",
-            "unit": "g/cm3",
-        }
-        return {"status": "found", "records": [record]}
 
 
 class Files:
@@ -38,27 +28,19 @@ class Files:
 
 
 def toolbox() -> ToolBox:
-    return ToolBox(Knowledge(), Files())
+    return ToolBox(Files())
 
 
-async def test_knowledge_records_become_citable_sources():
-    ctx = context()
-    result = await toolbox().call("search_knowledge", {"query": "ABS"}, ctx)
-    assert result["records"][0]["source_id"] == "kb:enduse_abs.density"
-    assert ctx.sources["kb:enduse_abs.density"].kind == "knowledge"
-
-
-async def test_report_sections_are_read_without_rerunning_analysis():
-    ctx = context(stl_report={"topology": {"component_count": 1}})
-    result = await toolbox().call("read_stl_report", {"section": "topology"}, ctx)
-    assert result == {"section": "topology", "data": {"component_count": 1}}
-    assert "error" in await toolbox().call("read_stl_report", {"section": "geometry"}, context())
-
-
-@pytest.mark.parametrize("arguments", [{"section": "secrets"}, {"section": "file", "x": 1}, []])
+@pytest.mark.parametrize(
+    "arguments", [{"source_id": "f1p1", "region": "secrets"}, {"source_id": "f1p1", "x": 1}, []]
+)
 async def test_tool_arguments_are_validated(arguments):
     with pytest.raises(AppError):
-        await toolbox().call("read_stl_report", arguments, context(stl_report={}))
+        await toolbox().call("view_page", arguments, context())
+
+
+def test_data_in_the_request_is_not_offered_again_as_a_tool():
+    assert set(toolbox().registry) == {"view_page", "convert_units"}
 
 
 async def test_view_page_crops_a_region_and_attaches_it():
@@ -140,3 +122,21 @@ async def test_one_request_carries_text_pages_and_projections():
     )
     assert sum(p["type"] == "image_url" for p in parts) == 3
     assert len(ctx.images) == 1
+
+
+async def test_a_report_read_back_from_jsonb_gives_the_same_agent_input():
+    """Regression: JSONB reorders keys, and the reordered report missed the agent cache."""
+    report = {
+        "geometry": {"volume": 1.5, "extents": [1, 2, 3]},
+        "topology": {"watertight": True, "component_count": 1},
+        "partial_errors": {"sections": "timeout", "chords": "timeout"},
+    }
+    reordered = json.loads(json.dumps(report, sort_keys=True))
+    reordered["partial_errors"] = {"chords": "timeout", "sections": "timeout"}
+    texts = []
+    for value in (report, reordered):
+        ctx = context(stl_report=value)
+        parts = await ContentBuilder(Files(), inputs(), ctx).build(answers=False, report=True)
+        texts.append(parts[0]["text"])
+    assert texts[0] == texts[1]
+    assert summarize(report, "mm", "k").limitations == summarize(reordered, "mm", "k").limitations

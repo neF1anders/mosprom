@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -33,3 +35,9 @@ class ModelClient(Protocol):
         thinking: bool,
         budget: int | None = None,
     ) -> ModelReply: ...
+
+
+class Notifier(Protocol):
+    """Wakes readers of a job's events when a new one commits, in any process."""
+
+    def watch(self, job_id: str) -> AbstractAsyncContextManager[asyncio.Event]: ...

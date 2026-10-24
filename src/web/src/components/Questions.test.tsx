@@ -146,4 +146,16 @@ describe("question window", () => {
     expect(screen.getByText("Нужно ваше подтверждение")).toBeVisible();
     expect(screen.getByText("Момент 25 Нм")).toBeInTheDocument();
   });
+  it("Enter on an option never sends a field that was typed into and cleared", async () => {
+    const answer = vi.fn();
+    render(
+      <Questions questions={[question]} onAnswer={answer} pending={false} />,
+    );
+    const field = screen.getByLabelText("Свой ответ");
+    await userEvent.type(field, "x");
+    await userEvent.clear(field);
+    screen.getByRole("button", { name: "cm" }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(answer).toHaveBeenCalledWith({ units: "cm" });
+  });
 });

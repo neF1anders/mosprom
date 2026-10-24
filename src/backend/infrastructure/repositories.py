@@ -1,9 +1,11 @@
+"""One repository per table; the unit of work shares a session between them."""
+
 from __future__ import annotations
 
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,11 +13,15 @@ from ..domain.errors import AppError, NotFound
 from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
 from . import tables as t
 
+EVENTS_CHANNEL = "job_events"
 
-class JobRepository:
+
+class Repository:
     def __init__(self, session: AsyncSession):
         self._session = session
 
+
+class JobRepository(Repository):
     async def head(self, job_id: str) -> JobHead:
         row = (
             (
@@ -79,14 +85,16 @@ class JobRepository:
             )
         return [Job.model_validate(v) for v in await self._session.scalars(query)]
 
-    async def message(self, message: Message) -> None:
+
+class MessageRepository(Repository):
+    async def add(self, message: Message) -> None:
         await self._session.execute(
             insert(t.messages).values(
                 job_id=message.job_id, payload=message.model_dump(mode="json")
             )
         )
 
-    async def messages(
+    async def list(
         self, job_id: str, before: int | None = None, limit: int = 100
     ) -> builtins.list[dict[str, Any]]:
         query = (
@@ -100,7 +108,16 @@ class JobRepository:
         rows = (await self._session.execute(query)).mappings()
         return list(reversed([dict(row["payload"], seq=row["seq"]) for row in rows]))
 
-    async def attachment(self, attachment: Attachment) -> None:
+    async def mark(self, job_id: str, message_id: str, kind: str) -> None:
+        await self._session.execute(
+            update(t.messages)
+            .where(t.messages.c.job_id == job_id, t.messages.c.payload["id"].astext == message_id)
+            .values(payload=t.messages.c.payload.op("||")(func.jsonb_build_object("kind", kind)))
+        )
+
+
+class AttachmentRepository(Repository):
+    async def save(self, attachment: Attachment) -> None:
         query = insert(t.attachments).values(
             id=attachment.id, job_id=attachment.job_id, payload=attachment.model_dump(mode="json")
         )
@@ -110,7 +127,7 @@ class JobRepository:
             )
         )
 
-    async def attachments(self, job_id: str) -> builtins.list[Attachment]:
+    async def list(self, job_id: str) -> builtins.list[Attachment]:
         rows = await self._session.scalars(
             select(t.attachments.c.payload)
             .where(t.attachments.c.job_id == job_id)
@@ -118,7 +135,9 @@ class JobRepository:
         )
         return [Attachment.model_validate(row) for row in rows]
 
-    async def receipt(self, key: str, payload_hash: str) -> dict[str, Any] | None:
+
+class ReceiptRepository(Repository):
+    async def find(self, key: str, payload_hash: str) -> dict[str, Any] | None:
         # Transaction advisory lock also serializes create commands before a job exists.
         await self._session.execute(
             select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
@@ -141,19 +160,18 @@ class JobRepository:
             insert(t.receipts).values(key=key, hash=payload_hash, result=result)
         )
 
-    async def cache(self, key: str) -> dict[str, Any] | None:
+
+class CacheRepository(Repository):
+    async def get(self, key: str) -> dict[str, Any] | None:
         return await self._session.scalar(select(t.cache.c.payload).where(t.cache.c.key == key))
 
-    async def cache_put(self, key: str, value: dict[str, Any]) -> None:
+    async def put(self, key: str, value: dict[str, Any]) -> None:
         await self._session.execute(
             insert(t.cache).values(key=key, payload=value).on_conflict_do_nothing()
         )
 
 
-class EventRepository:
-    def __init__(self, session: AsyncSession):
-        self._session = session
-
+class EventRepository(Repository):
     async def append(self, event: Event) -> None:
         # Serialize event allocation per job so SSE cursors follow commit order.
         await self._session.execute(
@@ -162,6 +180,8 @@ class EventRepository:
         await self._session.execute(
             insert(t.events).values(job_id=event.job_id, payload=event.model_dump(mode="json"))
         )
+        # Delivered on commit: open event streams of the job fetch at once instead of polling.
+        await self._session.execute(select(func.pg_notify(EVENTS_CHANNEL, event.job_id)))
 
     async def list(self, job_id: str, after: int = 0, limit: int = 100) -> builtins.list[Event]:
         query = (
@@ -173,11 +193,23 @@ class EventRepository:
         rows = (await self._session.execute(query)).mappings()
         return [Event.model_validate(dict(row["payload"], event_id=row["seq"])) for row in rows]
 
+    async def start(self, job_id: str, revision: int) -> int:
+        """The cursor just before the first event of a revision; older history is not replayed."""
+        first = await self._session.scalar(
+            select(func.min(t.events.c.seq)).where(
+                t.events.c.job_id == job_id,
+                t.events.c.payload["revision"].as_integer() >= revision,
+            )
+        )
+        if first is not None:
+            return first - 1
+        latest = await self._session.scalar(
+            select(func.max(t.events.c.seq)).where(t.events.c.job_id == job_id)
+        )
+        return latest or 0
 
-class KnowledgeRepository:
-    def __init__(self, session: AsyncSession):
-        self._session = session
 
+class KnowledgeRepository(Repository):
     async def put(self, record: Knowledge) -> None:
         query = insert(t.knowledge).values(
             id=record.id,
@@ -197,37 +229,11 @@ class KnowledgeRepository:
             )
         )
 
-    async def search(
-        self,
-        query: str,
-        material_id: str | None = None,
-        property_name: str | None = None,
-        offset: int = 0,
-    ) -> builtins.list[Knowledge]:
-        statement = select(t.knowledge.c.payload)
-        if material_id:
-            statement = statement.where(
-                (t.knowledge.c.material_id == material_id.casefold())
-                | t.knowledge.c.aliases.contains([material_id.casefold()])
-            )
-        if property_name:
-            statement = statement.where(t.knowledge.c.property == property_name)
-        if query and not (material_id and property_name):
-            terms = func.plainto_tsquery("russian", query)
-            statement = statement.where(t.knowledge.c.search.op("@@")(terms)).order_by(
-                func.ts_rank(t.knowledge.c.search, terms).desc()
-            )
-        statement = statement.order_by(t.knowledge.c.id).offset(offset).limit(5)
-        return [Knowledge.model_validate(v) for v in await self._session.scalars(statement)]
-
     async def all(self) -> builtins.list[Knowledge]:
         statement = select(t.knowledge.c.payload).order_by(t.knowledge.c.id)
         return [Knowledge.model_validate(v) for v in await self._session.scalars(statement)]
 
 
-class TraceRepository:
-    def __init__(self, session: AsyncSession):
-        self._session = session
-
+class TraceRepository(Repository):
     async def record(self, call: AgentCall) -> None:
         await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))

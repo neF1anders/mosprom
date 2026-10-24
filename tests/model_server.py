@@ -191,11 +191,20 @@ def triage(text: str, content) -> dict:
     }
 
 
+def gate(text: str, content) -> dict:
+    """Only a message marked TEST_OFFTOPIC is outside the print job."""
+    latest = text.split("<latest>")[1].split("</latest>")[0]
+    if "TEST_OFFTOPIC" in latest:
+        return {"task": False, "reply": "Я помогаю только с подготовкой задания на печать"}
+    return {"task": True}
+
+
 def reading(text: str, content) -> dict:
     return {"requirements": [], "questions": [], "unknowns": []}
 
 
 ANSWERS = {
+    "gate": gate,
     "triage": triage,
     "interpreter": interpret,
     # An empty patch keeps the interpreter's draft and its questions.

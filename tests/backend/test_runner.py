@@ -11,14 +11,9 @@ pytestmark = pytest.mark.unit
 SPEC = AgentSpec("interpreter", "Разбор ТЗ", Draft, ("convert_units",), max_steps=3)
 
 
-class Knowledge:
-    async def search(self, *args):
-        return {"status": "not_found", "records": []}
-
-
 def runner(script) -> tuple[AgentRunner, ScriptedModel, FakeUow]:
     model, uow = ScriptedModel(script), FakeUow()
-    return AgentRunner(model, ToolBox(Knowledge(), None), uow), model, uow
+    return AgentRunner(model, ToolBox(None), uow), model, uow
 
 
 def test_json_repair_and_per_item_validation():
@@ -134,3 +129,31 @@ async def test_same_input_reuses_the_result_and_new_input_asks_again():
     await agent.run(budgeted, text, context())
     assert len(model.requests["interpreter"]) == 3
     assert model.requests["interpreter"][2]["budget"] == 100
+
+
+async def test_a_reply_that_lost_items_is_not_reused():
+    """Regression: a damaged reply was cached and every retry got the same empty draft."""
+    damaged = reply({"purpose": "Деталь", "requirements": [{"label": "без значения"}]})
+    whole = reply({"purpose": "Деталь", "requirements": [{"key": "t", "value": "25"}]})
+    agent, model, uow = runner({"interpreter": [damaged, whole]})
+    text = [{"type": "text", "text": "ТЗ"}]
+    assert (await agent.run(SPEC, text, context())).requirements == []
+    assert [r.key for r in (await agent.run(SPEC, text, context())).requirements] == ["t"]
+    assert len(model.requests["interpreter"]) == 2
+    assert [r.key for r in (await agent.run(SPEC, text, context())).requirements] == ["t"]
+    assert len(model.requests["interpreter"]) == 2
+    hit = uow.traces.calls[-1]
+    assert hit.cached and hit.step == 0 and hit.response is None
+    assert hit.request["cache_key"].startswith("agent:")
+
+
+async def test_each_step_traces_only_the_messages_it_added():
+    converted = call("convert_units", {"value": "1", "from_unit": "inch", "to_unit": "mm"})
+    agent, _, uow = runner(
+        {"interpreter": [reply(tool_calls=[converted]), reply({"purpose": "Деталь"})]}
+    )
+    await agent.run(SPEC, [{"type": "text", "text": "данные"}], context())
+    first, second = (c.request for c in uow.traces.calls)
+    assert first["offset"] == 0 and [m["role"] for m in first["messages"]] == ["system", "user"]
+    assert second["offset"] == 2
+    assert [m["role"] for m in second["messages"]] == ["assistant", "tool"]

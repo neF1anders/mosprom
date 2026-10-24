@@ -211,8 +211,9 @@ class Message(Value):
     job_id: str
     revision: int
     role: Literal["user", "assistant"]
-    # Answers are echoed into the chat but reach the agents through Job.answers, not as text.
-    kind: Literal["chat", "answers"] = "chat"
+    # Answers are echoed into the chat but reach the agents through Job.answers, not as text;
+    # a message outside the print job is answered once and never read by the agents again.
+    kind: Literal["chat", "answers", "offtopic"] = "chat"
     text: str
     created_at: datetime = Field(default_factory=now)
 
@@ -274,3 +275,5 @@ class AgentCall(Value):
     response: dict[str, Any] | None = None
     tools: list[dict[str, Any]] = Field(default_factory=list)
     error: str | None = None
+    # A result reused from the cache: no provider call was made.
+    cached: bool = False
