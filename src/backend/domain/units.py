@@ -62,6 +62,8 @@ _LINEAR: dict[str, tuple[str, str]] = {
 }
 _TEMPERATURE = {"c", "°c", "с°", "°с", "k", "к", "f", "°f"}
 _NUMBER = re.compile(r"(?<![\w.,])-?\d+(?:[.,]\d+)?")
+# A word right after a number, such as °C, кг/м³ or Н·м; only known units count.
+_UNIT = re.compile(r"(?<=\d)\s*(°?\s?[^\W\d_]+(?:[/·*⋅][^\W\d_]+)?[³3]?)")
 
 
 def canonical(unit: str | None) -> str:
@@ -121,6 +123,26 @@ def numbers(text: str) -> list[Decimal]:
 
 def plain(value: Decimal) -> str:
     return format(value.normalize(), "f")
+
+
+def restated(text: str, unit: str | None) -> list[Decimal]:
+    """Numbers of a quote in ``unit`` when the quote gives them in another scale of the same
+    quantity: «не более 1200 кг/м3» in g/cm3 is 1.2. A number belongs to the unit after it, so
+    «от 1 до 2 см» gives both bounds. Numbers already in this scale are not repeated."""
+    kind, start = dimension(unit), 0
+    found: list[Decimal] = []
+    for match in _UNIT.finditer(text):
+        stated = canonical(match.group(1))
+        if dimension(stated) is None:
+            continue
+        if dimension(stated) == kind and not _same_scale(stated, unit or ""):
+            found += [convert(n, stated, unit or "") for n in numbers(text[start : match.start()])]
+        start = match.end()
+    return found
+
+
+def _same_scale(unit: str, other: str) -> bool:
+    return convert(Decimal(0), unit, other) == 0 and convert(Decimal(1), unit, other) == 1
 
 
 def quantity_key(value: str, unit: str | None) -> tuple[str, tuple[str, ...]]:
