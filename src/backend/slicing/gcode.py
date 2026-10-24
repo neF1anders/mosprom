@@ -65,8 +65,11 @@ def read_gcode(lines: Iterable[str]) -> GcodeFacts:
     for number, raw in enumerate(lines, 1):
         facts.lines = number
         line = raw.strip()
-        if line.startswith(";"):
-            _comment(facts, line, serialized)
+        if line.startswith(";SETTING_3 "):
+            # A piece of the settings may end in a space that belongs to a value.
+            serialized.append(raw.rstrip("\r\n").lstrip()[len(";SETTING_3 ") :])
+        elif line.startswith(";"):
+            _comment(facts, line)
         elif line.startswith(("M104 ", "M109 ", "M140 ", "M190 ")):
             found = _TEMPERATURE.search(line)
             if found and int(found.group(1)) > 0:
@@ -79,7 +82,7 @@ def read_gcode(lines: Iterable[str]) -> GcodeFacts:
     return facts
 
 
-def _comment(facts: GcodeFacts, line: str, serialized: list[str]) -> None:
+def _comment(facts: GcodeFacts, line: str) -> None:
     for prefix, name in _HEADER.items():
         if line.startswith(prefix):
             facts.header[name] = line[len(prefix) :].strip().strip("[]")
@@ -92,8 +95,6 @@ def _comment(facts: GcodeFacts, line: str, serialized: list[str]) -> None:
         facts.types[line.split(":", 1)[1]] += 1
     elif line.startswith(";End of Gcode"):
         facts.ended = True
-    elif line.startswith(";SETTING_3 "):
-        serialized.append(line[len(";SETTING_3 ") :])
 
 
 def _move(facts: GcodeFacts, line: str) -> None:
@@ -150,7 +151,7 @@ def check_gcode(
     _file(facts, add)
     written_mode = facts.header.get("printing_mode")
     if written_mode is None:
-        # The plugin saves the G-code without the header the slicer's own export writes.
+        # Plugins before the export through the slicer's G-code writer saved no such header.
         add("apply", "info", "в G-code нет строки ;PRINTING_MODE, режим не проверен")
     elif written_mode != mode:
         add("apply", "error", f"режим в G-code {written_mode}, ожидался {mode}", "printing_mode")

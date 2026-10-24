@@ -78,11 +78,12 @@ def tools(calls) -> list[str]:
 
 def test_the_plan_applies_the_set_in_the_order_checked_on_windows():
     calls, unsupported = build_plan(parameter_set(), {"att": "/m/att.stl"}, "/r.gcode", "/p.3mf")
+    # The material comes before the quality profile: the slicer offers the material's profiles.
     assert tools(calls) == [
         "set_printer",
         "set_print_mode",
-        "set_quality_profile",
         "set_material",
+        "set_quality_profile",
         "set_setting",
         "set_setting",
         "load_model",
@@ -225,6 +226,18 @@ def test_a_heated_bed_in_5d_is_a_warning():
     assert [w.key for w in result.feedback.warnings] == ["material_bed_temperature"]
 
 
+def test_settings_cut_into_lines_anywhere_are_read_whole():
+    """The slicer cuts the settings into lines of 80 characters, and a line may end in a space
+    that belongs to a value such as "[0, 90]"."""
+    payload = json.dumps(
+        {"global_quality": "[values]\\ninfill_angles = [0, 90]\\ninfill_sparse_density = 40\\n"}
+    )
+    for cut in range(1, len(payload)):
+        chunks = [payload[:cut], payload[cut:]]
+        facts = read_gcode([f";SETTING_3 {chunk}\n" for chunk in chunks])
+        assert facts.settings == {"infill_angles": "[0, 90]", "infill_sparse_density": "40"}, cut
+
+
 def test_written_settings_are_compared_with_the_set():
     payload = {
         "global_quality": "[general]\\nversion = 4\\n[values]\\ninfill_sparse_density = 25\\n"
@@ -291,8 +304,23 @@ async def test_the_adapter_slices_and_keeps_the_gcode_and_the_project(tmp_path, 
     assert loaded["path"].endswith("mosprom/job-r1-i1/att.stl")
     result = check_gcode(gcode_facts(files, report.gcode), parameter_set(), CATALOG, 1)
     assert result.result == "ok", result.findings
+    # The G-code carries the mode and the settings as the slicer's own writer saves them.
+    messages = [finding.message for finding in result.findings]
+    assert not [m for m in messages if "не проверить" in m or "не проверен" in m], messages
     with zipfile.ZipFile(files.path(report.project)) as archive:
         assert archive.namelist() == ["SteSlicer/stand_in.json"]
+    assert not report.warnings
+
+
+async def test_a_plugin_without_a_reset_is_a_warning(tmp_path):
+    fake = FakeSlicer(tmp_path / "STE_AIAssistant", reset_tool=False)
+    fake.start()
+    try:
+        slicer, _ = adapter(tmp_path, fake.folder)
+        report = await slicer.slice("a", parameter_set(), {"att": "att"})
+    finally:
+        fake.stop()
+    assert report.status == "sliced" and "reset_settings" not in [n for n, _ in fake.calls]
     assert report.warnings, "the plugin has no reset, so earlier settings may remain"
 
 
@@ -304,7 +332,10 @@ async def test_the_scene_is_cleared_and_settings_reset_before_each_run(tmp_path)
         await slicer.slice("a", parameter_set(), {"att": "att"})
         await slicer.slice("b", parameter_set(), {"att": "att"})
         assert len(fake.models) == 1
-        assert [name for name, _ in fake.calls].count("reset_settings") == 2
+        names = [name for name, _ in fake.calls]
+        assert names.count("reset_settings") == 2
+        # The reset works on the active printer, so it follows the choice of the one that slices.
+        assert names[names.index("reset_settings") - 1] == "set_printer"
     finally:
         fake.stop()
 

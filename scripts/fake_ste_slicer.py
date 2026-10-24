@@ -1,9 +1,11 @@
 """Stand-in for STE Slicer with the AI Assistant plugin, for a Mac or a test without the slicer.
 
-It answers the plugin's MCP calls the way ``src/plugin/AIAssistant/agent`` does: the same port and token in ``server.json``, the same Host and token
-checks and the tools slicing uses. Nothing is sliced: the G-code is a few layers around the
-model's footprint with the layer height and temperatures that were set, and the project is a
-3MF with a note that it is a stand-in.
+It answers the plugin's MCP calls the way ``src/plugin/AIAssistant/agent`` does: the same port
+and token in ``server.json``, the same Host and token checks and the tools slicing uses, with
+``reset_settings`` unless ``--no-reset-tool`` asks for a plugin without it. Nothing is sliced: the
+G-code is a few layers around the model's footprint with the layer height and temperatures that
+were set, headed by the print mode and closed by the changed settings in ``;SETTING_3`` lines as
+the slicer's G-code writer saves them; the project is a 3MF with a note that it is a stand-in.
 
     uv run python scripts/fake_ste_slicer.py [--folder ~/Documents/STE_AIAssistant]
 """
@@ -62,7 +64,7 @@ class FakeSlicer:
     def __init__(
         self,
         folder: Path,
-        reset_tool: bool = False,
+        reset_tool: bool = True,
         fail_on: str | None = None,
         bind: str = "127.0.0.1",
     ):
@@ -141,6 +143,8 @@ class FakeSlicer:
         return "removed %s" % model["name"]
 
     def tool_reset_settings(self) -> str:
+        if self.printer is None:
+            raise ToolError("No printer is active. Call set_printer first.")
         self.settings.clear()
         return "user settings cleared"
 
@@ -251,6 +255,7 @@ class FakeSlicer:
         bed = int(self.settings.get("material_bed_temperature", 60))
         layers = self._layers()
         lines = [
+            ";PRINTING_MODE:[%s]" % self.mode,
             ";FLAVOR:Marlin",
             ";TIME:%d" % (600 * len(layers)),
             ";Filament used: %.4fm" % (0.13 * len(layers)),
@@ -270,8 +275,24 @@ class FakeSlicer:
                     lines.append("G1 X%.3f Y%.3f Z%.3f E%.5f" % (x, y, z, extrusion))
             if support:
                 lines += [";TYPE:SUPPORT", "G1 X%.3f Y%.3f E%.5f" % (CENTRE[0], CENTRE[1], extrusion)]
-        lines += ["M104 S0", "M140 S0", ";End of Gcode"]
+        lines += ["M104 S0", "M140 S0", ";End of Gcode", *self._settings_lines()]
         return "\n".join(lines) + "\n"
+
+    def _settings_lines(self) -> list[str]:
+        """The changed settings as GCodeWriter of the slicer appends them: a profile in JSON with
+        its backslashes escaped, cut into comments of 80 characters."""
+        if not self.settings:
+            return []
+        values = "".join(f"{key} = {value}\n" for key, value in self.settings.items())
+        profile = (
+            f"[general]\nversion = 4\nname = stand-in\ndefinition = {self.printer}\n\n"
+            f"[metadata]\ntype = quality_changes\nquality_type = {self.quality}\n\n"
+            f"[values]\n{values}"
+        )
+        escaped = json.dumps({"global_quality": profile}).replace("\\", "\\\\")
+        prefix = ";SETTING_3 "
+        size = 80 - len(prefix)
+        return [prefix + escaped[at : at + size] for at in range(0, len(escaped), size)]
 
 
 def _square(model: dict[str, Any]) -> list[tuple[float, float]]:
@@ -338,10 +359,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     default = Path.home() / "Documents" / "STE_AIAssistant"
     parser.add_argument("--folder", type=Path, default=default, help="folder of server.json")
-    parser.add_argument("--reset-tool", action="store_true", help="offer reset_settings too")
+    parser.add_argument(
+        "--no-reset-tool", action="store_true", help="act as an old plugin without reset_settings"
+    )
     parser.add_argument("--bind", default="127.0.0.1", help="0.0.0.0 to serve other containers")
     args = parser.parse_args()
-    slicer = FakeSlicer(args.folder.expanduser(), reset_tool=args.reset_tool, bind=args.bind)
+    slicer = FakeSlicer(args.folder.expanduser(), reset_tool=not args.no_reset_tool, bind=args.bind)
     port = slicer.start()
     print(f"Stand-in STE Slicer on {args.bind}:{port}, server.json in {slicer.folder}", flush=True)
     try:
