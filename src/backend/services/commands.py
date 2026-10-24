@@ -16,7 +16,8 @@ async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
     job.status = transition(job.status, Status.QUEUED)
     job.error = None
     job.files_changed = False
-    job.next_stage = "not_ready"
+    job.stage = "understanding"
+    job.parameters = None
     job.phase = None
     attachments = await uow.attachments.list(job.id)
     for attachment in attachments:

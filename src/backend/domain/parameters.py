@@ -174,3 +174,10 @@ class Issue(Value):
     kind: str
     message: str
     bound: Any = None
+
+
+class CheckResult(Value):
+    """A finished check: every finding and what goes back to parameter selection."""
+
+    issues: list[Issue]
+    feedback: Feedback

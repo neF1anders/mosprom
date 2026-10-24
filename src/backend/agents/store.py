@@ -55,7 +55,7 @@ class RunStore(JobStore):
     async def finish(
         self, ctx: RunContext, card: TaskCard | None, text: str, offtopic: str | None = None
     ) -> None:
-        """Publishes the card and the reply; a ready card goes on to stage two."""
+        """Publishes the card and the reply; a ready card goes on to parameter selection."""
         async with self.uow() as uow:
             job = await uow.jobs.get(ctx.job_id, lock=True)
             ensure_current(job.revision, job.status, ctx.revision)
@@ -64,10 +64,11 @@ class RunStore(JobStore):
                 text = "Файлы изменились, отправьте задание, чтобы я их учёл"
             blocked = card is None or card.readiness == "blocked" or job.files_changed
             job.card, job.error, job.phase = card, None, None
-            job.status = transition(job.status, Status.WAITING if blocked else Status.COMPLETED)
+            # A ready card waits in the queue for parameter selection, in this transaction.
+            job.status = transition(job.status, Status.WAITING if blocked else Status.QUEUED)
             if not blocked:
                 await uow.queue.stage2(job.id, job.revision)
-                job.next_stage = "queued"
+                job.stage = "parameters"
             await uow.jobs.save(job)
             if offtopic is not None:
                 await uow.messages.mark(job.id, offtopic, "offtopic")

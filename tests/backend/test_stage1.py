@@ -116,14 +116,16 @@ async def test_only_the_geometry_waits_for_the_stl_units(pg, http):
     assert model.requests["triage"][0]["thinking"] is False
 
 
-async def test_full_run_completes_and_queues_stage_two_with_the_card(pg, http):
+async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     first = script()
     job = await run(pg, await job_with(http, "box.stl", "task.txt"), first)
     await answer(http, job, {"units": "mm"})
     model = script()
     job = await run(pg, job.id, model)
     card = job.card
-    assert job.status == Status.COMPLETED and card.readiness == "ready"
+    # The ready card waits in the queue for parameter selection.
+    assert job.status == Status.QUEUED and job.stage == "parameters"
+    assert card.readiness == "ready"
     assert [(r.key, r.verified) for r in card.requirements] == [
         ("torque_nominal", True),
         ("torque_peak", True),
@@ -341,7 +343,7 @@ async def test_files_attached_during_a_run_keep_the_card_from_stage_two(pg, http
 
     job = await run(pg, job.id, script(consolidator=[attach_meanwhile]))
     assert job.files_changed and job.status == Status.WAITING
-    assert job.card.readiness == "ready" and job.next_stage == "not_ready"
+    assert job.card.readiness == "ready" and job.stage == "understanding"
     assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'stage2'") == []
 
 
