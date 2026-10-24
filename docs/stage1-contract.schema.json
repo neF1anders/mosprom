@@ -1,0 +1,322 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mosprom/stage1-to-stage2/task-card-2.0+stage2-needs",
+  "title": "TaskCard 2.0: what stage 2 (parameter selection) needs from stage 1",
+  "description": "Контракт этапа 1 → этап 2 поверх карточки TaskCard 2.0 (docs/task-card-v2.0.schema.json, origin/feat/pipeline 0b72074). Версия карточки не меняется: всё новое лежит в местах, которые уже расширяемы, — коды словаря knowledge/requirement_keys.json и словарь stl_analysis.report. Пометка x-stage2 у каждого поля: used — этап 2 читает сейчас, менять у нас ничего не нужно; adapter — этап 2 добавит чтение (несколько строк, без новых модулей); reserved — нужно для правил P1/P2, этап 2 пока не читает, но этап 1 может отдавать сразу. Описание и обоснование — contract_stage1.md рядом.",
+  "type": "object",
+  "x-stage2": "used",
+  "required": ["schema_version", "job_id", "revision", "readiness", "requirements", "stl_analysis"],
+  "properties": {
+    "schema_version": {"const": "2.0", "x-stage2": "used", "description": "Иначе этап 2 отказывает (card_schema)."},
+    "job_id": {"type": "string", "x-stage2": "used"},
+    "revision": {"type": "integer", "minimum": 0, "x-stage2": "used"},
+    "purpose": {"type": "string", "x-stage2": "reserved", "description": "Свободный текст назначения. Этап 2 его не разбирает: всё, что влияет на подбор, должно прийти кодом в requirements."},
+    "readiness": {"enum": ["ready", "preliminary", "blocked"], "x-stage2": "used", "description": "blocked → отказ; preliminary → подбор с допущением «карточка предварительная»."},
+    "allowed_actions": {"type": "array", "items": {"type": "string"}, "x-stage2": "used"},
+    "blocked_actions": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "x-stage2": "used", "description": "Непустой blocked_actions.select_parameters → отказ с этими причинами."},
+    "requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/Requirement"},
+      "x-stage2": "used",
+      "description": "Главный вход. Требование, которое означает свойство из словаря, обязано иметь key = код словаря (см. $defs/RequirementCodes). Код встречается в карточке не больше одного раза. Свободный ключ вместо кода не дублировать: требование с кодом заменяет, а не дополняет. Требования без подходящего кода остаются со своим snake_case-ключом — этап 2 честно пишет «не учтено»."
+    },
+    "preferences": {"type": "array", "items": {"type": "string"}, "x-stage2": "used", "description": "Запасной путь: этап 2 ищет в тексте приоритеты и запрет поддержек по phrases.json. При наличии кодов priority и no_supports текст не нужен."},
+    "production_constraints": {"type": "array", "items": {"type": "string"}, "x-stage2": "used", "description": "Запасной путь для нагрузки по фразам. При наличии кода load_bearing не нужен."},
+    "assumptions": {"type": "array", "items": {"$ref": "#/$defs/Assumption"}, "x-stage2": "used", "description": "Передаются пользователю в выходе этапа 2 как есть."},
+    "unknowns": {"type": "array", "items": {"type": "string"}, "x-stage2": "used", "description": "Попадают в warnings."},
+    "questions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/Question"},
+      "x-stage2": "used",
+      "description": "Этап 2 читает только ответ на вопрос с id = material_choice (материал, названный пользователем). Лучше, чтобы ответ пользователя о материале сразу становился требованием material."
+    },
+    "geometry": {"type": ["object", "null"], "x-stage2": "reserved", "description": "Сводка для UI. Этап 2 читает только stl_analysis.report."},
+    "stl_analysis": {
+      "type": "object",
+      "x-stage2": "used",
+      "required": ["attachment_id", "sha256", "report"],
+      "properties": {
+        "attachment_id": {"type": "string", "x-stage2": "used", "description": "Уходит в models[].attachment_id выхода."},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "x-stage2": "used", "description": "Должен совпасть с report.file.sha256, иначе отказ stl_report_mismatch."},
+        "report": {"$ref": "#/$defs/StlReport"}
+      }
+    },
+    "verdict": {"type": ["object", "null"], "x-stage2": "reserved"},
+    "files": {"type": "array", "x-stage2": "reserved"},
+    "versions": {"type": "object", "x-stage2": "reserved", "description": "Желательно добавить versions.requirement_keys = версия словаря кодов, по которой карточка собрана."}
+  },
+
+  "$defs": {
+    "Evidence": {
+      "type": "object",
+      "required": ["source_id"],
+      "properties": {
+        "source_id": {"type": "string"},
+        "quote": {"type": "string"},
+        "page": {"type": ["integer", "null"]},
+        "method": {"enum": ["text", "vision", "user", "knowledge", null]},
+        "artifact_id": {"type": ["string", "null"]}
+      }
+    },
+    "Assumption": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {"text": {"type": "string"}, "basis": {"type": "string"}, "consequence": {"type": "string"}}
+    },
+    "Question": {
+      "type": "object",
+      "required": ["id", "kind", "title"],
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"enum": ["units", "purpose", "clarify", "verify", "discrepancy"]},
+        "title": {"type": "string"},
+        "requirement_key": {"type": ["string", "null"]},
+        "blocking": {"type": "boolean"},
+        "answer": {"type": ["string", "null"]}
+      }
+    },
+
+    "Requirement": {
+      "type": "object",
+      "required": ["key", "value", "mandatory", "provenance", "verified", "sources"],
+      "properties": {
+        "key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "Код словаря или собственный snake_case-ключ."},
+        "label": {"type": "string", "description": "Человеческое название из ТЗ."},
+        "value": {"type": "string", "description": "Формат зависит от kind кода, см. $defs/RequirementCodes и allOf ниже."},
+        "unit": {"type": ["string", "null"], "description": "Для number: единица той же физической природы, что у кода (°C, mm, g/cm3, MPa, %, rpm и их русские написания из domain/units.py). Иначе требование не учитывается."},
+        "conditions": {"type": "string", "description": "Уточнения, которые не влезли в value: исходная формулировка, числовая деталь при флаге («водопоглощение ≤ 0,05 %»)."},
+        "mandatory": {"type": "boolean", "x-stage2": "used", "description": "true → жёсткое требование (вес 3 в ранжировании материалов, жёсткие правила). false → пожелание."},
+        "provenance": {"enum": ["user", "document", "knowledge", "assumption"], "x-stage2": "used"},
+        "verified": {"type": "boolean", "x-stage2": "used", "description": "verified=false или provenance=assumption → этап 2 считает значение допущением и говорит об этом. Код material с допущением игнорируется."},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/Evidence"}, "minItems": 1},
+        "superseded": {"type": "array", "description": "Этап 2 берёт только value."}
+      },
+      "allOf": [
+        {"if": {"properties": {"key": {"enum": ["service_temp_max_c", "service_temp_peak_c", "tg_min_c", "heat_deflection_min_c", "density_max_g_cm3", "dimensional_tol_mm", "quantity", "tensile_modulus_min_mpa", "tensile_strength_min_mpa", "elongation_min_pct", "water_absorption_max_pct", "rotation_speed_max_rpm"]}}},
+         "then": {"properties": {"value": {"pattern": "^[^0-9]*-?\\d+([.,]\\d+)?([^0-9]+-?\\d+([.,]\\d+)?)?[^0-9]*$", "description": "Одно число или диапазон из двух чисел («85–90», «+10..+70»). Нужную границу выбирает этап 2 по strict кода."}}}},
+        {"if": {"properties": {"key": {"enum": ["hydrophobic", "uv_stable", "flexible", "low_friction", "high_friction", "abrasion_resistant", "high_stiffness", "no_visible_layers", "no_supports", "food_safe", "esd", "no_conductive_fillers", "sealed", "balanced_rotor", "functional_surface_of_revolution"]}}},
+         "then": {"properties": {"value": {"enum": ["да", "нет", "true", "false"]}}}},
+        {"if": {"properties": {"key": {"const": "load_bearing"}}}, "then": {"properties": {"value": {"enum": ["none", "static", "cyclic", "impact"]}}}},
+        {"if": {"properties": {"key": {"const": "printing_mode"}}}, "then": {"properties": {"value": {"enum": ["classic", "cylindrical", "cylindrical_full"]}}}},
+        {"if": {"properties": {"key": {"const": "part_class"}}}, "then": {"properties": {"value": {"enum": ["gear", "shaft", "wheel_roller", "impeller_fan", "bushing_sleeve", "housing_bracket", "cover_boot_seal", "decorative", "other"]}}}},
+        {"if": {"properties": {"key": {"const": "priority"}}}, "then": {"properties": {"value": {"pattern": "^(strength|accuracy|speed|cost)(\\s*,\\s*(strength|accuracy|speed|cost))*$"}}}},
+        {"if": {"properties": {"key": {"const": "chemical_resistance"}}}, "then": {"properties": {"value": {"pattern": "^[^,;]+([,;][^,;]+)*$", "description": "Перечень через запятую. Предпочтительно коды сред: alkali, acid, oil, fuel, alcohol, salts, water, ozone, solvents; иначе русские слова."}}}}
+      ]
+    },
+
+    "RequirementCodes": {
+      "description": "Словарь кодов (knowledge/requirement_keys.json). Первые 19 существуют сейчас. Новые коды добавляются в тот же файл; этап 2 получает их как факты правил автоматически для kind number/flag/list, для choice нужен адаптер.",
+      "type": "object",
+      "properties": {
+        "service_temp_max_c":   {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "used", "uses": "ранжирование материалов (service_max_c)", "map": "рабочая/длительная температура детали; из диапазона этап 2 берёт верхнюю границу"},
+        "tg_min_c":             {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "used", "uses": "ранжирование материалов (tg_c)", "map": "только если ТЗ прямо говорит о стекловании; Vicat/HDT сюда не подставлять"},
+        "density_max_g_cm3":    {"kind": "number", "unit": "g/cm3", "strict": "lower", "x-stage2": "used", "uses": "ранжирование материалов (плотность из каталога)"},
+        "dimensional_tol_mm":   {"kind": "number", "unit": "mm", "strict": "lower", "x-stage2": "used", "uses": "правила TOL-HARD/SOFT: слой и скорость", "map": "самый жёсткий функциональный допуск детали (посадка, профиль); «±0,1» → 0.1; исходник в conditions"},
+        "hydrophobic":          {"kind": "flag", "x-stage2": "used", "uses": "ранжирование (гигроскопичность)", "map": "«не впитывать влагу», водопоглощение ≤ … (число — ещё и water_absorption_max_pct)"},
+        "uv_stable":            {"kind": "flag", "x-stage2": "used", "uses": "ранжирование (УФ)"},
+        "flexible":             {"kind": "flag", "x-stage2": "used", "uses": "ранжирование + правило FLEX-SOFT-STRUCTURE + вето 5D (P1)", "map": "эластичность, «жёсткие материалы не допускаются»"},
+        "low_friction":         {"kind": "flag", "x-stage2": "used", "uses": "ранжирование (трение)", "map": "низкое трение скольжения, работа без смазки; НЕ ставить при требовании высокого трения"},
+        "abrasion_resistant":   {"kind": "flag", "x-stage2": "used", "uses": "ранжирование (износ)"},
+        "high_stiffness":       {"kind": "flag", "x-stage2": "used", "uses": "ранжирование + STIFF-HARD/SOFT (стенки, заполнение)", "map": "высокий модуль, «зуб не подгибается», «без ползучести»; число модуля — ещё и tensile_modulus_min_mpa"},
+        "no_visible_layers":    {"kind": "flag", "x-stage2": "used", "uses": "NO-LAYERS-HARD/SOFT (слой)", "map": "«без ступенек слоёв», «без видимых слоёв» на поверхности"},
+        "no_supports":          {"kind": "flag", "x-stage2": "used", "uses": "SUPPORT-*, MODE-OVERHANG-5D", "map": "«без поддержек», «без следов поддержек»"},
+        "food_safe":            {"kind": "flag", "x-stage2": "used", "uses": "ранжирование", "map": "только прямой контакт с пищей; «без выделения токсичных веществ» сюда не относить"},
+        "esd":                  {"kind": "flag", "x-stage2": "used", "uses": "ранжирование (пока всегда unknown)", "map": "антистатика требуется"},
+        "chemical_resistance":  {"kind": "list", "x-stage2": "used", "uses": "ранжирование по описанию каталога", "map": "ОДНО требование на все среды детали, перечнем"},
+        "quantity":             {"kind": "number", "strict": "upper", "x-stage2": "used", "uses": "допущение о партии"},
+        "load_bearing":         {"kind": "choice", "options": ["none", "static", "cyclic", "impact"], "x-stage2": "used", "uses": "LOAD-WALLS, INFILL-GYROID", "map": "одно значение — самое тяжёлое из ТЗ: impact > cyclic > static > none (удары, срез зубьев → impact; усталость, старт-стоп, вибрация, вращение под нагрузкой → cyclic)"},
+        "material":             {"kind": "text", "x-stage2": "used", "uses": "материал задан → без ранжирования", "map": "только если пользователь/ТЗ назвал материал для печати; материал ответной детали сюда не класть"},
+        "printing_mode":        {"kind": "choice", "options": ["classic", "cylindrical", "cylindrical_full"], "x-stage2": "used", "uses": "MODE-CARD-HINT (вес 10)", "map": "только если режим явно назван в ТЗ или пользователем; из имени файла/папки не выводить"},
+
+        "priority":             {"kind": "list", "options": ["strength", "accuracy", "speed", "cost"], "x-stage2": "adapter", "uses": "PRIORITY-* (первый элемент)", "map": "приоритеты по убыванию; заменяет разбор текста preferences"},
+        "part_class":           {"kind": "choice", "options": ["gear", "shaft", "wheel_roller", "impeller_fan", "bushing_sleeve", "housing_bracket", "cover_boot_seal", "decorative", "other"], "x-stage2": "adapter", "uses": "режим 5D (P1-4а), вето «зубчатый профиль», заполнение у роторов"},
+        "rotation_speed_max_rpm": {"kind": "number", "unit": "rpm", "strict": "upper", "x-stage2": "reserved", "uses": "выигрыш 5D (центробежная нагрузка), заполнение у роторов"},
+        "functional_surface_of_revolution": {"kind": "flag", "x-stage2": "reserved", "uses": "MODE-REVOLUTION-5D", "map": "рабочая поверхность — тело вращения (протектор, профиль кулачка, посадка), ступеньки на ней недопустимы"},
+        "balanced_rotor":       {"kind": "flag", "x-stage2": "reserved", "uses": "заполнение 100 % (P1-6)", "map": "требование балансировки / остаточного дисбаланса"},
+        "sealed":               {"kind": "flag", "x-stage2": "reserved", "uses": "заполнение и стенки (P1-6)", "map": "герметичность, непроницаемость стенки"},
+        "high_friction":        {"kind": "flag", "x-stage2": "reserved", "uses": "ранжирование (трение, обратная шкала)", "map": "высокое сцепление/трение с ответной поверхностью"},
+        "no_conductive_fillers": {"kind": "flag", "x-stage2": "reserved", "uses": "исключить углерод/металл-наполненные материалы", "map": "диэлектрик, без токопроводящих наполнителей"},
+        "service_temp_peak_c":  {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "reserved", "uses": "предупреждение о кратковременном нагреве", "map": "кратковременный контакт / пик температуры"},
+        "heat_deflection_min_c": {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2 (P1-7)", "map": "Vicat, HDT, «не размягчается при …»"},
+        "tensile_modulus_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2"},
+        "tensile_strength_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2"},
+        "elongation_min_pct":   {"kind": "number", "unit": "%", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2", "note": "единицы % нет в domain/units.py: до её добавления требование не прочитается"},
+        "water_absorption_max_pct": {"kind": "number", "unit": "%", "strict": "lower", "x-stage2": "reserved", "uses": "материалы v2", "note": "единицы % нет в domain/units.py: до её добавления требование не прочитается"}
+      }
+    },
+
+    "Point": {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3},
+    "Rotation": {"type": "array", "description": "Матрица 3×3 по строкам; применяется к координатам STL, после поворота модель опускается на стол (min z = 0).", "items": {"$ref": "#/$defs/Point"}, "minItems": 3, "maxItems": 3},
+
+    "StlReport": {
+      "type": "object",
+      "x-stage2": "used",
+      "description": "Отчёт src/mesh_analysis.py (schema_version 1.x) без сокращений. Ниже — поля, которые читает этап 2, и три новых раздела. Остальные поля отчёта не мешают.",
+      "required": ["file", "units", "geometry", "topology", "validation"],
+      "properties": {
+        "schema_version": {"type": "string"},
+        "file": {"type": "object", "required": ["sha256"], "properties": {"sha256": {"type": "string"}}, "x-stage2": "used"},
+        "units": {"type": "object", "required": ["coordinate_unit"], "properties": {"coordinate_unit": {"enum": ["mm", "unknown"], "description": "Координаты отчёта уже в мм (после --units). Другие значения → отказ stl_report_units."}}, "x-stage2": "used"},
+        "geometry": {
+          "type": "object",
+          "required": ["bounds"],
+          "x-stage2": "used",
+          "properties": {
+            "bounds": {"type": "array", "items": {"$ref": "#/$defs/Point"}, "minItems": 2, "maxItems": 2, "x-stage2": "used", "description": "Обязательно: без габаритов отказ stl_report_bounds. Задаёт размер, проверку вместимости в режим и положение на столе."},
+            "extents": {"$ref": "#/$defs/Point", "x-stage2": "adapter", "description": "Для оценки оси по P1-4а."},
+            "volume": {"type": ["number", "null"], "x-stage2": "used"},
+            "surface_area": {"type": ["number", "null"], "x-stage2": "used", "description": "Знаменатель overhangs.area_fraction."},
+            "inertia_unit_density": {"type": ["array", "null"], "x-stage2": "adapter", "description": "Тензор 3×3. Запасной источник оси, если revolution не посчитан."}
+          }
+        },
+        "topology": {
+          "type": "object",
+          "x-stage2": "used",
+          "properties": {
+            "watertight": {"type": "boolean"},
+            "winding_consistent": {"type": "boolean"},
+            "components": {"type": "array", "items": {"type": "object", "properties": {"signed_volume": {"type": ["number", "null"]}, "genus": {"type": ["integer", "null"]}}}}
+          }
+        },
+        "validation": {"type": "object", "properties": {"defects": {"type": "array", "items": {"type": "string"}}}, "x-stage2": "used"},
+        "normal_chords": {"type": "object", "properties": {"minimum_sampled": {"type": ["number", "null"]}}, "x-stage2": "used", "description": "Оценка тонкой стенки (факт geometry.min_wall_estimate_mm)."},
+        "sections": {"type": "array", "x-stage2": "reserved"},
+        "warnings": {"type": "array", "items": {"type": "string"}, "x-stage2": "used"},
+        "partial_errors": {"type": "object", "additionalProperties": {"type": "string"}, "x-stage2": "used"},
+
+        "overhangs": {
+          "type": "object",
+          "x-stage2": "adapter",
+          "description": "НОВОЕ. Нависания в ориентации «как в файле» (Z вверх). Оживляет SUPPORT-OVERHANG, SUPPORT-FORBIDDEN-OVERHANG, MODE-OVERHANG-5D (ревизия B1).",
+          "required": ["critical_angle_deg", "area_mm2", "area_fraction", "bed_contact_area_mm2", "method"],
+          "properties": {
+            "critical_angle_deg": {"type": "number", "const": 45, "description": "Угол от вертикали, после которого грань — нависание: грань вниз с n_z < −sin(45°)."},
+            "bed_band_mm": {"type": "number", "default": 0.2, "description": "Грани, целиком лежащие в полосе min z … min z + bed_band_mm, — опора на стол, не нависание."},
+            "area_mm2": {"type": "number", "minimum": 0, "description": "Площадь нависающих граней вне полосы стола."},
+            "area_fraction": {"type": "number", "minimum": 0, "maximum": 1, "description": "area_mm2 / geometry.surface_area. Порог правил 0,05."},
+            "bed_contact_area_mm2": {"type": "number", "minimum": 0, "description": "Площадь граней в полосе стола с n_z < −0,98."},
+            "method": {"type": "string"}
+          }
+        },
+
+        "orientations": {
+          "type": "array",
+          "x-stage2": "reserved",
+          "description": "НОВОЕ. Кандидаты ориентации для 3D (P1-5). Первый — всегда «как в файле», id = o1 (этот id уже есть в выходе этапа 2 и в обратной связи этапа 3).",
+          "items": {
+            "type": "object",
+            "required": ["id", "rotation", "source", "overhang_area_mm2", "overhang_area_fraction", "bed_contact_area_mm2", "height_mm", "extents_mm"],
+            "properties": {
+              "id": {"type": "string", "pattern": "^o[0-9]+$"},
+              "rotation": {"$ref": "#/$defs/Rotation"},
+              "source": {"enum": ["as_loaded", "axis_aligned", "largest_flat_face", "revolution_axis"]},
+              "overhang_area_mm2": {"type": "number", "minimum": 0},
+              "overhang_area_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+              "bed_contact_area_mm2": {"type": "number", "minimum": 0},
+              "height_mm": {"type": "number", "minimum": 0},
+              "extents_mm": {"$ref": "#/$defs/Point"}
+            }
+          },
+          "maxItems": 12
+        },
+
+        "revolution": {
+          "type": ["object", "null"],
+          "x-stage2": "adapter",
+          "description": "НОВОЕ. Признаки тела вращения для выбора 3D/5D и диаметра основания 5D (P1-4/4а). null — анализ не выполнен; is_revolution=false — посчитан, оси нет. Считается по поверхности, поэтому работает и для незамкнутых сеток.",
+          "required": ["is_revolution", "method"],
+          "properties": {
+            "is_revolution": {"type": "boolean", "description": "Есть ось, вокруг которой внешний контур круглый на большей части длины (round_fraction ≥ 0,6)."},
+            "axis_direction": {"$ref": "#/$defs/Point", "description": "Единичный вектор оси в координатах STL."},
+            "axis_point": {"$ref": "#/$defs/Point", "description": "Точка на оси."},
+            "symmetry_score": {"type": "number", "minimum": 0, "maximum": 1, "description": "1 − медианный коэффициент вариации радиуса по поясам; 1 = идеальное тело вращения."},
+            "round_fraction": {"type": "number", "minimum": 0, "maximum": 1, "description": "Доля поясов вдоль оси с CV радиуса < 0,03. Ловит валы с кулачком/лысками (eval-7)."},
+            "outer_diameter_mm": {"type": "number", "minimum": 0},
+            "length_along_axis_mm": {"type": "number", "minimum": 0},
+            "bore": {
+              "type": ["object", "null"],
+              "description": "Соосное отверстие; null — нет.",
+              "required": ["through", "diameter_mm"],
+              "properties": {
+                "through": {"type": "boolean", "description": "Сквозное по всей длине."},
+                "diameter_mm": {"type": "number", "minimum": 0, "description": "Минимальный вписанный диаметр по длине отверстия. Станет cylindrical_mode_base_diameter (floor до 0,5 мм)."},
+                "length_mm": {"type": "number", "minimum": 0}
+              }
+            },
+            "annulus_fill": {"type": "number", "minimum": 0, "maximum": 1, "description": "Площадь сечения / площадь кольца между bore и outer, медиана по поясам (для 5D Spiral)."},
+            "wall_to_radius": {"type": "number", "minimum": 0, "description": "(R_outer − R_bore) / R_outer."},
+            "belts": {"type": "integer", "description": "Сколько поясов вдоль оси использовано (например 24)."},
+            "sectors": {"type": "integer", "description": "Сколько угловых секторов в поясе (например 36)."},
+            "method": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+
+  "examples": [
+    {
+      "_comment": "Колесо конвейера (eval-2). Геометрия, sha и id — из настоящей карточки; overhangs, orientations, revolution и bore — УСЛОВНЫЕ значения для иллюстрации формата.",
+      "schema_version": "2.0",
+      "job_id": "3b017deb-1e59-4e7c-b349-f3e565c423db",
+      "revision": 2,
+      "purpose": "Ведущее колесо конвейерной линии, ролик привода на приводном валу ленточного конвейера",
+      "readiness": "ready",
+      "allowed_actions": ["select_parameters"],
+      "blocked_actions": {},
+      "requirements": [
+        {"key": "part_class", "label": "Тип детали", "value": "wheel_roller", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "Ведущее колесо конвейерной линии, ролик привода", "method": "text"}]},
+        {"key": "load_bearing", "label": "Характер нагрузки", "value": "impact", "conditions": "циклическое сжатие + случайные удары; радиальная до 18 кг", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "Отсутствие хрупкого разрушения при случайных ударах", "method": "text"}]},
+        {"key": "service_temp_max_c", "label": "Рабочая температура", "value": "+20 ± 2", "unit": "°C", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "+20 ± 2 °C", "method": "text"}]},
+        {"key": "chemical_resistance", "label": "Стойкость к средам", "value": "alcohol, перекись водорода", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "70% изопропиловый спирт (IPA) или перекись водорода", "method": "text"}]},
+        {"key": "dimensional_tol_mm", "label": "Допуск посадочного отверстия", "value": "±0.1", "unit": "mm", "conditions": "посадка на вал без люфта", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "±0.1 мм", "method": "text"}]},
+        {"key": "high_friction", "label": "Высокое трение по бумаге", "value": "да", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "Высокий коэффициент трения по скольжению к бумаге", "method": "text"}]},
+        {"key": "functional_surface_of_revolution", "label": "Цилиндрический протектор", "value": "да", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "Цилиндрический с фасками по краям", "method": "text"}]},
+        {"key": "rotation_speed_max_rpm", "label": "Частота вращения", "value": "450", "unit": "об/мин", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "2.2 м/с (примерно 450 об/мин)", "method": "text"}]},
+        {"key": "esd", "label": "Антистатика", "value": "да", "mandatory": false, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "Желательно наличие антистатических (ESD) свойств", "method": "text"}]},
+        {"key": "priority", "label": "Приоритеты", "value": "strength, accuracy", "mandatory": false, "provenance": "assumption", "verified": false, "sources": [{"source_id": "kb:priority-default", "quote": "ресурс 8000 моточасов", "method": "knowledge"}]},
+        {"key": "no_dust", "label": "Без микропыли", "value": "Деталь не должна выделять микропыль", "mandatory": true, "provenance": "document", "verified": true, "sources": [{"source_id": "f2p1:1", "quote": "Деталь не должна выделять микропыль", "method": "text"}]}
+      ],
+      "preferences": ["Антистатические (ESD) свойства материала, указаны как желательные"],
+      "production_constraints": ["Метод производства FDM/FFF", "Принтер Stereotech Hybrid 530"],
+      "assumptions": [{"text": "Нагрузка 18 кг — максимальная радиальная, а не постоянная", "basis": "В ТЗ «до 18 кг»", "consequence": "При постоянной нагрузке нужен больший запас"}],
+      "unknowns": [],
+      "questions": [{"id": "units", "kind": "units", "title": "В каких единицах STL?", "blocking": true, "answer": "mm"}],
+      "stl_analysis": {
+        "attachment_id": "9d4f0ab1-6d3d-48a9-bc1f-1b3efd9be08a",
+        "sha256": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4",
+        "report": {
+          "schema_version": "1.1",
+          "file": {"sha256": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4"},
+          "units": {"coordinate_unit": "mm"},
+          "geometry": {
+            "bounds": [[0.0013, 0.0, 0.0051], [58.9987, 25.0, 59.0]],
+            "extents": [58.9975, 25.0, 58.9949],
+            "volume": 46704.1,
+            "surface_area": 10148.8,
+            "inertia_unit_density": [[11257264.0, 0.0, 0.0], [0.0, 18435534.3, 0.0], [0.0, 0.0, 11257264.0]]
+          },
+          "topology": {"watertight": true, "winding_consistent": true, "components": [{"signed_volume": 46704.1, "genus": 1}]},
+          "validation": {"defects": []},
+          "normal_chords": {"minimum_sampled": 5.0},
+          "warnings": ["Self-intersections and intersections/nesting between shells are not checked."],
+          "partial_errors": {},
+          "overhangs": {"critical_angle_deg": 45, "bed_band_mm": 0.2, "area_mm2": 1210.0, "area_fraction": 0.119, "bed_contact_area_mm2": 0.0, "method": "faces with n_z < -sin(45deg) outside the bed band, loaded orientation"},
+          "orientations": [
+            {"id": "o1", "rotation": [[1, 0, 0], [0, 1, 0], [0, 0, 1]], "source": "as_loaded", "overhang_area_mm2": 1210.0, "overhang_area_fraction": 0.119, "bed_contact_area_mm2": 0.0, "height_mm": 59.0, "extents_mm": [59.0, 25.0, 59.0]},
+            {"id": "o2", "rotation": [[1, 0, 0], [0, 0, -1], [0, 1, 0]], "source": "revolution_axis", "overhang_area_mm2": 40.0, "overhang_area_fraction": 0.004, "bed_contact_area_mm2": 2100.0, "height_mm": 25.0, "extents_mm": [59.0, 59.0, 25.0]}
+          ],
+          "revolution": {
+            "is_revolution": true, "axis_direction": [0.0, 1.0, 0.0], "axis_point": [29.5, 0.0, 29.5],
+            "symmetry_score": 0.99, "round_fraction": 1.0, "outer_diameter_mm": 59.0, "length_along_axis_mm": 25.0,
+            "bore": {"through": true, "diameter_mm": 10.0, "length_mm": 25.0},
+            "annulus_fill": 0.83, "wall_to_radius": 0.66, "belts": 24, "sectors": 36,
+            "method": "24 belts x 36 sectors along the principal inertia axis, CV of radius"
+          }
+        }
+      },
+      "files": [],
+      "versions": {"requirement_keys": "2"}
+    }
+  ]
+}

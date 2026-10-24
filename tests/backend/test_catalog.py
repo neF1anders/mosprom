@@ -116,8 +116,12 @@ def test_formulas_that_refer_to_each_other_are_an_error():
 
 def test_shared_requirement_codes_load_with_units_stage_one_understands():
     codes = load_requirement_keys(Path("knowledge/requirement_keys.json"))
-    assert len({entry.key for entry in codes.keys}) == len(codes.keys)
+    assert codes.version == "2"
+    assert len({entry.key for entry in codes.keys}) == len(codes.keys) == 33
     assert codes.get("service_temp_max_c").unit == "°C"
+    assert codes.get("part_class").kind == "choice"
+    assert codes.get("priority").options == ["strength", "accuracy", "speed", "cost"]
+    assert "Vicat" in codes.get("tg_min_c").hint
     assert codes.get("printing_mode").options == list(PRINTING_MODES)
     assert codes.get("temperature_max") is None
     for entry in codes.keys:

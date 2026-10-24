@@ -59,6 +59,7 @@ _LINEAR: dict[str, tuple[str, str]] = {
     "ч": ("time", "3600"),
     "rpm": ("rotation", "1"),
     "об/мин": ("rotation", "1"),
+    "%": ("ratio", "1"),
 }
 _TEMPERATURE = {"c", "°c", "с°", "°с", "k", "к", "f", "°f"}
 # A number does not continue a word, a list or a dotted version ("v.2", "1.5.7"), but may
