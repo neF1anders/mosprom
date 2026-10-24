@@ -1,0 +1,933 @@
+{
+ "allowed_actions": [],
+ "assumptions": [
+  {
+   "basis": "В ТЗ задана только функция охлаждения, аэродинамические параметры отсутствуют",
+   "consequence": "Если потребуется расчётный расход, профиль лопастей придётся менять",
+   "text": "Расход воздуха и давление не нормируются, форма лопастей воспроизводится по модели STL без аэродинамической доводки"
+  },
+  {
+   "basis": "В ТЗ указан только общий состав среды без концентраций",
+   "consequence": "При применении агрессивных СОЖ и промывки выбранный материал может не подойти",
+   "text": "Состав масляного тумана принимается как в ТЗ, эмульсия СОЖ без агрессивных промывок растворителем"
+  }
+ ],
+ "blocked_actions": {},
+ "files": [
+  {
+   "filename": "Крыльчатка охлаждения электродвигателя.jpg",
+   "id": "5ecc11ff-22f6-4c3d-8bd0-a013b3f43bfa",
+   "kind": "jpg",
+   "sha256": "7de16eb523fffdc296acdfe5933b5e0e02cd83b168bc6b1da04ce5740f861af5"
+  },
+  {
+   "filename": "Крыльчатка охлаждения электродвигателя.STL",
+   "id": "bb1864b3-7dd3-47a1-a275-8e1f23ae7a9b",
+   "kind": "stl",
+   "sha256": "32f253b238959eae223c0df27e012eb4722c536ed7e3a3ecd078d94b769bfc4d"
+  },
+  {
+   "filename": "Техническое задание для крыльчатки охлаждения электродвигателя.docx",
+   "id": "bfeaa339-2750-48be-b459-8f77d006e7d5",
+   "kind": "docx",
+   "sha256": "99bb7586efb459118704d07210eb78cb2efddfdfbe433ecbcab35f670975469a"
+  }
+ ],
+ "geometry": {
+  "components": 2,
+  "defects": [
+   "multiple_shells"
+  ],
+  "extents": [
+   169.0,
+   22.000000534113497,
+   169.0
+  ],
+  "limitations": [
+   "Self-intersections and intersections/nesting between shells are not checked.",
+   "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+   "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability.",
+   "Multiple connected shells: separate parts, nested cavities or overlaps require further analysis; combined physical volume withheld."
+  ],
+  "min_wall_sample": null,
+  "preview_id": "bf8a40ad7ea6804fe0e4927d6437fd4eef56ada8fea120a8c21f8fd05fcbcf86.png",
+  "readable": true,
+  "report_id": "bf8a40ad7ea6804fe0e4927d6437fd4eef56ada8fea120a8c21f8fd05fcbcf86",
+  "sections": [
+   {
+    "axis": "X",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 44
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 22
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 44
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 4,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   }
+  ],
+  "surface_area": 69215.35684540257,
+  "units": "mm",
+  "volume": null,
+  "volume_basis": "unavailable_for_this_topology",
+  "watertight": true
+ },
+ "job_id": "a9c4998f-3113-4019-8253-46e9a2660c04",
+ "preferences": [
+  "Максимально лёгкий материал в пределах плотности не выше 1.25 г/см³",
+  "Сохранение низкого аэродинамического шума на уровне штатной пластиковой крыльчатки"
+ ],
+ "production_constraints": [
+  "Метод производства аддитивный, FDM FFF",
+  "Деталь заменяет снятую с производства оригинальную крыльчатку редкого двигателя, изготовление по модели STL"
+ ],
+ "purpose": "Осевая крыльчатка наружного обдува асинхронного электродвигателя главного привода токарного станка с ЧПУ. Работает внутри защитного кожуха на валу двигателя и обеспечивает принудительный воздушный охлаждение корпуса двигателя в цехе металлообработки.",
+ "questions": [
+  {
+   "answer": "mm",
+   "basis": null,
+   "blocking": true,
+   "id": "units",
+   "impact": "Габариты в единицах файла 169 × 22 × 169, от масштаба зависят размеры и параметры печати",
+   "kind": "units",
+   "options": [
+    "mm",
+    "cm",
+    "m",
+    "inch"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "В каких единицах создан STL"
+  },
+  {
+   "answer": null,
+   "basis": "Из ТЗ заданы 2950 обмин и окружная скорость на концах лопастей около 32 мс, что даёт требуемый диаметр около 207 мм, тогда как подтверждённые в мм габариты модели по STL составляют 169 мм по внешнему диаметру лопастей",
+   "blocking": true,
+   "id": "tz_vs_stl.25726b5f68b0",
+   "impact": "Расхождение внешнего диаметра влияет на соответствие снятой с производства оригинальной крыльчатке, на расчётную центробежную нагрузку лопастей и на аэродинамический расход, то есть на работоспособность замены",
+   "kind": "discrepancy",
+   "options": [
+    "Печатать строго по модели 169 мм и принять фактическую окружную скорость около 26 мс",
+    "Масштабировать модель до диаметра около 207 мм под расчётные 32 мс при подтверждённых посадочных размерах",
+    "Уточнить у заказчика реальный посадочный диаметр и фактическую скорость вала, так как в ТЗ они не связаны с габаритом"
+   ],
+   "requirement_key": "tip_speed",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": 1,
+     "quote": "Окружная скорость на концах лопастей ~32 мс.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    },
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": 1,
+     "quote": "скорость вращения вала 2950 обмин (номинальная для 2-полюсного двигателя 50 Гц)",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    },
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": null,
+     "quote": "extents 169.0, 22.000000534113497, 169.0",
+     "source_id": "stl"
+    },
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": null,
+     "quote": "В каких единицах создан STL mm",
+     "source_id": "answer:units"
+    }
+   ],
+   "suggested": null,
+   "title": "Окружная скорость 32 мс при 2950 обмин соответствует диаметру около 207 мм, а модель STL имеет диаметр 169 мм, на концах лопастей которой скорость будет около 26 мс"
+  },
+  {
+   "answer": null,
+   "basis": "В ТЗ указано только несоответствие универсальных вентиляторов по посадочным местам, размер и допуск посадки не приведены",
+   "blocking": true,
+   "id": "field.fits",
+   "impact": "Влияет на точность печати, компенсацию усадки и необходимость постобработки посадки, от этого зависит работоспособность цанговой клипсы ступицы",
+   "kind": "clarify",
+   "options": [
+    "Посадка печатается точно по модели STL без допусков",
+    "Нужна посадка с натягом для последующей запрессовки",
+    "Нужен зазор с последующей посадкой на клей или фиксатор резьбы"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Какие допуски посадочных размеров крыльчатки на вал двигателя"
+  },
+  {
+   "answer": null,
+   "basis": "Вопрос уже задавался, ответа нет. ТЗ задаёт требования к жёсткости лопастей и клипсе, но о допустимости изменений не говорит",
+   "blocking": true,
+   "id": "field.geometry_editable",
+   "impact": "Определяет, допустимо ли добавлять усиления ступицы и менять толщину лопастей или печатать строго по модели STL",
+   "kind": "clarify",
+   "options": [
+    "Печатать строго по модели",
+    "Допустима правка геометрии"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "Печатать строго по модели",
+   "title": "Можно ли править геометрию модели"
+  },
+  {
+   "answer": null,
+   "basis": "Отчёт STL показывает components 2 и дефект multiple_shells",
+   "blocking": true,
+   "id": "clarify.f90e77b55370",
+   "impact": "От отчёта STL видны 2 оболочки без проверки пересечений и вложенности, от ответа зависит, печатать ли как одну деталь и как трактовать клипсу",
+   "kind": "clarify",
+   "options": [
+    "Одна деталь, клипса внутри",
+    "Две отдельные детали",
+    "Нужна доработка модели"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Что задают две замкнутые оболочки модели STL, обод с лопастями и цанговая клипса как одна деталь или две отдельные"
+  },
+  {
+   "answer": null,
+   "basis": "Вопрос уже задавался, ответа нет. ТЗ о постобработке не говорит",
+   "blocking": false,
+   "id": "field.post_processing",
+   "impact": "Влияет на выбор режима и материала, достижение теплостойкости при 65°C, герметичности от масла и чистоты посадочных поверхностей",
+   "kind": "clarify",
+   "options": [
+    "Термообработка отжигом допустима",
+    "Только механическая обработка посадки",
+    "Постобработка не допускается"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Допустима ли постобработка детали после печати"
+  },
+  {
+   "answer": null,
+   "basis": "В ТЗ указано только число оборотов, направление вращения не приведено",
+   "blocking": false,
+   "id": "field.loads",
+   "impact": "Влияет на ориентацию модели при печати и направление послойной прочности лопастей под центробежной нагрузкой",
+   "kind": "clarify",
+   "options": [
+    "Направление указано на модели STL",
+    "Направление неизвестно, важна симметричность профиля"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Какое направление вращения вала и какая сторона лопастей рабочая"
+  }
+ ],
+ "readiness": "ready",
+ "requirements": [
+  {
+   "conditions": "Замена снятой с производства оригинальной крыльчатки редкого двигателя",
+   "key": "part_name",
+   "label": "Наименование детали",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Наименование детали: Осевая крыльчатка наружного обдува асинхронного электродвигателя.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Осевая крыльчатка наружного обдува асинхронного электродвигателя",
+   "verified": true
+  },
+  {
+   "conditions": "Номинальный режим, 2-полюсный двигатель 50 Гц",
+   "key": "rotation_speed_nominal",
+   "label": "Скорость вращения",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "скорость вращения вала 2950 обмин (номинальная для 2-полюсного двигателя 50 Гц)",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "об/мин",
+   "value": "2950",
+   "verified": true
+  },
+  {
+   "conditions": "При номинальной скорости 2950 об/мин",
+   "key": "tip_speed",
+   "label": "Окружная скорость на концах лопастей",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Окружная скорость на концах лопастей ~32 мс.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "м/с",
+   "value": "~32",
+   "verified": true
+  },
+  {
+   "conditions": "Условия эксплуатации",
+   "key": "temperature_range",
+   "label": "Рабочий диапазон температур",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Температурный режим: диапазон +10°C ... +70°C.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "°C",
+   "value": "+10 ... +70",
+   "verified": true
+  },
+  {
+   "conditions": "Стабильно, нагрев от корпуса двигателя и трения воздуха",
+   "key": "temperature_surface_steady",
+   "label": "Температура на поверхности крыльчатки",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Температура на поверхности крыльчатки может стабильно держаться около 60-65°C.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "°C",
+   "value": "60-65",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянная работа под центробежной нагрузкой лопастей при 2950 об/мин",
+   "key": "heat_resistance_no_softening",
+   "label": "Теплостойкость без размягчения",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал не должен размягчаться при +65°C. Под действием центробежной силы размягченные лопасти начнут изгибаться, задевать за кожух и разрушатся.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Материал не должен размягчаться при +65°C",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянное воздействие воздуха цеха",
+   "key": "environment_medium",
+   "label": "Среда эксплуатации",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Среда эксплуатации: Цех металлообработки (воздействие масляного тумана СОЖ, металлической пыли, озона).",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    },
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "воздух в цеху насыщен масляным туманом (эмульсия СОЖ). Присутствие озона (от работы частотных преобразователей и коллекторных узлов).",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Цех металлообработки, масляный туман СОЖ (эмульсия), металлическая пыль, озон",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянный контакт с масляным туманом эмульсии СОЖ",
+   "key": "chemical_resistance_oil",
+   "label": "Маслостойкость",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал не должен подвергаться озоновому растрескиванию и не должен впитывать масла, теряя прочность.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Материал не должен впитывать масла, теряя прочность",
+   "verified": true
+  },
+  {
+   "conditions": "Озон от частотных преобразователей и коллекторных узлов",
+   "key": "chemical_resistance_ozone",
+   "label": "Озоностойкость",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал не должен подвергаться озоновому растрескиванию",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Материал не должен подвергаться озоновому растрескиванию",
+   "verified": true
+  },
+  {
+   "conditions": "С целью снижения момента инерции ротора и нагрузки на подшипники при пуске и торможении",
+   "key": "density_max",
+   "label": "Максимальная плотность материала",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал должен быть максимально легким (не тяжелее 1.25 гсм³), чтобы снизить момент инерции ротора и нагрузку на подшипники при пуске и торможении.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "г/см³",
+   "value": "не тяжелее 1.25",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянная (циклическая) нагрузка при посадке и работе на валу",
+   "key": "hub_clip_fatigue",
+   "label": "Работа цанговой клипсы ступицы",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Внутренняя цанговая клипса ступицы работает на постоянный изгиб и сжатие. Материал не должен иметь хрупкого разрушения.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Внутренняя цанговая клипса ступицы работает на постоянный изгиб и сжатие, материал не должен иметь хрупкого разрушения",
+   "verified": true
+  },
+  {
+   "conditions": "Кратковременные задевания защитного кожуха за лопасти при его деформации, требование безопасности",
+   "key": "impact_resistance_no_fragments",
+   "label": "Безопасность при разрушении",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "возможны кратковременные задевания защитного кожуха за лопасти при деформации кожуха. Лопасти не должны разлетаться на осколки (требование безопасности).",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    },
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "При попадании стружки или задевании кожуха лопасть должна погнуться или оторваться целиком, но не должна раскалываться на мелкие острые осколки, которые могут пробить защитный кожух.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "При задевании кожуха или попадании стружки лопасть должна погнуться или оторваться целиком, не раскалываться на мелкие острые осколки",
+   "verified": true
+  },
+  {
+   "conditions": "Сборка с цанговой клипсой ступицы на валу двигателя",
+   "key": "fit_on_shaft",
+   "label": "Посадка на вал",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "оригинальный вентилятор снят с производства, а универсальные не подходят по посадочным местам.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Посадочные места должны соответствовать специфическому редкому двигателю, универсальные вентиляторы не подходят",
+   "verified": true
+  },
+  {
+   "conditions": "Номинальный режим 2950 об/мин",
+   "key": "noise_low",
+   "label": "Аэродинамический шум",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Алюминиевые аналоги создают сильный аэродинамический шум и при дисбалансе разбивают подшипники двигателя.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Не выше уровня штатной пластиковой крыльчатки, алюминиевые аналоги создают сильный аэродинамический шум",
+   "verified": true
+  },
+  {
+   "conditions": "Пуск и торможение двигателя, 2950 об/мин",
+   "key": "balance_low_inertia",
+   "label": "Баланс и момент инерции",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "чтобы снизить момент инерции ротора и нагрузку на подшипники при пуске и торможении.",
+     "source_id": "bfeaa339-2750-48be-b459-8f77d006e7d5:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Минимальный момент инерции ротора и отсутствие дисбаланса, нагружающего подшипники",
+   "verified": true
+  },
+  {
+   "conditions": "Подтверждено пользователем, габариты модели 169 на 22 на 169 мм",
+   "key": "stl_units",
+   "label": "Единицы модели STL",
+   "mandatory": true,
+   "provenance": "user",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "user",
+     "page": null,
+     "quote": "В каких единицах создан STL mm",
+     "source_id": "answer:units"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "mm",
+   "verified": true
+  }
+ ],
+ "revision": 2,
+ "schema_version": "2.0",
+ "stl_analysis": {
+  "attachment_id": "bb1864b3-7dd3-47a1-a275-8e1f23ae7a9b",
+  "report": {
+   "elapsed_seconds": 0.0855,
+   "file": {
+    "bytes": 562684,
+    "encoding": "binary",
+    "path": "artifacts/stage1/bb1864b3-7dd3-47a1-a275-8e1f23ae7a9b",
+    "sha256": "32f253b238959eae223c0df27e012eb4722c536ed7e3a3ecd078d94b769bfc4d",
+    "triangles": 11252
+   },
+   "geometry": {
+    "aabb_volume": 628342.0152548156,
+    "adjacent_face_angles_degrees": {
+     "count": 16878,
+     "max": 157.2421432442148,
+     "mean": 23.372421674394072,
+     "median": 2.0318785967386734,
+     "min": 0.0,
+     "p05": 0.0,
+     "p95": 90.3549747225625
+    },
+    "bounds": [
+     [
+      0.0,
+      0.0024999999441206455,
+      0.0
+     ],
+     [
+      169.0,
+      22.002500534057617,
+      169.0
+     ]
+    ],
+    "bounds_center": [
+     84.5,
+     11.002500267000869,
+     84.5
+    ],
+    "center_of_mass": null,
+    "convex_hull_area": 56533.330542431635,
+    "convex_hull_volume": 493388.930245478,
+    "edge_lengths": {
+     "count": 16878,
+     "max": 22.215476421729864,
+     "mean": 5.82915033169231,
+     "median": 3.086623494830163,
+     "min": 0.031782757333721025,
+     "p05": 0.7062389212561896,
+     "p95": 20.48616414977839
+    },
+    "extents": [
+     169.0,
+     22.000000534113497,
+     169.0
+    ],
+    "inertia_unit_density": null,
+    "surface_area": 69215.35684540257,
+    "surface_centroid": [
+     84.50000128181736,
+     12.586821792911872,
+     84.50000106022479
+    ],
+    "triangle_areas": {
+     "count": 11252,
+     "max": 33.95308119054972,
+     "mean": 6.151382584909578,
+     "median": 3.1111257673698645,
+     "min": 0.0721739362517038,
+     "p05": 0.2578982848656696,
+     "p95": 27.323045893272237
+    },
+    "triangle_min_angles_degrees": {
+     "count": 11252,
+     "max": 55.198248299942264,
+     "mean": 14.494621469391554,
+     "median": 6.66907747641075,
+     "min": 0.17410455782607068,
+     "p05": 2.422563814290097,
+     "p95": 48.4617022154732
+    },
+    "vertex_pca": {
+     "axes_columns": [
+      [
+       0.9903121622444463,
+       -0.13885899794658266,
+       -2.6840547086639667e-10
+      ],
+      [
+       -3.0011021265125543e-10,
+       -2.073848689243731e-10,
+       -0.9999999999999997
+      ],
+      [
+       0.13885899794658266,
+       0.9903121622444464,
+       -2.470487971625274e-10
+      ]
+     ],
+     "eigenvalues": [
+      2741.379441746093,
+      2741.379440288899,
+      61.043506502840955
+     ],
+     "extents_in_pca_frame": [
+      168.99608362813174,
+      168.99608362609183,
+      22.00000059575814
+     ],
+     "method": "vertex_weighted; depends_on_tessellation; not_minimum_oriented_box"
+    },
+    "volume": null,
+    "volume_basis": "unavailable_for_this_topology",
+    "volume_to_convex_hull_ratio": null
+   },
+   "normal_chords": {
+    "reason": "requires one closed, consistently oriented, defect-free shell",
+    "status": "not_run"
+   },
+   "partial_errors": {},
+   "preprocessing": {
+    "area_degeneracy_threshold": 5.760600002350099e-10,
+    "exact_duplicate_vertices_welded": 28130,
+    "faces_removed": 0,
+    "repair_performed": false
+   },
+   "preview": "bf8a40ad7ea6804fe0e4927d6437fd4eef56ada8fea120a8c21f8fd05fcbcf86.png",
+   "schema_version": "1.0",
+   "sections": [
+    {
+     "axis": "X",
+     "closed_contour_count": 4,
+     "coordinate": 42.25,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 351.87100911375865
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 4,
+     "coordinate": 84.5,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 310.76856093567966
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 4,
+     "coordinate": 126.75,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 351.9214032065351
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 4,
+     "coordinate": 5.502500133472495,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 44,
+     "total_length": 2138.70856855469
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 4,
+     "coordinate": 11.002500267000869,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 22,
+     "total_length": 2138.71122845471
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 4,
+     "coordinate": 16.502500400529243,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 44,
+     "total_length": 2137.137855833431
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 4,
+     "coordinate": 42.25,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 351.9028774177274
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 4,
+     "coordinate": 84.5,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 310.7572086786214
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 4,
+     "coordinate": 126.75,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 351.90287869044977
+    }
+   ],
+   "software": {
+    "numpy": "2.3.4",
+    "trimesh": "5.1.1"
+   },
+   "status": "checks_passed",
+   "status_scope": "listed mesh checks only; self-intersections and printability are unverified",
+   "topology": {
+    "boundary_edge_examples": [],
+    "boundary_edges": 0,
+    "component_count": 2,
+    "components": [
+     {
+      "bounds": [
+       [
+        0.0,
+        0.0024999999441206455,
+        0.0
+       ],
+       [
+        169.0,
+        22.002500534057617,
+        169.0
+       ]
+      ],
+      "euler_number": 0,
+      "faces": 8608,
+      "genus": 1,
+      "signed_volume": 25307.72945210285,
+      "surface_area": 38208.30591849785,
+      "vertices": 4304,
+      "watertight": true,
+      "winding_consistent": true
+     },
+     {
+      "bounds": [
+       [
+        16.499996185302734,
+        0.0024999999441206455,
+        16.499996185302734
+       ],
+       [
+        152.5,
+        22.002500534057617,
+        152.5
+       ]
+      ],
+      "euler_number": 0,
+      "faces": 2644,
+      "genus": 1,
+      "signed_volume": 27871.42237386934,
+      "surface_area": 31007.05092690471,
+      "vertices": 1322,
+      "watertight": true,
+      "winding_consistent": true
+     }
+    ],
+    "euler_number": 0,
+    "nonmanifold_edge_examples": [],
+    "nonmanifold_edges": 0,
+    "unique_edges": 16878,
+    "vertices_after_exact_weld": 5626,
+    "watertight": true,
+    "winding_consistent": true
+   },
+   "units": {
+    "area_unit": "coordinate_unit^2",
+    "coordinate_unit": "mm",
+    "input_unit": "mm",
+    "scale_applied": 1,
+    "source": "caller_supplied",
+    "volume_unit": "coordinate_unit^3"
+   },
+   "validation": {
+    "defects": [],
+    "degenerate_faces": 0,
+    "duplicate_faces": 0,
+    "finite_coordinates": true,
+    "self_intersections": "not_checked",
+    "shell_intersections_and_nesting": "not_checked",
+    "vertex_manifoldness": "not_checked"
+   },
+   "warnings": [
+    "Self-intersections and intersections/nesting between shells are not checked.",
+    "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+    "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability.",
+    "Multiple connected shells: separate parts, nested cavities or overlaps require further analysis; combined physical volume withheld."
+   ]
+  },
+  "sha256": "32f253b238959eae223c0df27e012eb4722c536ed7e3a3ecd078d94b769bfc4d"
+ },
+ "unknowns": [
+  "Требуемые допуски и посадочные размеры отверстия под вал и цанговой клипсы",
+  "Материал или его марка, указанная или запрещённая заказчиком",
+  "Количество деталей и требуемые сроки",
+  "Направление вращения и рабочая сторона лопастей",
+  "Требуется ли балансировка готовой детали и допустимая остаточная дисбалансная нагрузка",
+  "Наличие и величина крутящего момента, передаваемого через ступицу",
+  "Допустимость постобработки, влияющей на теплостойкость и герметичность"
+ ],
+ "versions": {
+  "analyzer": "1.2-partial",
+  "model": "dashscope/qwen3.8-flash",
+  "prompt.analyst_environment": "12b04fa4463a",
+  "prompt.analyst_geometry": "85b0c8a88f93",
+  "prompt.analyst_loads": "718df8c009f4",
+  "prompt.analyst_production": "f3db2426091a",
+  "prompt.consolidator": "7da17cfb1fce",
+  "prompt.discrepancies": "0fb0fdebc89e",
+  "prompt.gate": "22ac670f7df7",
+  "prompt.interpreter": "ab745d1ff6c2",
+  "prompt.judge": "3351a34759b1",
+  "prompt.second_reading": "03e3e41c53f6",
+  "prompt.triage": "ecfcb776e059",
+  "rules": "4"
+ }
+}

@@ -13,4 +13,4 @@ src/web/test-results
 .ruff_cache
 research
 docs
-!docs/task-card-v2.0.schema.json
+!docs/*.schema.json

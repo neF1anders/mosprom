@@ -19,9 +19,18 @@ path = Path(".env")
 if not path.exists() and not os.environ.get("SESSION_SECRET"):
     template = Path(".env.example").read_text()
     path.write_text(
-        template.replace("SESSION_SECRET=\n", "SESSION_SECRET=" + secrets.token_urlsafe(48) + "\n")
+        template.replace(
+            "SESSION_SECRET=\n", "SESSION_SECRET=" + secrets.token_urlsafe(48) + "\n"
+        ).replace("SLICER_HOST_FOLDER=\n", "")
     )
     path.chmod(0o600)
+if path.exists() and "SLICER_HOST_FOLDER=" not in (current := path.read_text()):
+    # The plugin keeps server.json in Documents/STE_AIAssistant of the user's home.
+    folder = Path.home() / "Documents" / "STE_AIAssistant"
+    # A last line without its line break would otherwise swallow the new key.
+    separator = "\n" if current and not current.endswith("\n") else ""
+    with path.open("a") as stream:
+        stream.write(f"{separator}SLICER_HOST_FOLDER={folder}\n")
 values = {}
 if path.exists():
     for line in path.read_text().splitlines():

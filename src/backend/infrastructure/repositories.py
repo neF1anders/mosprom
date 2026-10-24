@@ -5,12 +5,13 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.errors import AppError, NotFound
 from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
+from ..domain.pipeline import Step
 from . import tables as t
 
 EVENTS_CHANNEL = "job_events"
@@ -107,13 +108,6 @@ class MessageRepository(Repository):
             query = query.where(t.messages.c.seq < before)
         rows = (await self._session.execute(query)).mappings()
         return list(reversed([dict(row["payload"], seq=row["seq"]) for row in rows]))
-
-    async def mark(self, job_id: str, message_id: str, kind: str) -> None:
-        await self._session.execute(
-            update(t.messages)
-            .where(t.messages.c.job_id == job_id, t.messages.c.payload["id"].astext == message_id)
-            .values(payload=t.messages.c.payload.op("||")(func.jsonb_build_object("kind", kind)))
-        )
 
 
 class AttachmentRepository(Repository):
@@ -237,3 +231,56 @@ class KnowledgeRepository(Repository):
 class TraceRepository(Repository):
     async def record(self, call: AgentCall) -> None:
         await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))
+
+    async def usage(self, job_id: str) -> tuple[int, int]:
+        """Provider calls a job made and the tokens they spent; cached results cost nothing."""
+        tokens = t.agent_calls.c.response["usage"]["total_tokens"].as_integer()
+        row = (
+            await self._session.execute(
+                select(func.count(), func.coalesce(func.sum(tokens), 0)).where(
+                    t.agent_calls.c.job_id == job_id, ~t.agent_calls.c.cached
+                )
+            )
+        ).one()
+        return row[0], row[1]
+
+
+class StageResultRepository(Repository):
+    """Results of the deterministic steps, one per job revision, step and pass."""
+
+    async def add(self, job_id: str, revision: int, step: Step, payload: dict[str, Any]) -> None:
+        # A redelivered task writes the same result again; the first one stays.
+        await self._session.execute(
+            insert(t.stage_results)
+            .values(
+                job_id=job_id,
+                revision=revision,
+                stage=step.stage,
+                iteration=step.iteration,
+                payload=payload,
+            )
+            .on_conflict_do_nothing()
+        )
+
+    async def get(self, job_id: str, revision: int, step: Step) -> dict[str, Any] | None:
+        return await self._session.scalar(
+            select(t.stage_results.c.payload).where(
+                t.stage_results.c.job_id == job_id,
+                t.stage_results.c.revision == revision,
+                t.stage_results.c.stage == step.stage,
+                t.stage_results.c.iteration == step.iteration,
+            )
+        )
+
+    async def latest(self, job_id: str, revision: int, stage: str) -> dict[str, Any] | None:
+        """The last pass of a step in this revision."""
+        return await self._session.scalar(
+            select(t.stage_results.c.payload)
+            .where(
+                t.stage_results.c.job_id == job_id,
+                t.stage_results.c.revision == revision,
+                t.stage_results.c.stage == stage,
+            )
+            .order_by(t.stage_results.c.iteration.desc())
+            .limit(1)
+        )

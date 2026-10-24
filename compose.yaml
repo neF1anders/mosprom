@@ -39,8 +39,15 @@ services:
       context: .
       target: runtime
     command: [python, -m, src.backend.worker]
-    environment: *app_environment
-    volumes: ["files:/data"]
+    environment:
+      <<: *app_environment
+      # STE Slicer with the AI Assistant plugin runs on this computer: its folder with
+      # server.json is mounted here, and the slicer opens files by the computer's paths.
+      SLICER_FOLDER: /slicer
+      SLICER_HOST_FOLDER: ${SLICER_HOST_FOLDER:-}
+      SLICER_HOST: host.docker.internal
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["files:/data", "${SLICER_HOST_FOLDER:-./artifacts/slicer}:/slicer"]
     depends_on:
       api: {condition: service_healthy}
 volumes:

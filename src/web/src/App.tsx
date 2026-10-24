@@ -7,9 +7,9 @@ import {
 } from "@tanstack/react-query";
 import { usePanelFocus } from "./usePanelFocus";
 import { api, authenticate, command } from "./api";
-import { composerPlaceholder } from "./chat";
+import { asksQuestions, composerPlaceholder } from "./chat";
 import type { Job, Snapshot } from "./types";
-import { answered, isRunning } from "./types";
+import { isRunning } from "./types";
 import { useFollow } from "./hooks/useFollow";
 import { useHistory } from "./hooks/useHistory";
 import { useJobEvents } from "./hooks/useJobEvents";
@@ -248,11 +248,9 @@ export function App() {
     ...uploads,
   ];
   const running = isRunning(job);
-  const current = events.filter((e) => e.revision === job?.revision);
-  // Early questions are answered while the deep reading still runs.
-  const asking =
-    job?.card?.revision === job?.revision &&
-    (!running || !!job?.card?.questions.some((q) => !answered(q)));
+  // A reply that started no work keeps the timeline of the work before it.
+  const current = events.filter((e) => e.revision >= (job?.work_revision ?? 0));
+  const asking = asksQuestions(job);
   if (session.isError)
     return (
       <main className={styles.locked}>

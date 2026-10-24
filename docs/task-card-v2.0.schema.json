@@ -324,42 +324,6 @@
       "title": "Question",
       "type": "object"
     },
-    "Remark": {
-      "additionalProperties": false,
-      "properties": {
-        "severity": {
-          "enum": [
-            "critical",
-            "major",
-            "minor"
-          ],
-          "title": "Severity",
-          "type": "string"
-        },
-        "text": {
-          "title": "Text",
-          "type": "string"
-        },
-        "requirement_key": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Requirement Key"
-        }
-      },
-      "required": [
-        "severity",
-        "text"
-      ],
-      "title": "Remark",
-      "type": "object"
-    },
     "Requirement": {
       "additionalProperties": false,
       "properties": {
@@ -528,39 +492,6 @@
       ],
       "title": "Superseded",
       "type": "object"
-    },
-    "Verdict": {
-      "additionalProperties": false,
-      "properties": {
-        "score": {
-          "maximum": 1,
-          "minimum": 0,
-          "title": "Score",
-          "type": "number"
-        },
-        "passed": {
-          "title": "Passed",
-          "type": "boolean"
-        },
-        "reworked": {
-          "default": false,
-          "title": "Reworked",
-          "type": "boolean"
-        },
-        "remarks": {
-          "items": {
-            "$ref": "#/$defs/Remark"
-          },
-          "title": "Remarks",
-          "type": "array"
-        }
-      },
-      "required": [
-        "score",
-        "passed"
-      ],
-      "title": "Verdict",
-      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -640,17 +571,6 @@
       "anyOf": [
         {
           "$ref": "#/$defs/StlAnalysis"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
-    },
-    "verdict": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Verdict"
         },
         {
           "type": "null"

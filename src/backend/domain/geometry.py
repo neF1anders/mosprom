@@ -16,6 +16,8 @@ REPORT_SECTIONS = (
     "geometry",
     "sections",
     "normal_chords",
+    "overhangs",
+    "revolution",
     "warnings",
     "partial_errors",
 )

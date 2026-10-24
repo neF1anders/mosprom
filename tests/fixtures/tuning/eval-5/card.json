@@ -1,0 +1,1238 @@
+{
+ "allowed_actions": [],
+ "assumptions": [
+  {
+   "basis": "В ТЗ режим работы задан как Непрерывный (S1), 8000 часов в год без разделения на оригинальное и печатное колесо.",
+   "consequence": "Материал и режим выбираются с расчётом на длительную работу при +85°C и кавитационно-эрозионную нагрузку.",
+   "text": "Печатное колесо рассчитано на полный ресурс эксплуатации 8000 часов в год в непрерывном режиме S1, а не на временную аварийную замену."
+  }
+ ],
+ "blocked_actions": {},
+ "files": [
+  {
+   "filename": "Рабочее_колесо насоса Wilo IPL 80140-42. 2063106.STL",
+   "id": "682eeb61-e17d-40c8-b206-af8ef6e296f3",
+   "kind": "stl",
+   "sha256": "c78061849c43078ea5dda6e21e9f0614735d36f57880441b829ed529ffe89510"
+  },
+  {
+   "filename": "Рабочее колесо насоса Wilo.jpg",
+   "id": "b5479ef9-63c6-43b6-a8ab-5e067ab9548a",
+   "kind": "jpg",
+   "sha256": "12a81a04f5830929d37f5ed0c8633fbd609718b80efbe3b651b621f914df6bb5"
+  },
+  {
+   "filename": "Техническое задания для рабочего колеса насоса.docx",
+   "id": "db27ac86-d658-447a-9075-52bd6aa7eb46",
+   "kind": "docx",
+   "sha256": "b13fcf14ceb671226caf2929d9fb1254175cddfbbfcf8d41dda5ff25eaeab10a"
+  }
+ ],
+ "geometry": {
+  "components": 1,
+  "defects": [],
+  "extents": [
+   134.63978576660156,
+   50.735020115971565,
+   134.64566040039062
+  ],
+  "limitations": [
+   "Self-intersections and intersections/nesting between shells are not checked.",
+   "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+   "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+  ],
+  "min_wall_sample": 0.11440264658690391,
+  "preview_id": "b25bc6af602575eb4e33e55d046fc6ba024ac17c0f62828c0eb70ede52ad2c3e.png",
+  "readable": true,
+  "report_id": "b25bc6af602575eb4e33e55d046fc6ba024ac17c0f62828c0eb70ede52ad2c3e",
+  "sections": [
+   {
+    "axis": "X",
+    "closed_contour_count": 3,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 9,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 1
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 3,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 3,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   }
+  ],
+  "surface_area": 76648.12504523531,
+  "units": "mm",
+  "volume": 152622.59632033834,
+  "volume_basis": "closed_single_shell_positive_winding; conditional on no self-intersections",
+  "watertight": true
+ },
+ "job_id": "30a6630e-d30b-4d8f-a374-c1905708a75d",
+ "preferences": [],
+ "production_constraints": [
+  "Метод изготовления ограничен аддитивным производством FDM/FFF.",
+  "Использование металлов и тяжёлых наполнителей, металлических порошков и барита, недопустимо.",
+  "Материал не задан заказчиком, выбор по критериям раздела 4 ТЗ."
+ ],
+ "purpose": "Рабочее колесо центробежного циркуляционного насоса, аналог серии Wilo, для замкнутого контура охлаждения штамповочного оборудования. Перекачивает водно-гликолевый теплоноситель, заменяет оригинальное латунное колесо, разрушаемое гальванической коррозией и кавитационной эрозией.",
+ "questions": [
+  {
+   "answer": "mm",
+   "basis": null,
+   "blocking": true,
+   "id": "units",
+   "impact": "Габариты в единицах файла 134.64 × 50.735 × 134.646, от масштаба зависят размеры и параметры печати",
+   "kind": "units",
+   "options": [
+    "mm",
+    "cm",
+    "m",
+    "inch"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "В каких единицах создан STL"
+  },
+  {
+   "answer": null,
+   "basis": "При 2900 об/мин угловая скорость около 303.7 рад/с. Скорость 24 м/с соответствует радиусу около 79 мм и диаметру около 158 мм. Наружный диаметр STL по extents равен 134.64 мм, что даёт окружную скорость около 20.4 м/с, то есть расхождение около 15 процентов, больше допустимых 1 процента.",
+   "blocking": true,
+   "id": "tz_vs_stl.1c0350084fc1",
+   "impact": "Расхождение кинематики и геометрии влияет на расчёт центробежной нагрузки лопастей, требуемую жёсткость и массу, а значит на подбор материала и заполнения. Если верен STL, реальная окружная скорость около 20.4 м/с, если верны 24 м/с, диаметр должен быть около 158 мм.",
+   "kind": "discrepancy",
+   "options": [
+    "STL верен, окружную скорость 24 м/с считать ориентировочной и пересчитать на диаметр 134.6 мм",
+    "STL не соответствует детали, нужен колесо диаметром около 158 мм, модель будет масштабирована",
+    "Уточнить у заказчика фактический наружный диаметр оригинального колеса Wilo"
+   ],
+   "requirement_key": "peripheral_speed",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": 1,
+     "quote": "Окружная скорость на периферии колеса: ~24 м/с.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    },
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": 1,
+     "quote": "Скорость вращения вала: 2900 об/мин (синхронная частота 2-полюсного электродвигателя).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    },
+    {
+     "artifact_id": null,
+     "method": null,
+     "page": null,
+     "quote": "extents 134.63978576660156, 50.735020115971565, 134.64566040039062",
+     "source_id": "stl"
+    }
+   ],
+   "suggested": null,
+   "title": "Наружный диаметр колеса в STL 134.6 мм не даёт окружную скорость 24 м/с при 2900 об/мин"
+  },
+  {
+   "answer": null,
+   "basis": "В разделе 3 ТЗ приведены момент 12 Н·м и класс дисбаланса, но диаметры отверстия и паза и их допуски не указаны.",
+   "blocking": false,
+   "id": "field.fits",
+   "impact": "Влияет на точность размеров, усадочные компенсации и необходимость постобработки посадочных поверхностей.",
+   "kind": "clarify",
+   "options": [
+    "Посадка H7 для отверстия и стандартный шпоночный паз по DIN 6885",
+    "Посадка с натягом, требующая запрессовки в нагретом состоянии",
+    "Допуски не нормируются, подгонка по месту"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Какие допуски посадки на вал и шпоночного паза должны быть обеспечены после печати?"
+  },
+  {
+   "answer": null,
+   "basis": "В ТЗ заданы дисбаланс не более 6.3 г·мм и отсутствие ползучести при +85°C, способ их достижения не указан.",
+   "blocking": true,
+   "id": "field.post_processing",
+   "impact": "Влияет на выбор режима печати, ориентации, припуска на обработку и на возможность выполнить класс дисбаланса G2.5 и стойкость к ползучести при +85°C.",
+   "kind": "clarify",
+   "options": [
+    "Разрешена любая постобработка",
+    "Только термообработка без снятия материала",
+    "Печать в размер, без постобработки"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Допустима ли постобработка детали, например отжиг, шлифовка посадочных мест, балансировка или защитное покрытие лопастей?"
+  },
+  {
+   "answer": null,
+   "basis": "stl_report: min_wall_sample 0.11440264658690391, при этом выборка не является гарантированным минимумом модели.",
+   "blocking": false,
+   "id": "field.geometry_editable",
+   "impact": "Выборочная минимальная толщина стенки по нормали в модели 0.1144 мм и острые кромки могут быть невоспроизводимы в FDM, без ответа нельзя решить, нужны ли утолщение кромок и скругления.",
+   "kind": "clarify",
+   "options": [
+    "Печатать строго по STL без изменений",
+    "Допустимы технологические правки геометрии",
+    "Правки только после согласования"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "Допустимы технологические правки геометрии",
+   "title": "Можно ли вносить технологические правки в геометрию модели или печатать строго по STL?"
+  },
+  {
+   "answer": null,
+   "basis": "Гидроудар в ТЗ упомянут только как основание требования к удлинению 2.5%, численное пиковое давление отсутствует.",
+   "blocking": false,
+   "id": "field.loads",
+   "impact": "Влияет на требуемую прочность и запас по центробежной нагрузке, а значит на выбор материала и заполнения.",
+   "kind": "clarify",
+   "options": [
+    "Пик до 25 бар кратковременно",
+    "Пик до 40 бар кратковременно",
+    "Пиковые нагрузки не нормируются, только рабочий режим 16 бар"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Какое пиковое давление или нагрузку при гидроударе должно выдерживать колесо?"
+  },
+  {
+   "answer": null,
+   "basis": "Количество деталей в документах не указано.",
+   "blocking": false,
+   "id": "clarify.63a5ae0da4aa",
+   "impact": "Влияет на раскладку на столе, время печати и целесообразность постобработки.",
+   "kind": "clarify",
+   "options": [
+    "1 образец для испытаний",
+    "Серия до 10 штук",
+    "Серия более 10 штук"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Сколько рабочих колёс нужно напечатать в этом заказе?"
+  }
+ ],
+ "readiness": "ready",
+ "requirements": [
+  {
+   "conditions": "Промышленный контур охлаждения штамповочного оборудования, слабоагрессивная среда",
+   "key": "operating_medium",
+   "label": "Перекачиваемая среда",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Перекачиваемая среда — теплоноситель на основе воды и гликоля с щелочными ингибиторами коррозии.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Теплоноситель на основе воды и гликоля с щелочными ингибиторами коррозии на основе солей органических кислот",
+   "verified": true
+  },
+  {
+   "conditions": "Слабощелочная среда, постоянный контакт",
+   "key": "ph_range",
+   "label": "Кислотность среды",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Уровень pH: 9.5–10.5 (слабощелочная среда).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "pH",
+   "value": "9.5–10.5",
+   "verified": true
+  },
+  {
+   "conditions": "Микрочастицы окалины из сварных швов трубопровода",
+   "key": "abrasive_particles",
+   "label": "Абразивные частицы в среде",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Микрочастицы окалины (до 50 мкм) из сварных швов трубопровода.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "мкм",
+   "value": "до 50",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянно, непрерывный режим",
+   "key": "temperature_operating",
+   "label": "Рабочая температура среды",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Температурный режим среды: +75°C...+85°C (постоянно).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "°C",
+   "value": "+75...+85",
+   "verified": true
+  },
+  {
+   "conditions": "Синхронная частота 2-полюсного электродвигателя",
+   "key": "rotation_speed",
+   "label": "Скорость вращения вала",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Скорость вращения вала: 2900 об/мин (синхронная частота 2-полюсного электродвигателя).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "об/мин",
+   "value": "2900",
+   "verified": true
+  },
+  {
+   "conditions": "На периферии колеса при 2900 об/мин",
+   "key": "peripheral_speed",
+   "label": "Окружная скорость на периферии",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Окружная скорость на периферии колеса: ~24 м/с.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "м/с",
+   "value": "~24",
+   "verified": true
+  },
+  {
+   "conditions": "Рабочая точка гидродинамики",
+   "key": "flow_rate",
+   "label": "Производительность",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Гидродинамика: производительность 25 м³/ч, напор до 32 м (рабочее давление в корпусе до 16 бар).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "м³/ч",
+   "value": "25",
+   "verified": true
+  },
+  {
+   "conditions": "Максимальный напор",
+   "key": "head_max",
+   "label": "Напор",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "напор до 32 м (рабочее давление в корпусе до 16 бар).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "м",
+   "value": "до 32",
+   "verified": true
+  },
+  {
+   "conditions": "Рабочее давление, не пиковое",
+   "key": "pressure_working_max",
+   "label": "Рабочее давление в корпусе",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "рабочее давление в корпусе до 16 бар",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "бар",
+   "value": "до 16",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянная эксплуатация без остановок",
+   "key": "duty_cycle",
+   "label": "Режим работы и ресурс",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Режим работы: Непрерывный (S1), 8000 часов в год.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Непрерывный S1, 8000 часов в год",
+   "verified": true
+  },
+  {
+   "conditions": "Передача момента через шпоночный паз, циклическая нагрузка при нагреве",
+   "key": "torque_keyway",
+   "label": "Крутящий момент на шпоночном пазу",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Шпоночный паз передает крутящий момент 12 Н·м. Материал в зоне паза не должен разбиваться под циклической нагрузкой и «ползти» при нагреве.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "Н·м",
+   "value": "12",
+   "verified": true
+  },
+  {
+   "conditions": "Класс точности G2.5 по ISO 1940",
+   "key": "balance_residual",
+   "label": "Остаточный дисбаланс",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Остаточный дисбаланс не должен превышать 6.3 г·мм (класс точности G2.5 по ISO 1940).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "г·мм",
+   "value": "не более 6.3",
+   "verified": true
+  },
+  {
+   "conditions": "Превышение ведёт к биению и разрушению торцевого уплотнения",
+   "key": "blade_wall_variation_max",
+   "label": "Разностенность лопастей",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Разностенность лопастей более 0.3 мм приведет к биению и разрушению торцевого уплотнения.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "мм",
+   "value": "не более 0.3",
+   "verified": true
+  },
+  {
+   "conditions": "За 24 часа погружения",
+   "key": "water_absorption_max",
+   "label": "Водопоглощение",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Водопоглощение за 24 часа погружения должно составлять не более 0.05%.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "%",
+   "value": "не более 0.05",
+   "verified": true
+  },
+  {
+   "conditions": "Для сохранения геометрии лопастей под центробежной нагрузкой",
+   "key": "tensile_modulus_min",
+   "label": "Модуль упругости при растяжении",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Модуль упругости при растяжении: не менее 4500 МПа (для сохранения геометрии лопастей под центробежной нагрузкой).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "МПа",
+   "value": "не менее 4500",
+   "verified": true
+  },
+  {
+   "conditions": "Защита от хрупкого разрушения при гидроударе",
+   "key": "elongation_min",
+   "label": "Относительное удлинение при разрыве",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Относительное удлинение при разрыве: не менее 2.5% (чтобы избежать хрупкого разрушения при гидроударе).",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "%",
+   "value": "не менее 2.5",
+   "verified": true
+  },
+  {
+   "conditions": "Метод B, нагрузка 50 Н",
+   "key": "vicat_softening_min",
+   "label": "Температура размягчения по Вика",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Температура размягчения по Вика (метод B, 50 Н): не ниже +130°C.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "°C",
+   "value": "не ниже +130",
+   "verified": true
+  },
+  {
+   "conditions": "При +85°C, длительная нагрузка, в том числе в зоне шпоночного паза",
+   "key": "creep_resistance",
+   "label": "Стойкость к ползучести",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал не должен «ползти» (проявлять ползучесть) под постоянной нагрузкой при +85°C.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Материал не должен проявлять ползучесть под постоянной нагрузкой",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянный контакт со средой pH 9.5–10.5 при +85°C",
+   "key": "chemical_stability",
+   "label": "Химическая стойкость к среде",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал не должен разбухать, размягчаться или терять прочность при постоянном контакте со средой с pH 9.5–10.5 при температуре +85°C.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Без разбухания, размягчения и потери прочности",
+   "verified": true
+  },
+  {
+   "conditions": "Масса вращающихся частей критична для ресурса подшипников",
+   "key": "density_max",
+   "label": "Плотность материала",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Плотность: Не более 1.2 г/см³. Использование металлов или тяжелых наполнителей (металлический порошок, барит) недопустимо — масса вращающихся частей критична для ресурса подшипников.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "г/см³",
+   "value": "не более 1.2",
+   "verified": true
+  },
+  {
+   "conditions": "Рабочая среда с кавитацией, ранее наблюдалась кавитационная эрозия латуни",
+   "key": "cavitation_resistance",
+   "label": "Устойчивость к кавитации",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Поверхность лопастей должна быть достаточно жесткой, чтобы противостоять микроударам схлопывающихся кавитационных пузырьков.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Поверхность лопастей достаточно жёсткая для противостояния микроударам схлопывающихся пузырьков",
+   "verified": true
+  },
+  {
+   "conditions": "Контакт с алюминиевым корпусом насоса",
+   "key": "galvanic_inertness",
+   "label": "Отсутствие гальванической коррозии",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал должен быть диэлектриком или химически инертным полимером.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Материал должен быть диэлектриком или химически инертным полимером",
+   "verified": true
+  },
+  {
+   "conditions": "Риск электрохимической пары с алюминиевым корпусом",
+   "key": "conductive_fillers_avoided",
+   "label": "Токопроводящие наполнители",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Использование металлических композитов или токопроводящих наполнителей (графит, углеволокно в высокой концентрации) нежелательно из-за риска электрохимической пары с алюминиевым корпусом.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Нежелательны металлические композиты и токопроводящие наполнители, например графит и углеволокно в высокой концентрации",
+   "verified": true
+  },
+  {
+   "conditions": "Требование к материалу колеса по разделу 4 ТЗ",
+   "key": "tensile_strength_min",
+   "label": "Предел прочности при растяжении",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Предел прочности при растяжении: не менее 50 МПа.",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "МПа",
+   "value": "не менее 50",
+   "verified": true
+  },
+  {
+   "conditions": "Метод закреплён в ТЗ",
+   "key": "production_method",
+   "label": "Метод производства",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Метод производства: Аддитивное производство (FDM / FFF)",
+     "source_id": "db27ac86-d658-447a-9075-52bd6aa7eb46:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Аддитивное производство FDM / FFF",
+   "verified": true
+  }
+ ],
+ "revision": 2,
+ "schema_version": "2.0",
+ "stl_analysis": {
+  "attachment_id": "682eeb61-e17d-40c8-b206-af8ef6e296f3",
+  "report": {
+   "elapsed_seconds": 0.7511,
+   "file": {
+    "bytes": 3680284,
+    "encoding": "binary",
+    "path": "artifacts/stage1/682eeb61-e17d-40c8-b206-af8ef6e296f3",
+    "sha256": "c78061849c43078ea5dda6e21e9f0614735d36f57880441b829ed529ffe89510",
+    "triangles": 73604
+   },
+   "geometry": {
+    "aabb_volume": 919758.0754211986,
+    "adjacent_face_angles_degrees": {
+     "count": 110406,
+     "max": 158.37129281045426,
+     "mean": 5.915304964280894,
+     "median": 0.9893512122960666,
+     "min": 0.0,
+     "p05": 2.680903629165514e-05,
+     "p95": 65.86716260808527
+    },
+    "bounds": [
+     [
+      -170.0237579345703,
+      -0.18400616943836212,
+      8.9884033203125
+     ],
+     [
+      -35.38397216796875,
+      50.5510139465332,
+      143.63406372070312
+     ]
+    ],
+    "bounds_center": [
+     -102.70386505126953,
+     25.18350388854742,
+     76.31123352050781
+    ],
+    "center_of_mass": [
+     -102.70733932181774,
+     19.145155448556,
+     76.31125711496719
+    ],
+    "convex_hull_area": 40699.61621513877,
+    "convex_hull_volume": 594440.5150617991,
+    "edge_lengths": {
+     "count": 110406,
+     "max": 26.016040791611317,
+     "mean": 2.032338363784838,
+     "median": 1.4017952139350403,
+     "min": 0.002532648733970301,
+     "p05": 0.13163429784433534,
+     "p95": 7.27864631640989
+    },
+    "extents": [
+     134.63978576660156,
+     50.735020115971565,
+     134.64566040039062
+    ],
+    "inertia_unit_density": [
+     [
+      169127728.21760023,
+      -0.5622358918190002,
+      377.0132420063019
+     ],
+     [
+      -0.5622358918190002,
+      290218152.4359064,
+      -86.19549244642258
+     ],
+     [
+      377.0132420063019,
+      -86.19549244642258,
+      169157999.45530772
+     ]
+    ],
+    "surface_area": 76648.12504523531,
+    "surface_centroid": [
+     -102.70720561073743,
+     21.2902516186037,
+     76.31122483912557
+    ],
+    "triangle_areas": {
+     "count": 73604,
+     "max": 110.90193636114418,
+     "mean": 1.0413581469109738,
+     "median": 0.6505674117119558,
+     "min": 1.3945400932352916e-05,
+     "p05": 0.05758493416260894,
+     "p95": 3.2974891960888253
+    },
+    "triangle_min_angles_degrees": {
+     "count": 73604,
+     "max": 59.44684350891885,
+     "mean": 23.2686985109062,
+     "median": 24.942539552514724,
+     "min": 0.011808228531028439,
+     "p05": 3.4844960587719878,
+     "p95": 43.13062795480924
+    },
+    "vertex_pca": {
+     "axes_columns": [
+      [
+       -0.7945100695709905,
+       -0.6072509321952617,
+       0.00023387664649859532
+      ],
+      [
+       9.042219846421103e-05,
+       -0.0005034458522624413,
+       -0.9999998691830414
+      ],
+      [
+       -0.6072509705007693,
+       0.7945099444879591,
+       -0.00045490176341441926
+      ]
+     ],
+     "eigenvalues": [
+      1016.7990727739418,
+      1016.2400490482934,
+      151.73085106606774
+     ],
+     "extents_in_pca_frame": [
+      134.64410497040427,
+      134.6417041030938,
+      50.772349877040604
+     ],
+     "method": "vertex_weighted; depends_on_tessellation; not_minimum_oriented_box"
+    },
+    "volume": 152622.59632033834,
+    "volume_basis": "closed_single_shell_positive_winding; conditional on no self-intersections",
+    "volume_to_convex_hull_ratio": 0.25674999003806365
+   },
+   "normal_chords": {
+    "distribution": {
+     "count": 128,
+     "max": 31.797223279885767,
+     "mean": 4.871233923748516,
+     "median": 3.4248714034856236,
+     "min": 0.11440264658690391,
+     "p05": 1.9851889016266644,
+     "p95": 15.938023469583511
+    },
+    "limitations": "Not true minimum wall thickness; can miss small thin features. Concavities, cavities and grazing rays affect results.",
+    "method": "area_weighted_surface_inward_normal_first_exit",
+    "minimum_sampled": 0.11440264658690391,
+    "missed_or_too_close": 0,
+    "requested_samples": 128,
+    "seed": 0,
+    "shortest_samples": [
+     {
+      "exit_point": [
+       -40.412883309466395,
+       22.114095072551102,
+       56.50097033454069
+      ],
+      "face_index": 22957,
+      "length": 0.11440264658690391,
+      "surface_point": [
+       -40.307397240903185,
+       22.08456194039478,
+       56.467978684230296
+      ]
+     },
+     {
+      "exit_point": [
+       -134.00388248337825,
+       16.226527455620317,
+       20.935430670289197
+      ],
+      "face_index": 37202,
+      "length": 0.29361537385559877,
+      "surface_point": [
+       -134.14405868985995,
+       16.150635611692977,
+       20.688851987256637
+      ]
+     },
+     {
+      "exit_point": [
+       -165.03025940537628,
+       17.473467291793334,
+       69.317474060521
+      ],
+      "face_index": 34357,
+      "length": 1.4807921255143754,
+      "surface_point": [
+       -166.44966166875253,
+       17.091290318421297,
+       69.13863532106006
+      ]
+     },
+     {
+      "exit_point": [
+       -109.28805564049918,
+       33.81599426269531,
+       79.3840640042176
+      ],
+      "face_index": 73409,
+      "length": 1.5,
+      "surface_point": [
+       -109.28805564049918,
+       32.31599426269531,
+       79.3840640042176
+      ]
+     },
+     {
+      "exit_point": [
+       -97.468824255003,
+       32.31599426269531,
+       79.0729480248788
+      ],
+      "face_index": 43399,
+      "length": 1.5,
+      "surface_point": [
+       -97.468824255003,
+       33.81599426269531,
+       79.0729480248788
+      ]
+     },
+     {
+      "exit_point": [
+       -152.1913659351328,
+       6.686045511445689,
+       109.6469450933695
+      ],
+      "face_index": 8694,
+      "length": 1.6422520271971022,
+      "surface_point": [
+       -153.51666165408506,
+       6.27358545473261,
+       110.52470341989
+      ]
+     },
+     {
+      "exit_point": [
+       -135.5688456227416,
+       22.03567391568825,
+       127.44470565265628
+      ],
+      "face_index": 30638,
+      "length": 1.9846995685174424,
+      "surface_point": [
+       -135.3169780879201,
+       22.747610283429353,
+       125.60929242112942
+      ]
+     },
+     {
+      "exit_point": [
+       -76.41727761819355,
+       23.154255134073065,
+       34.698167592526445
+      ],
+      "face_index": 22368,
+      "length": 1.9860976631152192,
+      "surface_point": [
+       -76.6054361153373,
+       24.05605398947925,
+       36.45769569169748
+      ]
+     },
+     {
+      "exit_point": [
+       -94.49773915524563,
+       21.621752867528322,
+       18.13039039439783
+      ],
+      "face_index": 768,
+      "length": 1.986901658311688,
+      "surface_point": [
+       -95.07939587390963,
+       20.913976646065343,
+       16.367294684640033
+      ]
+     },
+     {
+      "exit_point": [
+       -149.45818757154345,
+       37.29406274219825,
+       78.19906733540822
+      ],
+      "face_index": 36775,
+      "length": 1.988974557839887,
+      "surface_point": [
+       -150.9835515919133,
+       36.24507421900176,
+       78.92632758820463
+      ]
+     }
+    ],
+    "status": "estimated"
+   },
+   "partial_errors": {},
+   "preprocessing": {
+    "area_degeneracy_threshold": 3.883136804210172e-10,
+    "exact_duplicate_vertices_welded": 184024,
+    "faces_removed": 0,
+    "repair_performed": false
+   },
+   "preview": "b25bc6af602575eb4e33e55d046fc6ba024ac17c0f62828c0eb70ede52ad2c3e.png",
+   "schema_version": "1.0",
+   "sections": [
+    {
+     "axis": "X",
+     "closed_contour_count": 3,
+     "coordinate": -136.36381149291992,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 523.1390560054069
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 2,
+     "coordinate": -102.70386505126953,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 570.8269436973354
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 2,
+     "coordinate": -69.04391860961914,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 529.0153452540085
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 12.49974885955453,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 1018.4429304405118
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 9,
+     "coordinate": 25.18350388854742,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 1132.3354898337889
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 37.86725891754031,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 699.2397408742819
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 2,
+     "coordinate": 42.649818420410156,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 1,
+     "total_length": 544.4149909750504
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 3,
+     "coordinate": 76.31123352050781,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 647.0177333786793
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 3,
+     "coordinate": 109.97264862060547,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 524.123505763841
+    }
+   ],
+   "software": {
+    "numpy": "2.3.4",
+    "trimesh": "5.1.1"
+   },
+   "status": "checks_passed",
+   "status_scope": "listed mesh checks only; self-intersections and printability are unverified",
+   "topology": {
+    "boundary_edge_examples": [],
+    "boundary_edges": 0,
+    "component_count": 1,
+    "components": [
+     {
+      "bounds": [
+       [
+        -170.0237579345703,
+        -0.18400616943836212,
+        8.9884033203125
+       ],
+       [
+        -35.38397216796875,
+        50.5510139465332,
+        143.63406372070312
+       ]
+      ],
+      "euler_number": -14,
+      "faces": 73604,
+      "genus": 8,
+      "signed_volume": 152622.59632033843,
+      "surface_area": 76648.12504523531,
+      "vertices": 36788,
+      "watertight": true,
+      "winding_consistent": true
+     }
+    ],
+    "euler_number": -14,
+    "nonmanifold_edge_examples": [],
+    "nonmanifold_edges": 0,
+    "unique_edges": 110406,
+    "vertices_after_exact_weld": 36788,
+    "watertight": true,
+    "winding_consistent": true
+   },
+   "units": {
+    "area_unit": "coordinate_unit^2",
+    "coordinate_unit": "mm",
+    "input_unit": "mm",
+    "scale_applied": 1,
+    "source": "caller_supplied",
+    "volume_unit": "coordinate_unit^3"
+   },
+   "validation": {
+    "defects": [],
+    "degenerate_faces": 0,
+    "duplicate_faces": 0,
+    "finite_coordinates": true,
+    "self_intersections": "not_checked",
+    "shell_intersections_and_nesting": "not_checked",
+    "vertex_manifoldness": "not_checked"
+   },
+   "warnings": [
+    "Self-intersections and intersections/nesting between shells are not checked.",
+    "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+    "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+   ]
+  },
+  "sha256": "c78061849c43078ea5dda6e21e9f0614735d36f57880441b829ed529ffe89510"
+ },
+ "unknowns": [
+  "Марка и производитель филамента не заданы, подбираются по критериям ТЗ.",
+  "Количество деталей в заказе не указано.",
+  "Допуски и посадочные размеры отверстия под вал и шпоночного паза не приведены, кроме требования по моменту 12 Н·м.",
+  "Требования к шероховатости поверхностей проточной части не заданы.",
+  "Допустимость постобработки, отжига, балансировки и покрытий не указана.",
+  "Допустимость технологических правок геометрии модели не указана.",
+  "Пиковое давление и параметры гидроудара не заданы, указан только рабочий режим до 16 бар.",
+  "Требования к испытаниям и приёмке готовой детали не описаны."
+ ],
+ "versions": {
+  "analyzer": "1.2-partial",
+  "model": "dashscope/qwen3.8-flash",
+  "prompt.analyst_environment": "12b04fa4463a",
+  "prompt.analyst_geometry": "85b0c8a88f93",
+  "prompt.analyst_loads": "718df8c009f4",
+  "prompt.analyst_production": "f3db2426091a",
+  "prompt.consolidator": "7da17cfb1fce",
+  "prompt.discrepancies": "0fb0fdebc89e",
+  "prompt.gate": "22ac670f7df7",
+  "prompt.interpreter": "ab745d1ff6c2",
+  "prompt.judge": "3351a34759b1",
+  "prompt.second_reading": "03e3e41c53f6",
+  "prompt.triage": "ecfcb776e059",
+  "rules": "4"
+ }
+}

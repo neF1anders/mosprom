@@ -1,0 +1,4 @@
+{
+  "note": "Printer data the catalog of the build does not carry. Everything else (table, heights and shape per mode, heated bed, usable area, nozzle, filament, quality profiles, slicer defaults) is read from the catalog. default_quality is preferred_quality_type of the fdmprinter metadata; a test compares it with the build.",
+  "default_quality": "normal"
+}

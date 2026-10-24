@@ -1,11 +1,9 @@
-"""Deterministic unit conversion and quantity comparison within one physical dimension."""
+"""Deterministic unit conversion within one physical dimension."""
 
 from __future__ import annotations
 
 import re
 from decimal import Decimal, InvalidOperation
-
-STL_UNITS = ("mm", "cm", "m", "inch")
 
 _LINEAR: dict[str, tuple[str, str]] = {
     "мкм": ("length", "0.001"),
@@ -59,9 +57,12 @@ _LINEAR: dict[str, tuple[str, str]] = {
     "ч": ("time", "3600"),
     "rpm": ("rotation", "1"),
     "об/мин": ("rotation", "1"),
+    "%": ("ratio", "1"),
 }
 _TEMPERATURE = {"c", "°c", "с°", "°с", "k", "к", "f", "°f"}
-_NUMBER = re.compile(r"(?<![\w.,])-?\d+(?:[.,]\d+)?")
+# A number does not continue a word, a list or a dotted version ("v.2", "1.5.7"), but may
+# follow the two dots of a range ("-10..70").
+_NUMBER = re.compile(r"(?<![\w,])(?<![^.]\.)(?<!^\.)-?\d+(?:[.,]\d+)?")
 
 
 def canonical(unit: str | None) -> str:
@@ -121,17 +122,3 @@ def numbers(text: str) -> list[Decimal]:
 
 def plain(value: Decimal) -> str:
     return format(value.normalize(), "f")
-
-
-def quantity_key(value: str, unit: str | None) -> tuple[str, tuple[str, ...]]:
-    """Comparable identity of a stated quantity; ranges keep every bound."""
-    found = numbers(value)
-    if not found:
-        return ("text", (" ".join(value.casefold().split()),))
-    kind = dimension(unit)
-    if kind is None:
-        return (canonical(unit), tuple(plain(n) for n in found))
-    base = {"temperature": "°c"}.get(kind) or next(
-        name for name, (dim, factor) in _LINEAR.items() if dim == kind and factor == "1"
-    )
-    return (kind, tuple(plain(convert(n, unit or "", base)) for n in found))

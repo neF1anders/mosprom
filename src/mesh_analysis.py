@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import re
 import struct
 import subprocess
@@ -23,6 +24,17 @@ import trimesh
 
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_MAX_FACES = 2_000_000
+# Shared with stage 2 rules (docs/stage1-contract.schema.json), so a 0.05 overhang
+# threshold means the same on both sides.
+OVERHANG_ANGLE = 45  # degrees from vertical
+# A normal this close to the limit counts as on it: the float32 coordinates of STL leave a
+# 45 degree chamfer either side of sin 45 depending on where the part sits in the file.
+LIMIT_TOLERANCE = 1e-4
+BED_BAND = 0.2
+BELTS, SECTORS = 24, 36
+ROUND_CV = 0.03  # radius variation below which a belt counts as round
+PAIRS = 1 << 22  # points x edges compared at once in the loop tests
+DOWN, UP = np.array([0.0, 0.0, -1.0]), np.array([0.0, 0.0, 1.0])
 
 
 def statistics(values: np.ndarray) -> dict[str, Any]:
@@ -171,6 +183,319 @@ def section_summary(mesh: trimesh.Trimesh) -> list[dict]:
     return result
 
 
+def _finite(value: Any, digits: int) -> float | None:
+    """Rounded plain float, None for NaN/inf: checkpoints are dumped with allow_nan=False."""
+    value = float(value)
+    if not math.isfinite(value):
+        return None
+    return round(value, digits) + 0.0  # + 0.0 turns -0.0 into 0.0
+
+
+def _vector(values: Any, digits: int) -> list[float] | None:
+    result = [_finite(v, digits) for v in values]
+    return None if None in result else result
+
+
+def _present(record: dict, keep: tuple[str, ...] = ()) -> dict:
+    # The contract types numbers as plain numbers: a missing value is omitted, not null.
+    return {k: v for k, v in record.items() if v is not None or k in keep}
+
+
+def overhang_stats(mesh: trimesh.Trimesh, rotation: np.ndarray) -> dict:
+    """Down-facing faces beyond 45 degrees from vertical after the rotation.
+
+    Dropping the model onto the bed is a translation and does not change them.
+    """
+    up = rotation[2]  # rotated z in STL coordinates
+    normal_z = mesh.face_normals @ up
+    face_z = (mesh.vertices @ up)[mesh.faces]
+    # Faces wholly inside the band rest on the bed and need no support.
+    in_band = face_z.max(axis=1) <= face_z.min() + BED_BAND
+    areas = mesh.area_faces
+    over = (normal_z < -math.sin(math.radians(OVERHANG_ANGLE)) - LIMIT_TOLERANCE) & ~in_band
+    area, total = float(areas[over].sum()), float(mesh.area)
+    extents = np.ptp(mesh.vertices @ rotation.T, axis=0)
+    return {
+        "area_mm2": _finite(area, 1),
+        "area_fraction": _finite(area / total, 4) if total > 0 else 0.0,
+        "bed_contact_area_mm2": _finite(areas[in_band & (normal_z < -0.98)].sum(), 1),
+        "height_mm": _finite(extents[2], 2),
+        "extents_mm": _vector(extents, 2),
+    }
+
+
+def overhangs(mesh: trimesh.Trimesh) -> dict:
+    stats = overhang_stats(mesh, np.eye(3))
+    return _present({
+        "critical_angle_deg": OVERHANG_ANGLE,
+        "bed_band_mm": BED_BAND,
+        "area_mm2": stats["area_mm2"],
+        "area_fraction": stats["area_fraction"],
+        "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
+        "method": (
+            f"face_normals_as_loaded; n_z_below_minus_sin45_by_{LIMIT_TOLERANCE:g}; "
+            "faces_within_bed_band_excluded"
+        ),
+    })
+
+
+def _rotation_between(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Rotation taking direction a onto direction b."""
+    a, b = a / np.linalg.norm(a), b / np.linalg.norm(b)
+    v, c = np.cross(a, b), float(np.dot(a, b))
+    if c < -1 + 1e-9:
+        axis = np.cross(a, [1, 0, 0]) if abs(a[0]) < 0.9 else np.cross(a, [0, 1, 0])
+        axis /= np.linalg.norm(axis)
+        return 2 * np.outer(axis, axis) - np.eye(3)
+    k = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+    return np.eye(3) + k + k @ k / (1 + c)
+
+
+def _surface_frame(mesh: trimesh.Trimesh) -> tuple[np.ndarray, np.ndarray]:
+    """Area-weighted centroid and principal axes of the surface; works on open meshes."""
+    centers, weights = mesh.triangles_center, mesh.area_faces
+    centroid = (centers * weights[:, None]).sum(0) / weights.sum()
+    d = centers - centroid
+    covariance = (d.T * weights) @ d / weights.sum()
+    _, vectors = np.linalg.eigh(covariance)
+    return centroid, vectors.T
+
+
+def _loop_area(points: np.ndarray) -> float:
+    x, y = points[:, 0], points[:, 1]
+    return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+
+
+def _inside(points: np.ndarray, loop: np.ndarray) -> np.ndarray:
+    """Even-odd test of each point against one closed loop."""
+    xs, ys = loop[:, 0], loop[:, 1]
+    xn, yn = np.roll(xs, -1), np.roll(ys, -1)
+    result = np.empty(len(points), dtype=bool)
+    step = max(1, PAIRS // len(loop))  # bounds the points x edges arrays
+    for first in range(0, len(points), step):
+        x, y = points[first : first + step, :1], points[first : first + step, 1:]
+        crosses = ((ys > y) != (yn > y)) & (x < (xn - xs) * (y - ys) / (yn - ys + 1e-30) + xs)
+        result[first : first + step] = np.count_nonzero(crosses, axis=1) % 2 == 1
+    return result
+
+
+def _boxes(loops: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    return np.array([loop.min(axis=0) for loop in loops]), np.array([loop.max(axis=0) for loop in loops])
+
+
+def _material_area(loops: list[np.ndarray]) -> float:
+    """Area of a closed section: a loop inside an odd number of others cuts a hole."""
+    starts = np.array([loop[0] for loop in loops])
+    lows, highs = _boxes(loops)
+    depth = np.zeros(len(loops), dtype=int)
+    step = max(1, PAIRS // len(loops))
+    for first in range(0, len(loops), step):
+        chunk = starts[first : first + step, None]
+        # A start can be inside only the loops whose bounding box holds it.
+        near = ((chunk >= lows) & (chunk <= highs)).all(axis=2)
+        rows = np.arange(len(near))
+        near[rows, rows + first] = False
+        for index in np.nonzero(near.any(axis=0))[0]:
+            held = first + np.nonzero(near[:, index])[0]
+            depth[held] += _inside(starts[held], loops[index])
+    return sum(abs(_loop_area(loop)) * (1 if d % 2 == 0 else -1) for loop, d in zip(loops, depth))
+
+
+def _sectors(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Smallest radius per angular sector around the origin and the farthest point of each."""
+    radius = np.hypot(x, y)
+    sector = ((np.arctan2(y, x) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS
+    inner, outer_xy = np.full(SECTORS, np.nan), np.full((SECTORS, 2), np.nan)
+    for s in range(SECTORS):
+        mask = sector == s
+        if mask.any():
+            k = np.argmax(np.where(mask, radius, -1))
+            inner[s] = radius[mask].min()
+            outer_xy[s] = x[k], y[k]
+    return inner, outer_xy
+
+
+def _bore(loops: list[np.ndarray], closed: bool, centre: np.ndarray, outer: float) -> float | None:
+    """Inscribed radius of the bore around the axis through ``centre``, None without one."""
+    if closed:
+        lows, highs = _boxes(loops)
+        around = np.nonzero(((centre >= lows) & (centre <= highs)).all(axis=1))[0]
+        encircling = [loops[i] for i in around if _inside(centre[None], loops[i])[0]]
+        if len(encircling) < 2:
+            return None
+        # The smallest loop around the axis is the bore; its nearest point is the inscribed radius.
+        smallest = min(encircling, key=lambda loop: abs(_loop_area(loop)))
+        return float(np.hypot(*(_densify(smallest) - centre).T).min())
+    # Open section: a bore is the surface well inside the outer radius in every sector.
+    points = np.vstack([_densify(loop) for loop in loops]) - centre
+    inner, _ = _sectors(*points.T)
+    ring = not np.isnan(inner).any() and (inner < 0.9 * outer).all()
+    return float(inner.min()) if ring else None
+
+
+def _densify(loop: np.ndarray) -> np.ndarray:
+    # Ten points per segment, so a coarse facet does not leave sectors empty.
+    steps = np.linspace(0, 1, 10, endpoint=False)
+    start, step = loop[:-1, None, :], (loop[1:] - loop[:-1])[:, None, :]
+    return (start + step * steps[None, :, None]).reshape(-1, loop.shape[1])
+
+
+def _belts(mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray) -> tuple[list, float, np.ndarray, np.ndarray]:
+    """Sections across the axis: the farthest point per sector around the centroid, the loops
+    in the plane of the belt and their area."""
+    axis = axis / np.linalg.norm(axis)
+    u = np.cross(axis, [1, 0, 0] if abs(axis[0]) < 0.9 else [0, 1, 0])
+    u /= np.linalg.norm(u)
+    v = np.cross(axis, u)
+    t = (mesh.vertices - centroid) @ axis
+    low, length = float(t.min()), float(np.ptp(t))
+    face_t = t[mesh.faces]
+    face_low, face_high = face_t.min(axis=1), face_t.max(axis=1)
+    pad = 1e-6 * (1.0 + length)  # wider than trimesh's merge tolerance
+    rows: list[dict | None] = []
+    for i in range(BELTS):
+        height = low + (i + 0.5) * length / BELTS
+        # Only faces spanning the plane can cross it, so trimesh cuts the same segments
+        # without classifying the whole mesh 144 times.
+        near = np.nonzero((face_low <= height + pad) & (face_high >= height - pad))[0]
+        path = (
+            mesh.section(plane_origin=centroid + axis * height, plane_normal=axis, local_faces=near)
+            if len(near)
+            else None
+        )
+        loops = [] if path is None else [np.asarray(loop) for loop in path.discrete]
+        if not loops:
+            rows.append(None)
+            continue
+        points = np.vstack([_densify(loop) for loop in loops]) - centroid
+        _, outer_xy = _sectors(points @ u, points @ v)
+        planar = [np.c_[(loop - centroid) @ u, (loop - centroid) @ v] for loop in loops]
+        closed = all(np.allclose(loop[0], loop[-1]) for loop in loops)
+        area = _material_area(planar) if closed else None
+        rows.append({"outer_xy": outer_xy, "loops": planar, "area": area, "closed": closed})
+    return rows, length, u, v
+
+
+def revolution(mesh: trimesh.Trimesh) -> dict:
+    """Best axis among principal and coordinate axes by the share of round belts."""
+    method = (
+        f"surface_sections; {BELTS}_belts_x_{SECTORS}_sectors; principal_and_coordinate_axes; "
+        f"round_if_radius_cv_below_{ROUND_CV}"
+    )
+    if not mesh.area > 0:
+        return {"is_revolution": False, "method": method}
+    centroid, principal = _surface_frame(mesh)
+    axes = list(principal)
+    for coordinate in np.eye(3):
+        if all(abs(float(np.dot(coordinate, a))) < 0.999 for a in axes):
+            axes.append(coordinate)
+    best = None
+    for axis in axes:
+        rows, length, u, v = _belts(mesh, centroid, axis)
+        fits = []
+        for row in rows:
+            xy = None if row is None else row["outer_xy"][~np.isnan(row["outer_xy"][:, 0])]
+            if xy is None or len(xy) < SECTORS * 0.8:
+                fits.append(None)
+                continue
+            a = np.c_[xy, np.ones(len(xy))]
+            sol, *_ = np.linalg.lstsq(a, (xy**2).sum(1), rcond=None)
+            centre = sol[:2] / 2
+            r = np.hypot(*(xy - centre).T)
+            fits.append((centre, float(r.std() / r.mean())))
+        # The axis passes through the median centre of the round belts, not the centroid.
+        round_centres = [f[0] for f in fits if f is not None and f[1] < ROUND_CV]
+        shift = np.median(round_centres, axis=0) if round_centres else np.zeros(2)
+        cvs, outer_radii, bores, fills = [], [], [], []
+        for row, fit in zip(rows, fits):
+            if row is None:
+                continue
+            if fit is None:
+                cvs.append(1.0)
+                continue
+            xy = row["outer_xy"][~np.isnan(row["outer_xy"][:, 0])] - shift
+            outer = np.hypot(*xy.T)
+            cvs.append(float(outer.std() / outer.mean()))
+            outer_radii.append(float(outer.mean()))
+            # Measured around the axis: the centroid of a lopsided part is off it.
+            bores.append(_bore(row["loops"], row["closed"], shift, float(outer.mean())))
+            if row["area"] is not None:
+                annulus = math.pi * (outer.mean() ** 2 - (bores[-1] or 0.0) ** 2)
+                fills.append(row["area"] / annulus if annulus > 0 else None)
+        if not cvs:
+            continue
+        symmetry = max(0.0, 1 - float(np.median(cvs)))
+        round_fraction = sum(cv < ROUND_CV for cv in cvs) / BELTS
+        candidate = (round_fraction, symmetry)
+        if best is not None and candidate <= best[0]:
+            continue
+        present = [b for b in bores if b is not None]
+        outer_radius = max(outer_radii) if outer_radii else None
+        bore_radius = min(present) if present else None
+        fill = [f for f in fills if f is not None]
+        result = {
+            "is_revolution": round_fraction >= 0.6,
+            "axis_direction": _vector(axis, 4),
+            "axis_point": _vector(centroid + shift[0] * u + shift[1] * v, 3),
+            "symmetry_score": _finite(symmetry, 3),
+            "round_fraction": _finite(round_fraction, 3),
+            "outer_diameter_mm": _finite(2 * outer_radius, 2) if outer_radius else None,
+            "length_along_axis_mm": _finite(length, 2),
+            "bore": _present({
+                "through": len(bores) == BELTS and all(b is not None for b in bores),
+                "diameter_mm": _finite(2 * bore_radius, 2),
+                "length_mm": _finite(len(present) * length / BELTS, 2),
+            }) if bore_radius is not None else None,
+            # Outer radius is a mean over sectors, so a non-round section can overfill the ring.
+            "annulus_fill": _finite(min(1.0, float(np.median(fill))), 3) if fill else None,
+            # Without a bore the wall reaches the axis: (R - 0) / R.
+            "wall_to_radius": _finite(max(0.0, 1 - (bore_radius or 0.0) / outer_radius), 3)
+            if outer_radius
+            else None,
+            "belts": BELTS,
+            "sectors": SECTORS,
+            "method": method,
+        }
+        best = (candidate, _present(result, keep=("bore",)))
+    return best[1] if best else {"is_revolution": False, "method": method}
+
+
+def orientations(mesh: trimesh.Trimesh, axis: list[float] | None) -> list[dict]:
+    """Up to 12 bed orientations; o1 is always the file as loaded."""
+    candidates = [("as_loaded", np.eye(3))]
+    for side in ([1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1]):
+        candidates.append(("axis_aligned", _rotation_between(np.array(side, float), DOWN)))
+    normals = np.round(mesh.face_normals, 2)
+    groups, inverse = np.unique(normals, axis=0, return_inverse=True)
+    totals = np.bincount(inverse.ravel(), weights=mesh.area_faces)
+    flat = groups[np.argmax(totals)].astype(float)
+    if np.linalg.norm(flat) > 0.5:  # degenerate faces have zero normals
+        candidates.append(("largest_flat_face", _rotation_between(flat, DOWN)))
+    if axis is not None:
+        a = np.array(axis, float)
+        candidates.append(("revolution_axis", _rotation_between(a, UP)))
+        candidates.append(("revolution_axis", _rotation_between(-a, UP)))
+    result, seen = [], []
+    for source, rotation in candidates:
+        # Rotations that put the same STL direction down are one candidate.
+        key = np.round(rotation.T @ DOWN, 3)
+        if any(np.allclose(key, k) for k in seen):
+            continue
+        seen.append(key)
+        stats = overhang_stats(mesh, rotation)
+        result.append(_present({
+            "id": f"o{len(result) + 1}",
+            "source": source,
+            "rotation": [_vector(row, 6) for row in rotation],
+            "overhang_area_mm2": stats["area_mm2"],
+            "overhang_area_fraction": stats["area_fraction"],
+            "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
+            "height_mm": stats["height_mm"],
+            "extents_mm": stats["extents_mm"],
+        }))
+    return result[:12]
+
+
 def analyze_stl(
     path: Path | str,
     *,
@@ -195,7 +520,7 @@ def analyze_stl(
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
     if checkpoint:
         checkpoint({
-            "schema_version": "1.1", "status": "partial",
+            "schema_version": "1.2", "status": "partial",
             "file": {"path": str(path), **file_info},
             "geometry": {"bounds": mesh.bounds.tolist(), "extents": mesh.extents.tolist(), "volume": None},
             "units": {"input_unit": units, "coordinate_unit": "unknown" if units == "unknown" else "mm"},
@@ -281,12 +606,20 @@ def analyze_stl(
         ),
     }
     partial_errors = {}
+    # Stage 2 sections; each is optional, a failure leaves the rest of the report intact.
+    extra: dict[str, Any] = {}
+    # Overhangs are cheap and go into the checkpoint, so a model cut by the time limit keeps them.
+    try:
+        extra["overhangs"] = overhangs(mesh)
+    except Exception as exc:
+        partial_errors["overhangs"] = type(exc).__name__
     base_checkpoint = {
-        "schema_version": "1.1", "status": "partial",
+        "schema_version": "1.2", "status": "partial",
         "file": {"path": str(path), **file_info},
         "geometry": geometry, "validation": {"defects": defects},
         "units": {"input_unit": units, "coordinate_unit": "unknown" if units == "unknown" else "mm"},
         "topology": {"component_count": len(parts)},
+        **extra,
         "warnings": warnings, "partial_errors": partial_errors,
     }
     if checkpoint:
@@ -335,8 +668,20 @@ def analyze_stl(
     except Exception as exc:  # preserve validated geometry on section failure
         partial_errors["sections"] = type(exc).__name__
         sections = []
+    try:
+        extra["revolution"] = revolution(mesh)
+    except Exception as exc:
+        partial_errors["revolution"] = type(exc).__name__
+        extra["revolution"] = None  # contract: null means the analysis did not run
+    try:
+        axis_of = extra["revolution"] or {}
+        extra["orientations"] = orientations(
+            mesh, axis_of.get("axis_direction") if axis_of.get("is_revolution") else None
+        )
+    except Exception as exc:
+        partial_errors["orientations"] = type(exc).__name__
     report = {
-        "schema_version": "1.0",
+        "schema_version": "1.2",
         "status": "issues_found" if defects else "checks_passed",
         "status_scope": "listed mesh checks only; self-intersections and printability are unverified",
         "file": {"path": str(path), **file_info},
@@ -381,6 +726,7 @@ def analyze_stl(
         "sections": sections,
         "partial_errors": partial_errors,
         "normal_chords": chord_report,
+        **extra,
         "warnings": warnings,
         "elapsed_seconds": round(time.perf_counter() - started, 4),
     }
@@ -444,6 +790,19 @@ def markdown_report(report: dict) -> str:
         f"Граничных рёбер: {t['boundary_edges']}; неманифолдных рёбер: {t['nonmanifold_edges']}",
         f"Дубликатов граней: {v['duplicate_faces']}; вырожденных граней: {v['degenerate_faces']}",
         f"Дефекты: {', '.join(v['defects']) or 'не обнаружены перечисленными проверками'}",
+    ]
+    o, r = report.get("overhangs"), report.get("revolution")
+    if o:
+        text.append(
+            f"Нависания круче {o['critical_angle_deg']}° в положении из файла: {o.get('area_mm2')} ({o.get('area_fraction')} площади); опора на стол: {o.get('bed_contact_area_mm2')}"
+        )
+    if r:
+        bore = r.get("bore")
+        text.append(
+            f"Тело вращения: {r['is_revolution']}; доля круглых поясов: {r.get('round_fraction')}; ось: {r.get('axis_direction')}; отверстие: "
+            + (f"{bore.get('diameter_mm')}, сквозное: {bore['through']}" if bore else "нет")
+        )
+    text += [
         "",
         "## Выборочная оценка хорд",
         "",
@@ -456,7 +815,7 @@ def markdown_report(report: dict) -> str:
     text.extend(
         [
             "",
-            "Полные измерения, статистика, оболочки, PCA и девять сечений доступны в соседнем JSON.",
+            "Полные измерения, статистика, оболочки, PCA, девять сечений и кандидаты ориентации доступны в соседнем JSON.",
             "",
         ]
     )
@@ -516,7 +875,7 @@ def main() -> int:
                     report.setdefault("partial_errors", {})["preview"] = type(exc).__name__
         except Exception as exc:  # process boundary: convert failures into explicit machine-readable errors
             report = {
-                "schema_version": "1.0",
+                "schema_version": "1.2",
                 "status": "error",
                 "file": {"path": str(args.inputs[0].resolve())},
                 "error": f"{type(exc).__name__}: {exc}",
@@ -577,7 +936,7 @@ def main() -> int:
             json.JSONDecodeError,
         ) as exc:
             report = {
-                "schema_version": "1.0",
+                "schema_version": "1.2",
                 "status": "error",
                 "file": {"path": str(path)},
                 "error": f"{type(exc).__name__}: analysis failed or timed out",

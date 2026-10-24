@@ -15,7 +15,7 @@ TEST_DATABASE = os.environ.get(
 )
 TABLES = (
     "jobs, messages, attachments, events, receipts, operation_cache, knowledge, agent_calls, "
-    "procrastinate_jobs, procrastinate_events"
+    "stage_results, procrastinate_jobs, procrastinate_events"
 )
 
 
@@ -25,9 +25,13 @@ async def pg(tmp_path):
         pytest.fail("Integration tests require a database ending in _test")
     app = create_app(
         Settings(
+            # The developer's .env, with its real slicer folder, never reaches a test.
+            _env_file=None,
             database_url=TEST_DATABASE,
             session_secret="test-secret-" * 4,
             data_dir=tmp_path,
+            # No slicer runs here unless a test starts the stand-in in this folder.
+            slicer_folder=tmp_path / "slicer",
             qwen_api_key="test",
             app_origin="http://localhost:8000",
         )

@@ -1,7 +1,7 @@
 import pytest
 
 from src.backend.agents.runner import AgentRunner, AgentSpec, parse_output
-from src.backend.agents.schemas import Draft, JudgeVerdict
+from src.backend.agents.schemas import Draft, Output
 from src.backend.agents.tools import ToolBox
 from src.backend.domain.errors import AppError
 
@@ -9,6 +9,10 @@ from .fakes import FakeUow, ScriptedModel, call, context, reply
 
 pytestmark = pytest.mark.unit
 SPEC = AgentSpec("interpreter", "Разбор ТЗ", Draft, ("convert_units",), max_steps=3)
+
+
+class Scored(Output):
+    score: float
 
 
 def runner(script) -> tuple[AgentRunner, ScriptedModel, FakeUow]:
@@ -40,7 +44,7 @@ def test_non_object_answer_is_a_technical_error(text):
 
 def test_missing_required_scalar_is_an_error():
     with pytest.raises(AppError):
-        parse_output('{"remarks": []}', JudgeVerdict)
+        parse_output('{"remarks": []}', Scored)
 
 
 async def test_tool_loop_repeated_calls_and_tracing():
@@ -157,3 +161,51 @@ async def test_each_step_traces_only_the_messages_it_added():
     assert first["offset"] == 0 and [m["role"] for m in first["messages"]] == ["system", "user"]
     assert second["offset"] == 2
     assert [m["role"] for m in second["messages"]] == ["assistant", "tool"]
+
+
+async def test_a_later_turn_is_reused_only_for_the_same_history():
+    agent, model, _ = runner(
+        {"interpreter": [reply({"purpose": "Ответ"}), reply({"purpose": "Другой"})]}
+    )
+    dialog = [
+        {"role": "user", "content": [{"type": "text", "text": "ТЗ"}]},
+        {"role": "assistant", "content": '{"purpose": "Деталь"}'},
+        {"role": "user", "content": "Ответы"},
+    ]
+    assert (await agent.converse(SPEC, dialog, context())).purpose == "Ответ"
+    assert (await agent.converse(SPEC, dialog, context())).purpose == "Ответ"
+    sent = model.requests["interpreter"][0]["messages"]
+    assert [m["role"] for m in sent] == ["system", "user", "assistant", "user"]
+    changed = [*dialog[:2], {"role": "user", "content": "Другие ответы"}]
+    assert (await agent.converse(SPEC, changed, context())).purpose == "Другой"
+    assert len(model.requests["interpreter"]) == 2
+
+
+async def test_talk_offers_the_tools_but_does_not_run_them():
+    tool = {"type": "function", "function": {"name": "start_pipeline", "parameters": {}}}
+    agent, model, uow = runner({"gate": [reply("", tool_calls=[call("start_pipeline", {})])]})
+    spec = AgentSpec("gate", "Ассистент", Output, max_steps=1, thinking=False)
+    messages = [
+        {"role": "system", "content": "Ты ассистент"},
+        {"role": "user", "content": "Привет"},
+    ]
+    answer = await agent.talk(spec, messages, [tool], context())
+    assert answer.tool_calls[0]["function"]["name"] == "start_pipeline"
+    assert model.requests["gate"][0]["tools"] == [tool]
+    assert model.requests["gate"][0]["thinking"] is False
+    assert len(uow.traces.calls) == 1 and uow.cache.values == {}
+
+
+def test_a_null_in_an_optional_field_keeps_the_item():
+    """Regression: "conditions": null dropped the whole requirement it belonged to."""
+    text = """{"requirements": [
+      {"key": "duty", "label": null, "value": "24/7", "unit": null, "conditions": null,
+       "sources": [{"source_id": "f1p1", "page": null, "quote": "режим 24/7"}]},
+      {"key": "brittle", "value": null}
+    ]}"""
+    draft, dropped = parse_output(text, Draft)
+    [duty] = draft.requirements
+    assert (duty.key, duty.label, duty.conditions, duty.unit) == ("duty", "", "", None)
+    assert duty.sources[0].quote == "режим 24/7"
+    # A null in a required field still makes the item unusable.
+    assert dropped == ["requirements[1]: Input should be a valid string"]

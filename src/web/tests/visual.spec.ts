@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { open, send, settled } from "./helpers";
+import { open, settled, task } from "./helpers";
 test("T14 Figma desktop and narrow view artifacts", async ({ page }, info) => {
   await open(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.screenshot({ path: info.outputPath("start-desktop.png") });
-  await send(page, "TEST_QUESTIONS Проверка макета");
+  await task(page, "TEST_QUESTIONS Проверка макета");
   await settled(page);
   await page.screenshot({ path: info.outputPath("questions-desktop.png") });
   await page.setViewportSize({ width: 390, height: 844 });

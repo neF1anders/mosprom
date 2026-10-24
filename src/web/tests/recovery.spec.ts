@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { answer, open, send, settled, upload } from "./helpers";
+import { open, pipelineDone, send, settled, task, upload } from "./helpers";
 test.beforeEach(async ({ page }) => open(page));
 
 test("T12 reconnect catches up and reopens same task", async ({
@@ -23,7 +23,8 @@ test("T12 reconnect catches up and reopens same task", async ({
 });
 
 test("T11 stop at safe point, resume, retain correction", async ({ page }) => {
-  await send(page, "TEST_DELAY Шестерня");
+  // With a model the gate starts the work, so the stop lands in a real run.
+  await task(page, "TEST_DELAY Шестерня");
   await expect(
     page.getByRole("status").filter({ hasText: "Обрабатываю" }),
   ).toBeVisible();
@@ -43,11 +44,15 @@ test("T11 stop at safe point, resume, retain correction", async ({ page }) => {
 test("T01 remove corrupt attachment unblocks document preparation", async ({
   page,
 }) => {
-  await upload(page, "corrupt.pdf");
+  await upload(page, "corrupt.pdf", "box.stl");
   await page
     .getByText("Не удалось прочитать файл", { exact: false })
     .first()
     .waitFor();
+  await settled(page);
+  await expect(
+    page.getByText("Не прочитаны файлы corrupt.pdf").first(),
+  ).toBeAttached();
   await page
     .getByRole("region", { name: "Вложения" })
     .getByLabel("Действия с файлом", { exact: true })
@@ -59,7 +64,7 @@ test("T01 remove corrupt attachment unblocks document preparation", async ({
     page.getByRole("link", { name: "corrupt.pdf", exact: true }),
   ).not.toBeVisible();
   await send(page, "Декоративная фигурка");
-  await settled(page);
+  await pipelineDone(page);
   await expect(page.getByText("Не прочитаны файлы corrupt.pdf")).toHaveCount(0);
 });
 
@@ -89,13 +94,8 @@ test("T14 draft survives network error and double submit sends once", async ({
 test("T13 downloaded card embeds the full STL report of the active file", async ({
   page,
 }) => {
-  await send(page, "Фигурка");
-  await upload(page, "box.stl");
-  await settled(page);
-  await answer(page, "mm");
-  await expect(
-    page.getByRole("status").filter({ hasText: "Первый этап завершён" }),
-  ).toBeVisible();
+  await task(page, "Фигурка");
+  await pipelineDone(page);
   const href = await page
     .getByRole("link", { name: "Скачать карточку JSON" })
     .getAttribute("href");
@@ -104,9 +104,8 @@ test("T13 downloaded card embeds the full STL report of the active file", async 
   const card = await result.json();
   expect(card.schema_version).toBe("2.0");
   expect(card.geometry.units).toBe("mm");
-  expect(
-    card.questions.find((q: { id: string }) => q.id === "units").answer,
-  ).toBe("mm");
+  // STL is read in millimetres like in Cura, so nobody is asked about units.
+  expect(card.questions).toEqual([]);
   expect(card.stl_analysis.sha256).toMatch(/^[a-f0-9]{64}$/);
   expect(card.stl_analysis.report.file.sha256).toBe(card.stl_analysis.sha256);
   expect(card.stl_analysis.report.units.input_unit).toBe("mm");

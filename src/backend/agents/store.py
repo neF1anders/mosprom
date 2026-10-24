@@ -2,42 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
-from ..domain.errors import OperationCancelled
 from ..domain.models import Attachment, Event, Job, Knowledge, Message, Status, TaskCard
+from ..domain.pipeline import restart
 from ..domain.transitions import transition
-from ..ports.persistence import UowFactory
+from ..pipeline.store import JobStore, ensure_current
+from ..ports.persistence import UnitOfWork
 from .runner import RunContext
 
-HALTED = {Status.STOPPING, Status.STOPPED}
 PAGE = 100
+FILES_CHANGED = "Файлы изменились, отправьте задание, чтобы я их учёл"
 
 
-def _ensure_current(revision: int, status: Status, expected: int) -> None:
-    """A newer revision or a stop ends the run at its next safe point."""
-    if revision != expected or status in HALTED:
-        raise OperationCancelled()
-
-
-class RunStore:
-    def __init__(self, uow: UowFactory):
-        self.uow = uow
-
-    async def update(self, ctx: RunContext, change: Callable[[Job], None]) -> Job:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            _ensure_current(job.revision, job.status, ctx.revision)
-            change(job)
-            await uow.jobs.save(job)
-            await uow.commit()
-        return job
-
-    async def check(self, job_id: str, revision: int) -> None:
-        async with self.uow() as uow:
-            head = await uow.jobs.head(job_id)
-        _ensure_current(head.revision, head.status, revision)
+class RunStore(JobStore):
+    """Stage one's reads and writes on top of the steps every stage shares."""
 
     async def job(self, job_id: str) -> Job:
         async with self.uow() as uow:
@@ -76,95 +55,72 @@ class RunStore:
             await uow.attachments.save(attachment)
             await uow.commit()
 
-    async def event(
-        self, job_id: str, revision: int, type: str, message: str, status: str = "running", **data
-    ) -> None:
-        async with self.uow() as uow:
-            await uow.events.append(
-                Event(
-                    job_id=job_id,
-                    revision=revision,
-                    type=type,
-                    status=status,
-                    message=message,
-                    data=data,
-                )
-            )
-            await uow.commit()
+    async def begin(self, ctx: RunContext) -> None:
+        """The work starts in this revision, so whatever the previous work made is dropped."""
+        await self.update(ctx.job_id, ctx.revision, restart)
 
-    async def finish(
-        self, ctx: RunContext, card: TaskCard | None, text: str, offtopic: str | None = None
-    ) -> None:
-        """Publishes the card and the reply; a ready card goes on to stage two."""
+    async def finish(self, ctx: RunContext, card: TaskCard, text: str) -> None:
+        """Publishes the card the work made; a ready card goes on to parameter selection."""
         async with self.uow() as uow:
             job = await uow.jobs.get(ctx.job_id, lock=True)
-            _ensure_current(job.revision, job.status, ctx.revision)
-            # Files attached during the run are not in this card, so it is not handed over.
-            if job.files_changed:
-                text = "Файлы изменились, отправьте задание, чтобы я их учёл"
-            blocked = card is None or card.readiness == "blocked" or job.files_changed
-            job.card, job.error, job.phase = card, None, None
-            job.status = transition(job.status, Status.WAITING if blocked else Status.COMPLETED)
-            if not blocked:
-                await uow.queue.stage2(job.id, job.revision)
-                job.next_stage = "queued"
-            await uow.jobs.save(job)
-            if offtopic is not None:
-                await uow.messages.mark(job.id, offtopic, "offtopic")
-            await uow.messages.add(
-                Message(job_id=job.id, revision=job.revision, role="assistant", text=text)
-            )
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="stage1.completed",
-                    status=job.status,
-                    message=text,
-                    data={"readiness": card.readiness if card else "blocked"},
-                )
-            )
+            ensure_current(job.revision, job.status, ctx.revision)
+            job.card = card
+            await _hand_over(uow, job)
+            await _publish(uow, job, FILES_CHANGED if job.files_changed else text, "chat")
             await uow.commit()
 
-    async def cancel(self, job_id: str) -> None:
-        """A stop requested during the run takes effect here; the event tells open chats."""
-        async with self.uow() as uow:
-            job = await uow.jobs.get(job_id, lock=True)
-            if job.status != Status.STOPPING:
-                return
-            job.status = transition(job.status, Status.STOPPED)
-            job.phase = None
-            await uow.jobs.save(job)
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="job.stopped",
-                    status=job.status,
-                    message="Остановлено",
-                )
-            )
-            await uow.commit()
+    async def reply(self, ctx: RunContext, text: str, kind: str, current: bool) -> None:
+        """The gate's reply when it starts no work; ``kind`` marks its request for details.
 
-    async def fail(self, ctx: RunContext, message: str, code: str) -> None:
+        The card of the files the job still has stays, and so does a project finished from
+        it; work left unfinished goes on. A card of other files no longer describes the part.
+        """
         async with self.uow() as uow:
             job = await uow.jobs.get(ctx.job_id, lock=True)
-            if job.revision != ctx.revision:
-                return
-            if job.status in HALTED:
-                job.status = Status.STOPPED
+            ensure_current(job.revision, job.status, ctx.revision)
+            if job.card is not None and not current:
+                job.card = None
+                restart(job)
+            elif job.card is not None:
+                job.card = job.card.model_copy(update={"revision": job.revision})
+            if job.stage == "done":
+                job.status = transition(job.status, Status.COMPLETED)
             else:
-                job.status, job.error = transition(job.status, Status.FAILED), message
-            job.phase = None
-            await uow.jobs.save(job)
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="operation.failed",
-                    status=job.status,
-                    message=message,
-                    data={"code": code},
-                )
-            )
+                await _hand_over(uow, job)
+            await _publish(uow, job, FILES_CHANGED if job.files_changed else text, kind)
             await uow.commit()
+
+
+async def _hand_over(uow: UnitOfWork, job: Job) -> None:
+    """A ready card waits in the queue for parameter selection, in the same transaction.
+
+    Files attached during the run are not in the card, so it waits for the user's send.
+    """
+    blocked = job.card is None or job.card.readiness == "blocked" or job.files_changed
+    job.status = transition(job.status, Status.WAITING if blocked else Status.QUEUED)
+    if not blocked:
+        await uow.queue.stage2(job.id, job.revision)
+        job.stage, job.work_revision = "parameters", job.revision
+
+
+async def _publish(uow: UnitOfWork, job: Job, text: str, kind: str) -> None:
+    await uow.jobs.save(job)
+    await uow.messages.add(
+        Message(
+            job_id=job.id,
+            revision=job.revision,
+            role="assistant",
+            kind=kind,  # type: ignore[arg-type]
+            text=text,
+        )
+    )
+    await uow.events.append(
+        Event(
+            job_id=job.id,
+            revision=job.revision,
+            type="stage1.completed",
+            status=job.status,
+            message=text,
+            data={"readiness": job.card.readiness if job.card else "blocked"},
+        )
+    )

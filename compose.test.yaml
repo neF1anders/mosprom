@@ -34,13 +34,22 @@ services:
       interval: 2s
       timeout: 3s
       retries: 60
+  # The stand-in of STE Slicer with its plugin, so the pipeline runs to a project.
+  slicer:
+    build: {context: ., target: tests}
+    command: [python, scripts/fake_ste_slicer.py, --folder, /slicer, --bind, 0.0.0.0]
+    volumes: ["test-slicer:/slicer"]
   worker:
     build: {context: ., target: runtime}
-    environment: *test_environment
+    environment:
+      <<: *test_environment
+      SLICER_FOLDER: /slicer
+      SLICER_HOST: slicer
     command: [python, -m, src.backend.worker]
-    volumes: ["test-files:/data"]
+    volumes: ["test-files:/data", "test-slicer:/slicer"]
     depends_on:
       api: {condition: service_healthy}
+      slicer: {condition: service_started}
   tests:
     build: {context: ., target: tests}
     environment:
@@ -52,3 +61,4 @@ services:
       worker: {condition: service_started}
 volumes:
   test-files:
+  test-slicer:
