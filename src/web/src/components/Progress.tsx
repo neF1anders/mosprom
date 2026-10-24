@@ -182,6 +182,8 @@ function StageRow({
   const unmet = !!summary?.unsatisfied || summary?.status === "infeasible";
   return (
     <TimelineRow
+      // The result mounts anew so it opens even if the row had been folded as done.
+      key={finished ? "result" : "progress"}
       title={title}
       state={unmet && state === "done" ? "warn" : state}
       expanded={state !== "done" || finished}
