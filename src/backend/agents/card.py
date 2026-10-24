@@ -250,6 +250,8 @@ def stable_references(card: TaskCard, ctx: RunContext) -> None:
     for evidence in evidences:
         source = ctx.sources.get(evidence.source_id)
         if source is not None:
+            # A document page keeps its image, so the card can show the page it cites.
+            evidence.page, evidence.artifact_id = source.page, source.image
             evidence.method = _method(source)  # type: ignore[assignment]
             evidence.source_id = source.ref
 
