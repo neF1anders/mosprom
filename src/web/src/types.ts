@@ -89,8 +89,16 @@ export interface Job {
   result?: ResultSummary | null;
   // How the finished pipeline ended, as the server decided it.
   outcome: "ready" | "attention" | "parameters_attention" | "not_sliced" | null;
+  // The parts of the chat in order; files and the card belong to the last one.
+  projects?: Project[];
   created_at: string;
   updated_at: string;
+}
+export interface Project {
+  number: number;
+  title: string;
+  first_message: number;
+  revision: number;
 }
 export interface ParametersSummary {
   iteration: number;
@@ -129,6 +137,10 @@ export interface Attachment {
   id: string;
   // Not sent yet: the file waits in the composer.
   draft?: boolean;
+  // Removed files stay listed for the messages that sent them.
+  active?: boolean;
+  // The project the file belongs to; none for a file no project has taken yet.
+  project?: number | null;
   filename: string;
   kind: string;
   status: string;
@@ -140,9 +152,12 @@ export interface Message {
   seq: number;
   role: string;
   // A gate reply asks for details before the work starts; offtopic marks older rows.
-  // "steer" is the reply to a message that did not change the task while the work went on.
-  kind?: "chat" | "answers" | "gate" | "offtopic" | "steer";
+  // "steer" is the reply to a message that did not change the task while the work went on;
+  // "report" is the summary of a finished project.
+  kind?: "chat" | "answers" | "gate" | "offtopic" | "steer" | "report";
   text: string;
+  // Files sent with the message, shown above its bubble.
+  attachment_ids?: string[];
   revision: number;
   created_at?: string;
 }

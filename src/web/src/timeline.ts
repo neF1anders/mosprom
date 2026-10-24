@@ -76,7 +76,8 @@ const AGENTS: Record<string, { title: string; icon: string }> = {
   steer: { title: "Корректировка", icon: "redirect" },
 };
 // The gate only talks in the chat, so it gets no card of its own.
-const HIDDEN_AGENTS = new Set(["gate"]);
+// The chat's own agents answer in the chat, not in a stage.
+const HIDDEN_AGENTS = new Set(["gate", "assistant", "analyst", "report"]);
 export function agentLook(agent: string, title = "") {
   return AGENTS[agent] || { title: title || agent, icon: "file-search" };
 }

@@ -42,7 +42,9 @@ for (const scheme of ["light", "dark"] as const)
           .locator("..")
           .boundingBox(),
       ).toEqual({ x: 0, y: 0, width: 340, height: 1024 });
-      expect(await page.locator("form").boundingBox()).toEqual({
+      expect(
+        await page.locator("form:not([role=dialog])").boundingBox(),
+      ).toEqual({
         x: 360,
         y: 915,
         width: 720,
