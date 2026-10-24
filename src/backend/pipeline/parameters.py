@@ -14,9 +14,18 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from ..domain.catalog import Catalog
+from ..domain.catalog import MODE_NAMES, Catalog
 from ..domain.errors import AppError, OperationCancelled
-from ..domain.models import Event, Job, Message, ParametersSummary, ResultSummary, Status, TaskCard
+from ..domain.models import (
+    Event,
+    Job,
+    Message,
+    Outcome,
+    ParametersSummary,
+    ResultSummary,
+    Status,
+    TaskCard,
+)
 from ..domain.parameters import CheckResult, Feedback, ParameterSet
 from ..domain.pipeline import FIRST_STEP, Step, Verdict, next_step
 from ..domain.slicing import GcodeCheck, SliceReport
@@ -29,7 +38,6 @@ Select = Callable[[TaskCard, Feedback | None], ParameterSet]
 Check = Callable[[ParameterSet], CheckResult]
 # The stored G-code by its key, the set it was sliced from and the pass.
 CheckGcode = Callable[[str, ParameterSet, int], GcodeCheck]
-MODE_NAMES = {"classic": "3D", "cylindrical": "5D Spiral", "cylindrical_full": "5D"}
 # How often a running slicing looks whether the job was stopped or edited.
 WATCH_SECONDS = 1.0
 T = TypeVar("T")
@@ -37,9 +45,9 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class PipelineSettings:
-    # Selection and the checks take well under a second; slicing takes minutes.
+    # Selection and the checks take well under a second. Slicing is bounded by the slicer
+    # itself, which knows how long a run waits for another job's.
     timeout_seconds: float
-    slicing_timeout_seconds: float = 420
 
 
 @dataclass
@@ -161,13 +169,7 @@ class ParameterPipeline:
         # A stored upload's key is its attachment id.
         models = {model.attachment_id: model.attachment_id for model in parameter_set.models}
         run = f"{job.id}-r{job.revision}-i{step.iteration}"
-        slicing = self.slicer.slice(run, parameter_set, models)
-        try:
-            return await self._watched(
-                job, asyncio.wait_for(slicing, self.settings.slicing_timeout_seconds)
-            )
-        except TimeoutError:
-            return SliceReport(status="failed", message="Слайсер не ответил вовремя")
+        return await self._watched(job, self.slicer.slice(run, parameter_set, models))
 
     async def _check_gcode(self, job: Job, step: Step, run: Run) -> GcodeCheck:
         title = f"Проверка {step.iteration}"
@@ -328,16 +330,24 @@ async def _complete(uow: UnitOfWork, job: Job, run: Run) -> None:
     check_ok = run.check is not None and run.check.feedback.result == "ok"
     clean = check_ok and parameter_set.status == "proposed" and not parameter_set.unsatisfied
     job.parameters = summary.model_copy(update={"check": "ok" if clean else "attention"})
-    result = job.result
-    ready = result is not None and result.sliced and result.gcode_check == "ok"
+    job.outcome = _outcome(clean, job.result)
     job.stage = "done"
     job.status = transition(job.status, Status.COMPLETED)
-    text = _outcome_text(job.parameters, parameter_set, check_ok, result)
+    text = _outcome_text(job.parameters, parameter_set, check_ok, job.result)
     await uow.messages.add(
         Message(job_id=job.id, revision=job.revision, role="assistant", text=text)
     )
-    status = "ok" if clean and ready else "attention"
+    status = "ok" if job.outcome == "ready" else "attention"
     await _event(uow, job, "pipeline.completed", text, None, status)
+
+
+def _outcome(clean: bool, result: ResultSummary | None) -> Outcome:
+    """Parameters that need attention come first, then whether the project was made."""
+    if not clean:
+        return "parameters_attention"
+    if result is None or not result.sliced:
+        return "not_sliced"
+    return "ready" if result.gcode_check == "ok" else "attention"
 
 
 async def _event(

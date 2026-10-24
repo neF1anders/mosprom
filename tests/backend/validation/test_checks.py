@@ -4,6 +4,7 @@ import pytest
 
 from src.backend.domain.catalog import PRINTING_MODES
 from src.backend.domain.parameters import ParameterSet, PrintingMode
+from src.backend.tuning.printer import load_printer
 from src.backend.validation.checks import check_parameters
 
 from .cases import NAMES, load, parameter_set
@@ -74,7 +75,7 @@ def test_contract_allows_exactly_the_printing_modes_of_the_build():
         ("extra_no_materials_no_models", ["no_materials", "no_models"]),
         ("extra_other_printer", ["wrong_printer"]),
         ("extra_wrong_numbers", ["wrong_type", "wrong_type"]),
-        ("extra_formula_unknown", ["formula_unknown"]),
+        ("extra_condition_outside_the_language", ["formula_unknown"]),
         ("extra_recommended_bounds", ["below_recommended", "above_recommended"]),
         ("extra_above_max", ["above_max"]),
     ],
@@ -104,14 +105,66 @@ def test_findings_name_the_key_and_the_bound_feedback_needs(catalog):
     assert rotation.bound == "o1"
 
 
-def test_conditions_see_fdmprinter_defaults_not_its_formulas(catalog):
-    """``support_enable_cylindrical`` follows ``support_enable`` by an fdmprinter formula. The
-    check takes its default (off), so with supports on it still calls the setting inactive."""
-    (finding,) = check_parameters(parameter_set("extra_fdmprinter_formula_default"), catalog)
+def test_conditions_follow_fdmprinter_formulas(catalog):
+    """``support_enable_cylindrical`` follows ``support_enable`` by an fdmprinter formula, so
+    ``support_offset_cylindrical`` acts with supports on and does not with them off."""
+    changed = load("extra_fdmprinter_formula_default")["parameter_set"]
+    assert check_parameters(ParameterSet.model_validate(changed), catalog) == []
+    changed["settings"]["support_enable"]["value"] = False
+    (finding,) = check_parameters(ParameterSet.model_validate(changed), catalog)
     assert (finding.kind, finding.where) == (
         "inactive_in_mode",
         "settings.support_offset_cylindrical",
     )
+
+
+def test_limits_written_as_formulas_are_compared(catalog):
+    """``speed_print`` is limited by the printer's feed rates and ``top_thickness`` by the
+    height of the mode; both limits are formulas of the build."""
+    changed = load("example_bracket_petg_classic")["parameter_set"]
+    changed["settings"]["speed_print"] = {"value": 100000, "why": "x", "source": "rule:T"}
+    changed["settings"]["top_thickness"] = {"value": 5000, "why": "x", "source": "rule:T"}
+    found = check_parameters(ParameterSet.model_validate(changed), catalog)
+    feed = catalog.values("classic")
+    fastest = (
+        feed.get("machine_max_feedrate_x") ** 2 + feed.get("machine_max_feedrate_y") ** 2
+    ) ** 0.5
+    assert [(issue.level, issue.kind, issue.key, issue.bound) for issue in found] == [
+        ("error", "above_max", "speed_print", fastest),
+        ("warning", "above_recommended", "speed_print", 150.0),
+        ("error", "above_max", "top_thickness", 300),
+    ]
+
+
+def test_formula_limits_see_the_quality_profile_and_the_mode(catalog):
+    """The recommended top is ``0.2 + layer_height``: the draft profile prints 0.2 mm layers.
+    The 5D height is lower than the 3D one."""
+    changed = load("example_bracket_petg_classic")["parameter_set"]
+    changed["settings"]["top_thickness"] = {"value": 0.3, "why": "x", "source": "rule:T"}
+    (thin,) = check_parameters(ParameterSet.model_validate(changed), catalog)
+    assert (thin.kind, thin.bound) == ("below_recommended", 0.4)
+    changed["printing_mode"]["value"] = "cylindrical_full"
+    changed["settings"]["top_thickness"]["value"] = 250
+    kinds = [
+        (i.kind, i.bound) for i in check_parameters(ParameterSet.model_validate(changed), catalog)
+    ]
+    assert ("above_max", 231.1) in kinds
+
+
+def test_conditions_see_what_parameter_selection_sees(catalog):
+    """The build has two extruder trains, so the count of extruders follows its formula to 2
+    in selection and in the check alike: a prime tower acts, a print sequence does not."""
+    classic = load_printer(catalog).modes["classic"]
+    assert classic.value("extruders_enabled_count") == 2
+    changed = load("example_bracket_petg_classic")["parameter_set"]
+    changed["settings"]["prime_tower_enable"] = {"value": True, "why": "x", "source": "rule:T"}
+    changed["settings"]["print_sequence"] = {
+        "value": "one_at_a_time",
+        "why": "x",
+        "source": "rule:T",
+    }
+    found = check_parameters(ParameterSet.model_validate(changed), catalog)
+    assert [(issue.kind, issue.key) for issue in found] == [("inactive_in_mode", "print_sequence")]
 
 
 def test_an_option_that_is_not_a_string_is_reported_not_raised(catalog):

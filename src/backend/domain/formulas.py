@@ -27,6 +27,8 @@ _BINARY: dict[type[ast.operator], Callable[[Any, Any], Any]] = {
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,
     ast.Div: operator.truediv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
 }
 _COMPARE: dict[type[ast.cmpop], Callable[[Any, Any], bool]] = {
     ast.Eq: operator.eq,
@@ -42,8 +44,27 @@ _UNARY: dict[type[ast.unaryop], Callable[[Any], Any]] = {
     ast.Not: operator.not_,
     ast.USub: operator.neg,
 }
-_BUILTINS: dict[str, Callable[..., Any]] = {"min": min, "max": max, "round": round, "abs": abs}
-_MATH: dict[str, Callable[..., Any]] = {"ceil": math.ceil, "floor": math.floor, "sqrt": math.sqrt}
+_BUILTINS: dict[str, Callable[..., Any]] = {
+    "min": min,
+    "max": max,
+    "round": round,
+    "abs": abs,
+    "int": int,
+    "float": float,
+    "sum": sum,
+    "any": any,
+    "all": all,
+    # The extruder the slicer gives a setting by default, the only active one.
+    "defaultExtruderPosition": lambda: "0",
+}
+_MATH: dict[str, Callable[..., Any]] = {
+    "ceil": math.ceil,
+    "floor": math.floor,
+    "sqrt": math.sqrt,
+    "log": math.log,
+    "tan": math.tan,
+    "radians": math.radians,
+}
 _LITERALS = {"True": True, "False": False, "None": None}
 # The slicer's lookups name the setting in their last argument; the extruder index is ignored
 # because the printer has one active extruder.

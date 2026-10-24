@@ -9,11 +9,11 @@ What ``ParameterSet`` enforces on its own is not checked again: the contract and
 the iteration, ``card_ref``, the three printing modes, a ``why`` and a ``source`` on every value
 and the JSON type of each field.
 
-Settings are compared with the limits, options and applicability conditions of the build. A
-limit written as a formula is not evaluated, only numeric limits are compared. A condition is
-evaluated with the values the set sends, otherwise with the printer's values in the chosen
-mode. Formulas of ``fdmprinter`` itself are not evaluated, their defaults stand in for them,
-so a condition that reads such a setting sees its default.
+Settings are compared with the limits, options and applicability conditions of the build.
+Limits and conditions written as formulas are evaluated the way parameter selection resolves
+values: the set's values over its quality profile, over the printer's in the chosen mode
+(``Catalog.values``). A limit that cannot be evaluated is not compared, a condition that cannot
+be evaluated becomes a note.
 """
 
 from __future__ import annotations
@@ -25,21 +25,20 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from ..domain.catalog import Catalog, ModeValues
+from ..domain.catalog import MODE_NAMES, Catalog, ModeValues
 from ..domain.formulas import evaluate
 from ..domain.parameters import Issue, ParameterSet, PlacedModel
 
 Level = Literal["error", "warning", "info"]
 
-_MODE_NAMES = {"classic": "3D", "cylindrical": "5D Spiral", "cylindrical_full": "5D"}
 # The variant of a shared key the slicer reads in each printing mode.
 _MODE_VARIANTS = {
     "classic": "_classic",
     "cylindrical": "_cylindrical",
     "cylindrical_full": "_cylindrical",
 }
-# A condition that fails on these values: a construct outside the formula language, a value
-# of the wrong type, a division by zero or a missing argument.
+# A formula that fails on these values: a construct outside the formula language, a value of
+# the wrong type, a division by zero or a missing argument.
 _UNEVALUATED = (ArithmeticError, LookupError, TypeError, ValueError)
 _ROTATION_TOLERANCE = 1e-3
 _DIAMETER_TOLERANCE = 1e-6
@@ -110,24 +109,21 @@ def _fits(diameter: float | None, filament: float | None) -> bool:
 
 @dataclass(frozen=True)
 class _Context:
-    """What the setting checks read: the build, the printing mode and the values sent."""
+    """What the setting checks read: the build, the printing mode, the values sent and the
+    values the slicer would use with them."""
 
     catalog: Catalog
     mode: str
     sent: Mapping[str, Any]
-    printer: ModeValues
-
-    def lookup(self, key: str) -> Any:
-        """A value the set sends, otherwise the printer's; the mode is always the set's own."""
-        if key != "printing_mode" and key in self.sent:
-            return self.sent[key]
-        return self.printer.get(key)
+    values: ModeValues
 
 
 def _check_settings(parameter_set: ParameterSet, catalog: Catalog) -> list[Issue]:
     mode = parameter_set.printing_mode.value
     sent = {key: setting.value for key, setting in parameter_set.settings.items()}
-    context = _Context(catalog, mode, sent, catalog.values(mode))
+    profile = catalog.qualities.get(parameter_set.quality.quality_type)
+    above = {**(profile.numbers() if profile else {}), **sent}
+    context = _Context(catalog, mode, sent, catalog.values(mode, above))
     return [issue for key, value in sent.items() for issue in _check_setting(key, value, context)]
 
 
@@ -137,7 +133,7 @@ def _check_setting(key: str, value: Any, context: _Context) -> list[Issue]:
         return [_setting_issue("error", key, "unknown_key", "Такой настройки нет в слайсере")]
     return [
         *_check_type(key, value, definition),
-        *_check_limits(key, value, definition),
+        *_check_limits(key, value, definition, context),
         *_check_applicability(key, definition, context),
         *_check_mode_key(key, context.mode),
         *_check_mode_variant(key, value, context),
@@ -206,24 +202,34 @@ _LIMITS = (
 )
 
 
-def _check_limits(key: str, value: Any, definition: Mapping[str, Any]) -> list[Issue]:
+def _check_limits(
+    key: str, value: Any, definition: Mapping[str, Any], context: _Context
+) -> list[Issue]:
     if definition.get("type") not in ("int", "float") or not _is_number(value):
         return []
     issues = []
     for limit in _LIMITS:
-        bound = _number(definition.get(limit.field))
+        bound = _bound(definition.get(limit.field), context)
         if bound is not None and limit.crossed(value, bound):
             message = f"{_text(value)} {limit.words} {_text(bound)}"
             issues.append(_setting_issue(limit.level, key, limit.kind, message, bound=bound))
     return issues
 
 
-def _number(limit: Any) -> float | None:
-    """A numeric limit; a limit written as a formula is not evaluated."""
+def _bound(limit: Any, context: _Context) -> float | None:
+    """A limit as a number: written as one or as a formula. A formula that cannot be
+    evaluated, or gives no number, is not compared."""
     try:
         return float(limit)
     except (TypeError, ValueError):
+        pass
+    if not isinstance(limit, str):
         return None
+    try:
+        bound = evaluate(limit, context.values.get)
+    except _UNEVALUATED:
+        return None
+    return bound if _is_number(bound) else None
 
 
 def _check_applicability(key: str, definition: Mapping[str, Any], context: _Context) -> list[Issue]:
@@ -232,13 +238,13 @@ def _check_applicability(key: str, definition: Mapping[str, Any], context: _Cont
     if not isinstance(condition, str) or condition.strip() in ("", "True"):
         return []
     try:
-        active = evaluate(condition, context.lookup)
+        active = evaluate(condition, context.values.get)
     except _UNEVALUATED:
         message = "Не удалось проверить, действует ли настройка"
         return [_setting_issue("info", key, "formula_unknown", message, bound=condition)]
     if active:
         return []
-    message = f"При этих значениях настройка не действует в режиме {_MODE_NAMES[context.mode]}"
+    message = f"При этих значениях настройка не действует в режиме {MODE_NAMES[context.mode]}"
     return [_setting_issue("warning", key, "inactive_in_mode", message, bound=condition)]
 
 
@@ -263,7 +269,7 @@ def _check_mode_key(key: str, mode: str) -> list[Issue]:
             "warning",
             key,
             "mode_key_mismatch",
-            f"Настройка для {mode_key.meant_for}, а выбран режим {_MODE_NAMES[mode]}",
+            f"Настройка для {mode_key.meant_for}, а выбран режим {MODE_NAMES[mode]}",
             bound=list(mode_key.modes),
         )
         for mode_key in _MODE_KEYS
@@ -283,7 +289,7 @@ def _check_mode_variant(key: str, value: Any, context: _Context) -> list[Issue]:
     if isinstance(formula, str) and re.search(rf"\b{re.escape(key)}\b", formula):
         return []
     message = (
-        f"В режиме {_MODE_NAMES[context.mode]} слайсер читает отдельную настройку, "
+        f"В режиме {MODE_NAMES[context.mode]} слайсер читает отдельную настройку, "
         "значение нужно задать в ней"
     )
     return [
@@ -385,7 +391,7 @@ def _check_position(where: str, position: list[float], bed: _Bed) -> list[Issue]
     x, y, z = position
     issues = []
     if not bed.holds(x, y):
-        message = f"Центр модели вне стола режима {_MODE_NAMES[bed.mode]}"
+        message = f"Центр модели вне стола режима {MODE_NAMES[bed.mode]}"
         plate = {"width": bed.width, "depth": bed.depth, "shape": bed.shape}
         issues.append(_issue("error", where, "outside_bed", message, bound=plate))
     if not 0 <= z <= bed.height:

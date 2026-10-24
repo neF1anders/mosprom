@@ -25,6 +25,14 @@ REFUSED_BY_THE_CONTRACT = {
     "selftest_iteration_3": [("error", "iteration")],
 }
 PORTED = [name for name in NAMES if name not in REFUSED_BY_THE_CONTRACT]
+# Where the port reads the build further than the original, and what it finds instead. The
+# original takes the default of an fdmprinter formula and cannot evaluate ``%``.
+# ``support_enable_cylindrical`` follows the supports sent, so ``support_offset_cylindrical``
+# acts; the condition of ``connect_infill_polygons`` is evaluated and fails for cubic infill.
+BEYOND_THE_ORIGINAL: dict[str, list[tuple[str, str]]] = {
+    "extra_fdmprinter_formula_default": [],
+    "extra_formula_unknown": [("warning", "settings.connect_infill_polygons")],
+}
 
 
 def load(name: str) -> dict[str, Any]:
