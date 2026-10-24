@@ -12,6 +12,7 @@ from typing import Literal
 from pydantic import Field
 
 from .models import Value
+from .units import dimension
 
 
 class RequirementKey(Value):
@@ -29,3 +30,14 @@ class RequirementKeys(Value):
 
     def get(self, key: str) -> RequirementKey | None:
         return next((entry for entry in self.keys if entry.key == key), None)
+
+    def unit_mismatch(self, key: str, unit: str | None) -> str | None:
+        """The code's unit when a stated unit measures another quantity, otherwise None.
+
+        Parameter selection reads a coded number in the code's unit only, so a temperature
+        code given in millimetres, or with no unit, cannot be taken into account.
+        """
+        entry = self.get(key)
+        if entry is None or entry.unit is None or dimension(unit) == dimension(entry.unit):
+            return None
+        return entry.unit

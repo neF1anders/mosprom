@@ -9,7 +9,7 @@ from typing import Literal
 from .hashing import digest
 from .models import Evidence, Question, Requirement, Source, Superseded
 from .rules import known
-from .units import numbers, plain, quantity_key
+from .units import numbers, plain, quantity_key, restated
 
 METHOD = {"message": "user", "answer": "user", "document": "text", "knowledge": "knowledge"}
 _DASHES = str.maketrans({"–": "-", "—": "-", "−": "-", "ё": "е", "«": '"', "»": '"'})
@@ -30,7 +30,11 @@ def display(requirement: Requirement) -> str:
 
 
 def check_citations(requirement: Requirement, sources: dict[str, Source]) -> Citation:
-    """Text must be quoted literally; image-only readings need an independent second reading."""
+    """Text must be quoted literally; image-only readings need an independent second reading.
+
+    The value's numbers must be in the quote, as they are or converted to the requirement's
+    unit from the unit the quote names.
+    """
     if requirement.provenance == "assumption" or not requirement.sources:
         return "rejected"
     pending, quoted = False, set[str]()
@@ -42,6 +46,7 @@ def check_citations(requirement: Requirement, sources: dict[str, Source]) -> Cit
             return "rejected"
         evidence.page, evidence.artifact_id = source.page, source.image
         quoted.update(plain(n) for n in numbers(evidence.quote))
+        quoted.update(plain(n) for n in restated(evidence.quote, requirement.unit))
         if normalize_text(evidence.quote) in normalize_text(source.text):
             evidence.method = METHOD[source.kind]  # type: ignore[assignment]
         elif source.image:

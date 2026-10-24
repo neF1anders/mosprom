@@ -30,6 +30,7 @@ from ..domain.models import (
     Verdict,
     identifier,
 )
+from ..domain.requirement_keys import RequirementKeys
 from ..domain.rules import RULES_VERSION, assess, known
 from ..domain.transitions import transition
 from ..ports.operations import Files
@@ -47,7 +48,7 @@ from .card import (
     view,
 )
 from .concurrency import together
-from .context import ContentBuilder, collect
+from .context import ContentBuilder, codes_block, collect
 from .runner import AgentRunner, AgentSpec, RunContext, prompt
 from .schemas import (
     Discrepancies,
@@ -128,10 +129,16 @@ class Early:
 
 class Stage1:
     def __init__(
-        self, uow: UowFactory, files: Files, runner: AgentRunner, settings: Stage1Settings
+        self,
+        uow: UowFactory,
+        files: Files,
+        runner: AgentRunner,
+        settings: Stage1Settings,
+        codes: RequirementKeys,
     ):
         self.store, self.files, self.runner, self.settings = RunStore(uow), files, runner, settings
-        self.sources, self.verifier = Sources(self.store, files), Verifier(runner)
+        self.sources, self.verifier = Sources(self.store, files), Verifier(runner, codes)
+        self.codes = codes_block(codes)
 
     async def run(self, job_id: str, revision: int) -> None:
         ctx = RunContext(
@@ -191,7 +198,7 @@ class Stage1:
                 413,
             )
         ctx.sources.update(inputs.sources())
-        content = ContentBuilder(self.files, inputs, ctx, await self.store.knowledge())
+        content = ContentBuilder(self.files, inputs, ctx, await self.store.knowledge(), self.codes)
         early = Early(self._card(job, attachments, None), attachments)
         stl = asyncio.ensure_future(self._scale(job, attachments, early, ctx))
         try:
@@ -308,8 +315,8 @@ class Stage1:
         analyst alone depends on the STL scale and waits for it while the others work.
         """
         await ctx.event("interpretation.started", "Разбираю ТЗ и читаю источники по аспектам")
-        base = await content.build(answers=False, stl=False)
-        production = await content.build(answers=False, stl=False, knowledge=True)
+        base = await content.build(answers=False, stl=False, codes=True)
+        production = await content.build(answers=False, stl=False, knowledge=True, codes=True)
         done = asyncio.Event()
 
         async def others() -> list:
@@ -340,7 +347,7 @@ class Stage1:
             ctx.stl_report = facts.report
             content.use_geometry(facts.geometry)
             reading = await self.runner.run(
-                GEOMETRY, await content.build(answers=False, report=True), ctx
+                GEOMETRY, await content.build(answers=False, report=True, codes=True), ctx
             )
             return facts, reading
 
@@ -373,6 +380,7 @@ class Stage1:
         patch = await self.runner.run(
             CONSOLIDATOR,
             await content.build(
+                codes=True,
                 draft=numbered(draft),
                 readings={name: r.model_dump() for name, r in readings.items()},
                 asked=[{"title": q.title, "answer": q.answer} for q in asked],
