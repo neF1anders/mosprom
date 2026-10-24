@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     judge_threshold: float = Field(default=0.7, ge=0, le=1)
     # Stage one targets five minutes; a run three times longer is stuck, not slow.
     stage1_timeout_seconds: float = Field(default=900, gt=0)
+    # Selection and its check take well under a second; a minute means something is stuck.
+    parameters_timeout_seconds: float = Field(default=60, gt=0)
     worker_concurrency: int = Field(default=2, ge=1, le=32)
     app_origin: str = "http://localhost:8000"
     session_secret: str = ""
