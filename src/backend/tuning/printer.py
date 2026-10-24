@@ -25,6 +25,7 @@ _NOTHING: Mapping[str, Any] = MappingProxyType({})
 class _PrinterData(Value):
     note: str
     default_quality: str
+    preferred_material: str
 
 
 _DATA = _PrinterData.model_validate_json(
@@ -78,6 +79,8 @@ class Printer:
     nozzle: float
     filament: float
     default_quality: str
+    # Base name of the slicer's own material (``generic_pla``), whatever the filament diameter.
+    preferred_material: str
     modes: Mapping[str, Mode]
 
 
@@ -93,6 +96,7 @@ def load_printer(catalog: Catalog) -> Printer:
         nozzle=float(extruder["machine_nozzle_size"]),
         filament=float(filament),
         default_quality=_DATA.default_quality,
+        preferred_material=_DATA.preferred_material,
         modes=MappingProxyType({name: _mode(catalog, name) for name in PRINTING_MODES}),
     )
 

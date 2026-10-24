@@ -233,15 +233,15 @@ def test_wish_phrases_match_only_at_the_start_of_a_word(select):
 
 def test_material_without_print_temperature_is_skipped_or_refused(catalog, keys):
     files = dict(catalog.materials)
-    files["enduse_abs"] = replace(files["enduse_abs"], print_temperature=None)
+    files["generic_pla_175"] = replace(files["generic_pla_175"], print_temperature=None)
     broken = replace(catalog, materials=files)
     parameter_set = select_parameters(card(), broken, keys).published()
-    assert parameter_set["materials"]["0"]["id"] != "enduse_abs"
+    assert parameter_set["materials"]["0"]["id"] != "generic_pla_175"
     assert (
-        "material enduse_abs has no print temperature in the catalog, skipped"
+        "material generic_pla_175 has no print temperature in the catalog, skipped"
         in parameter_set["warnings"]
     )
-    named = card(requirements=[requirement("material", "Enduse ABS")])
+    named = card(requirements=[requirement("material", "generic_pla_175")])
     with pytest.raises(AppError) as refused:
         select_parameters(named, broken, keys)
     assert refused.value.code == "material_without_temperature"

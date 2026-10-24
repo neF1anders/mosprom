@@ -38,8 +38,11 @@ class MaterialChoice:
     infeasible: bool
 
 
-def choose_material(request: TuningInput, printable: Printable, choices: Choices) -> MaterialChoice:
-    """A check constraint ``material eq`` overrides the material the card names."""
+def choose_material(
+    request: TuningInput, printable: Printable, choices: Choices, preferred: str
+) -> MaterialChoice:
+    """A check constraint ``material eq`` overrides the material the card names. ``preferred``
+    is the base name of the slicer's own material: it wins a tie of the ranking."""
     forced = choices.forced.get(MATERIAL_KEY)
     named = request.material
     if forced is not None:
@@ -56,7 +59,7 @@ def choose_material(request: TuningInput, printable: Printable, choices: Choices
             f"material '{named.name}' from the card is not in the catalog, ranking instead"
         )
     if named is None or found is None:
-        return _ranked(allowed, request.requirements, tuple(warnings))
+        return _ranked(allowed, request.requirements, tuple(warnings), preferred)
     choice = _named(found, request.requirements, named, tuple(warnings))
     if forced is None or found.id != forced.value:
         return choice
@@ -138,25 +141,49 @@ def _ranked(
     materials: Mapping[str, Candidate],
     requirements: Sequence[CardRequirement],
     warnings: tuple[str, ...],
+    preferred: str,
 ) -> MaterialChoice:
     ranked = rank_materials(materials, requirements)
     if not ranked:
         raise AppError("В каталоге нет материалов, которыми можно печатать", "catalog_materials")
-    best = ranked[0]
+    best, why = _best(ranked, preferred)
     unmet = tuple(_catalog_conflicts(ranked))
+    others = [other for other in ranked if other is not best]
     return MaterialChoice(
         material=best.material,
         source=f"rule:{RANK_RULE_ID}",
-        why=f"лучший из {len(ranked)} материалов каталога по требованиям задания; {_summary(best)}",
-        alternatives=tuple(
-            Alternative(other.material.id, _summary(other)) for other in ranked[1:3]
-        ),
+        why=f"{why}; {_summary(best)}",
+        alternatives=tuple(Alternative(other.material.id, _summary(other)) for other in others[:2]),
         checks=best.checks,
         unmet=unmet,
         assumptions=(*_source_assumptions(requirements), *_check_assumptions(best)),
         warnings=warnings,
         infeasible=bool(unmet),
     )
+
+
+def _best(ranked: Sequence[Evaluation], preferred: str) -> tuple[Evaluation, str]:
+    """The top of the ranking; when the requirements do not tell the top materials apart, the
+    slicer's own material among them rather than the first by name."""
+    top = ranked[0]
+    tied = [
+        found
+        for found in ranked
+        if (found.hard_failures, found.score) == (top.hard_failures, top.score)
+    ]
+    default = next((found for found in tied if _is_named(found.material.id, preferred)), None)
+    if len(tied) > 1 and default is not None:
+        why = (
+            f"требования задания не различают {len(tied)} материалов каталога: "
+            f"взят материал слайсера по умолчанию ({default.material.label})"
+        )
+        return default, why
+    return top, f"лучший из {len(ranked)} материалов каталога по требованиям задания"
+
+
+def _is_named(material_id: str, base: str) -> bool:
+    """``generic_pla_175`` is the 1.75 mm file of the slicer's ``generic_pla``."""
+    return material_id == base or material_id.startswith(f"{base}_")
 
 
 def _failed_ids(evaluation: Evaluation) -> set[str]:

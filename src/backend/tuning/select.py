@@ -58,7 +58,7 @@ def select_parameters(
     constraints = feedback.constraints if feedback is not None else []
     choices = choices_from(constraints)
     material_choice = choose_material(
-        request, printable_materials(catalog, printer.filament), choices
+        request, printable_materials(catalog, printer.filament), choices, printer.preferred_material
     )
     facts = build_facts(request, material_choice.material)
     poses = {name: pose_for(name, request.geometry) for name in printer.modes}

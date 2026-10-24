@@ -31,18 +31,18 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_pa6",
+     "id": "enduse_abs",
      "why": "оценка 0.50"
     },
     {
-     "id": "enduse_pc",
+     "id": "enduse_pa6",
      "why": "оценка 0.50"
     }
    ],
    "checks": [],
-   "id": "enduse_abs",
+   "id": "generic_pla_175",
    "source": "rule:MATERIAL-RANK",
-   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50"
+   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
   }
  },
  "models": [
@@ -96,11 +96,10 @@
   "why": "профиль принтера по умолчанию: Fine, слой 0.15 мм задан отдельно: жёсткий допуск 0,15 мм и точнее: слой не толще 0,15 мм и печать медленнее"
  },
  "settings": {
-  "cool_fan_enabled_classic": {
-   "scope": "extruder:0",
-   "source": "rule:FAN-OFF-NO-COOLING",
-   "value": false,
-   "why": "в файле материала обдув 0 %: обдув выключен"
+  "adhesion_type": {
+   "source": "rule:ADHESION-CLASSIC-SKIRT",
+   "value": "skirt",
+   "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
   },
   "infill_sparse_density": {
    "source": "rule:PRIORITY-SPEED",

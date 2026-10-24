@@ -12,7 +12,14 @@ def five_d(mode, **fields):
 
 
 def test_5d_mode_requested_by_the_card_is_used_with_its_own_keys(select):
-    parameter_set = select(five_d("cylindrical_full"))
+    # Enduse ABS has no part cooling in its file.
+    abs_part = card(
+        requirements=[
+            requirement("printing_mode", "cylindrical_full"),
+            requirement("material", "Enduse ABS"),
+        ]
+    )
+    parameter_set = select(abs_part)
     mode = parameter_set["printing_mode"]
     assert mode == {
         "value": "cylindrical_full",

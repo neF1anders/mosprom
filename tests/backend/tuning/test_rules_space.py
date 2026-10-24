@@ -154,6 +154,8 @@ def test_default_quality_is_the_preferred_one_of_the_build(catalog):
     definitions = json.loads((BUILD / "definitions/fdmprinter.def.json").read_text())
     preferred = definitions["metadata"]["preferred_quality_type"]
     assert load_printer(catalog).default_quality == preferred
+    material = definitions["metadata"]["preferred_material"]
+    assert load_printer(catalog).preferred_material == material
 
 
 def test_rule_book_refuses_repeated_rule_ids():
