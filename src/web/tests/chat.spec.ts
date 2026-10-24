@@ -143,13 +143,6 @@ for (const option of ["mm", "cm", "m", "inch", "Не знаю"]) {
     await settled(page);
     if (option === "Не знаю")
       await expect(page.getByText("Раньше вы ответили Не знаю")).toBeVisible();
-    // In metres or inches the box is larger than every working area of the printer.
-    if (option === "m" || option === "inch")
-      await expect(
-        page
-          .getByRole("status")
-          .filter({ hasText: "Параметры требуют внимания" }),
-      ).toBeVisible();
   });
 }
 for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
@@ -261,6 +254,26 @@ test("T13 a ready card goes through parameter selection and its check", async ({
   await expect(timeline.getByText("Что подобрано")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Скачать карточку JSON" }),
+  ).toBeVisible();
+});
+test("T18 a model larger than the printer asks for attention", async ({
+  page,
+}) => {
+  await send(page, "Шестерня привода");
+  await upload(page, "box.stl");
+  await settled(page);
+  // In metres the box is 10 by 20 by 30 m, larger than every working area.
+  await answer(page, "m");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Параметры требуют внимания" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Не проводилась, параметры подобрать не удалось"),
+  ).toBeAttached();
+  await expect(
+    page
+      .getByText(/Подобрать параметры под все требования не получилось/)
+      .first(),
   ).toBeVisible();
 });
 test("T16 the parameter set downloads as the server keeps it", async ({
