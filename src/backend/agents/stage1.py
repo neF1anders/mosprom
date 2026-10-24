@@ -153,12 +153,19 @@ class Stage1:
         except OperationCancelled:
             await self.store.cancel(job_id)
         except TimeoutError:
-            await self.store.fail(ctx, "Обработка заняла слишком много времени", "stage1_timeout")
+            await self.store.fail(
+                ctx.job_id, ctx.revision, "Обработка заняла слишком много времени", "stage1_timeout"
+            )
         except AppError as exc:
-            await self.store.fail(ctx, exc.message, exc.code)
+            await self.store.fail(ctx.job_id, ctx.revision, exc.message, exc.code)
         except Exception:
             # A bug must not leave the job running forever; the queue still records the failure.
-            await self.store.fail(ctx, "Внутренняя ошибка обработки, попробуйте ещё раз", "internal")
+            await self.store.fail(
+                ctx.job_id,
+                ctx.revision,
+                "Внутренняя ошибка обработки, попробуйте ещё раз",
+                "internal",
+            )
             raise
 
     async def _guarded(self, ctx: RunContext) -> None:
@@ -176,7 +183,7 @@ class Stage1:
         work.result()
 
     async def _run(self, ctx: RunContext) -> None:
-        job = await self.store.update(ctx, _started)
+        job = await self.store.update(ctx.job_id, ctx.revision, _started)
         attachments = _active(job, await self.store.attachments(job.id))
         messages = await self.store.messages(job.id)
         if await self._off_topic(job, attachments, messages, ctx):
@@ -213,7 +220,7 @@ class Stage1:
                 "Уточните единицы STL, чтобы сверить размеры",
             )
             return
-        job = await self.store.update(ctx, partial(_enter, "consolidate"))
+        job = await self.store.update(ctx.job_id, ctx.revision, partial(_enter, "consolidate"))
         card = await self._interpret(job, draft, readings, asked, card, content, ctx)
         await self.store.finish(ctx, assess(card, failed(attachments)), summary(card))
 
@@ -242,7 +249,7 @@ class Stage1:
         async def ready(facts: StlFacts) -> None:
             # The scale question is shown as soon as the extents are known.
             early.card = self._card(job, attachments, facts)
-            await self.store.update(ctx, early.publish)
+            await self.store.update(ctx.job_id, ctx.revision, early.publish)
 
         return await self.sources.stl(job, attachments, ctx, ready)
 
@@ -284,7 +291,7 @@ class Stage1:
         }
         early.asked = triage_questions(missing, proposals)
         early.title = " ".join(result.title.split())
-        published = await self.store.update(ctx, early.publish)
+        published = await self.store.update(ctx.job_id, ctx.revision, early.publish)
         assert published.card is not None
         open_questions = sum(not known(q.answer) for q in published.card.questions)
         await ctx.event(
@@ -404,7 +411,7 @@ class Stage1:
         await ctx.event(
             "consolidation.completed", f"Требований в карточке {len(requirements)}", "completed"
         )
-        await self.store.update(ctx, partial(_enter, "verify"))
+        await self.store.update(ctx.job_id, ctx.revision, partial(_enter, "verify"))
         await ctx.event("discrepancies.started", "Ищу несоответствия")
         await ctx.event("judge.started", "Проверяю итоговую интерпретацию")
         current = view(final, requirements, questions)
