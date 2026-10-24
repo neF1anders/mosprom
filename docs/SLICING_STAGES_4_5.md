@@ -18,7 +18,7 @@
 `src/backend/validation` (перенесён в #8): режим, профиль, материал 1,75 мм, ключи, типы, границы, условия `enabled`, режимные ключи, область стола, матрица поворота. Результат всегда одинаковый, ИИ не участвует.
 
 ## Этап 4. Применение в слайсере (написано, не проверено на настоящем слайсере)
-`tools/slicing/apply_parameter_set.py`, тонкая обёртка над кодом конвейера (`src/backend/slicing`, `src/backend/infrastructure/slicer.py`), запуск `uv run python tools/slicing/apply_parameter_set.py набор.json --model <attachment_id>=путь.stl [--folder …] [--out-dir …] [--check] [--dry-run]`. Берёт `stage2.parameter_set` и через MCP-сервер плагина AI Assistant (ветка `feat/ste-plugin`, `server.json` с портом и токеном) вызывает инструменты по порядку:
+`tools/slicing/apply_parameter_set.py`, тонкая обёртка над кодом конвейера (`src/backend/slicing`, `src/backend/infrastructure/slicer.py`), запуск `uv run python tools/slicing/apply_parameter_set.py набор.json --model <attachment_id>=путь.stl [--folder …] [--out-dir …] [--check] [--dry-run]`. Берёт `stage2.parameter_set` и через MCP-сервер плагина AI Assistant (`src/plugin/AIAssistant`, `server.json` с портом и токеном) вызывает инструменты по порядку:
 `set_printer` → `set_print_mode` → `set_quality_profile` → `set_material` → `set_setting` (по каждой настройке) → `load_model` → повороты (`rotate_model`) → `scale_model` → `move_model` → `slice_model` → `export_gcode` → `save_project`.
 
 - `--dry-run` печатает план без сети.

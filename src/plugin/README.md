@@ -1,0 +1,49 @@
+# AI Assistant: плагин для STE Slicer
+
+Чат на локальном HTTP-сервере и MCP-сервер поверх API слайсера. Пользователь описывает задачу текстом, прикладывает STL, OBJ, 3MF или картинку, а LLM через MCP-инструменты выбирает принтер, режим 3D/5D, профиль, материал и настройки, ориентирует модель, запускает слайсинг и сохраняет G-code и проект `.3mf`.
+
+Проверено на STE Slicer 7.10.12 (Windows). Код совместим с Python 3.5 (проверено линтером `vermin --target=3.5-`).
+
+## Установка
+
+1. Скопируйте папку `AIAssistant` в `%APPDATA%\steslicer\7.x\plugins` (открыть папку конфигурации можно через Справка → Показать папку конфигурации). Для установки в сам дистрибутив подойдёт и папка `plugins` рядом с `STESlicer.exe`.
+2. Перезапустите слайсер.
+3. Сервер плагина стартует вместе со слайсером и пишет порт и токен в `Documents\STE_AIAssistant\server.json`.
+4. Меню Extensions → AI Assistant → «Открыть StereotechAI» открывает в браузере наше приложение по одноразовой ссылке запуска. Адрес, секрет и пользователя плагин берёт из `Documents\STE_AIAssistant\mosprom.json`, его пишет `python scripts\bootstrap.py` (порядок запуска в `docs/PIPELINE.md`, раздел про Windows).
+5. Пункт «Чат плагина» открывает собственный чат плагина по адресу `http://127.0.0.1:<порт>/` (порт выбирается автоматически, в адресе есть одноразовый токен).
+
+## Настройка LLM
+
+В чате кнопка «Настройки»: Base URL, модель и API key. Значения по умолчанию: `https://api.timeweb.ai/v1` и `dashscope/qwen3.8-flash`. Подходит любой OpenAI-совместимый API с Chat Completions и tool calling; изображения передаются как `image_url` (base64).
+
+Ключ в исходниках не хранится: он записывается в настройки приложения на этом компьютере (`ai_assistant/api_key`). Через API чата можно задать ключ только на сессию (`"persist": false`).
+
+## Что умеет
+
+- **Принтер, профиль, материал:** `get_state`, `list_printers`, `set_printer` (по умолчанию Stereotech Hybrid 530 V5.2.4, `hte530v5.2.4`), `list_materials`, `set_material`, `list_quality_profiles`, `set_quality_profile`, `save_profile`.
+- **Режим печати:** `set_print_mode`, только `classic` (3D), `cylindrical` (5D Spiral), `cylindrical_full` (5D).
+- **Настройки (около 640):** `search_settings`, `get_setting`, `set_setting` (глобальные и уровня экструдера, значения вне диапазона подрезаются; `machine_*` недоступны).
+- **Модели:** `load_model`, `open_project`, `list_models`, `move_model`, `rotate_model`, `scale_model`, `delete_model`, `arrange_models`, `analyze_orientation`, `orient_model`.
+- **Слайсинг и результат:** `slice_model`, `get_slicing_status` (прогресс, время печати, расход материала), `export_gcode`, `save_project`.
+- Файлы результата по умолчанию: `Documents\STE_AIAssistant\results\<модель>\result.gcode` и `project.3mf`.
+- В чате видны вызовы инструментов с аргументами и результатами, панель «Что изменено» («было → стало» и причина), состояние слайсера, прогресс слайсинга и ссылки на файлы.
+
+## MCP
+
+Эндпойнт `POST /mcp` (JSON-RPC 2.0): `initialize`, `tools/list`, `tools/call`. Нужен заголовок `Authorization: Bearer <токен>`; порт и токен пишутся в `Documents\STE_AIAssistant\server.json`, когда сервер запущен. Эти же инструменты передаются в LLM как `tools`.
+
+## Ограничения
+
+- 5D-слайсинг требует активированной лицензии STE Slicer (10 дней).
+- Слайсер падает, если очищать сцену во время нарезки; инструменты перед этим останавливают слайсинг.
+- Оценка времени и материала это оценка слайсера, а не измерение печати.
+
+## Проверка (E2E)
+
+Запустите слайсер, подождите появления `Documents\STE_AIAssistant\server.json` и выполните из корня репозитория:
+
+```sh
+python -m unittest discover -s tests/e2e -p "test_*.py" -v
+```
+
+Чат проверяется на поддельном LLM-сервере, поэтому настоящий ключ не нужен и не затрагивается. Тесты меняют настройки активного принтера в слайсере и добавляют Hybrid 530, если его не было.
