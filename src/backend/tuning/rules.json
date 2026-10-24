@@ -34,12 +34,9 @@
     {"id": "PRIORITY-SPEED-LAYER", "source": "SeeMeCNC projects: 0.3-0.35 mm for fast prints, 10 of 10; the card names no quality level", "reason": "главный приоритет — скорость, уровень качества не задан: толстый слой 0,3 мм",
      "when": {"all": [{"fact": "pref.priority_first", "op": "==", "value": "speed"}, {"not": {"fact": "req.print_quality", "op": "exists"}}]}, "then": [
        {"op": "shift", "param": "layer_height", "delta": -0.4}]},
-    {"id": "PRIORITY-ACCURACY", "source": "G", "reason": "главный приоритет — точность: медленнее печать",
+    {"id": "PRIORITY-ACCURACY", "source": "G. The layer stays: validation, 14 projects with an accuracy priority (mostly calibration plates), the human printed 0.2 mm in 11 and 0.1 mm only in the 3 asking for a smooth surface (print_quality fine); dimensional tolerance is the TOL rules", "reason": "главный приоритет — точность: медленнее печать",
      "when": {"fact": "pref.priority_first", "op": "==", "value": "accuracy"}, "then": [
        {"op": "shift", "param": "print_speed", "delta": 0.3}]},
-    {"id": "PRIORITY-ACCURACY-LAYER", "source": "G; Stereotech memo print-parameter: a thinner layer gives a more accurate surface. The card names no quality level: validation case 043 «normal quality, not jewellery» came with an accuracy priority, the human printed 0.2 mm", "reason": "главный приоритет — точность, уровень качества не задан: тонкий слой 0,1 мм",
-     "when": {"all": [{"fact": "pref.priority_first", "op": "==", "value": "accuracy"}, {"not": {"fact": "req.print_quality", "op": "exists"}}]}, "then": [
-       {"op": "shift", "param": "layer_height", "delta": 0.4}]},
     {"id": "QUALITY-DRAFT", "source": "SeeMeCNC projects: 0.3-0.35 mm when appearance does not matter, 10 of 10", "reason": "черновое качество: толстый слой 0,3 мм",
      "when": {"fact": "req.print_quality", "op": "==", "value": "draft"}, "then": [
        {"op": "shift", "param": "layer_height", "delta": -0.4}]},

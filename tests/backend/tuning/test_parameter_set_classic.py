@@ -280,3 +280,47 @@ def test_quality_level_wins_over_the_accuracy_priority_for_the_layer(select):
     settings = select(standard)["settings"]
     assert settings["layer_height"]["value"] == 0.2
     assert settings["speed_print"]["source"] == "rule:PRIORITY-ACCURACY"
+
+
+@pytest.mark.parametrize(
+    ("named", "material"),
+    [
+        ("зелёный PLA", "generic_pla_175"),
+        ("PLA с добавлением поликарбоната", "generic_pla_175"),
+        ("пластик Enduse PETG", "enduse_petg"),
+    ],
+)
+def test_material_named_within_a_phrase_is_found_and_told(select, named, material):
+    # Validation 051 and 055: «green PLA» was not found and a strong part got ABS.
+    strong = card(
+        requirements=[
+            requirement("material", named),
+            requirement("service_temp_max_c", "100", "°C", mandatory=False),
+        ]
+    )
+    parameter_set = select(strong)
+    assert parameter_set["materials"]["0"]["id"] == material
+    assert parameter_set["materials"]["0"]["source"] == "requirement:material"
+    texts = [entry["text"] for entry in parameter_set["assumptions"]]
+    assert any(text.startswith(f"материал «{named}» понят как") for text in texts)
+
+
+def test_material_name_without_a_catalog_word_falls_back_to_the_ranking(select):
+    own = card(requirements=[requirement("material", "свой фирменный пластик")])
+    parameter_set = select(own)
+    assert parameter_set["materials"]["0"]["source"] == "rule:MATERIAL-RANK"
+    assert (
+        "material 'свой фирменный пластик' from the card is not in the catalog, ranking instead"
+        in parameter_set["warnings"]
+    )
+
+
+def test_accuracy_priority_slows_the_print_but_keeps_the_standard_layer(select):
+    # Calibration plates of the validation run: the human printed 0.2 mm in 11 of 14.
+    accurate = card(requirements=[requirement("priority", "accuracy")])
+    settings = select(accurate)["settings"]
+    assert (settings["layer_height"]["value"], settings["layer_height"]["source"]) == (
+        0.2,
+        "rule:LAYER-STANDARD",
+    )
+    assert settings["speed_print"]["source"] == "rule:PRIORITY-ACCURACY"
