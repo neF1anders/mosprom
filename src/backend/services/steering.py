@@ -31,9 +31,9 @@ MAX_ATTEMPTS = 2
 # How long the work waits for the decision at a safe point, and a chat turn at most.
 DECIDE_SECONDS = 30
 ANSWER_SECONDS = 180
-# A safe point delivers while the work goes on or has just ended; the user's own send
-# delivers whatever the job's state, except a deleted chat.
-DELIVERABLE = {Status.QUEUED, Status.RUNNING, Status.COMPLETED}
+# A safe point delivers while the work goes on, waits for answers or has just ended; the
+# user's own send delivers whatever the job's state, except a deleted chat.
+DELIVERABLE = {Status.QUEUED, Status.RUNNING, Status.WAITING, Status.COMPLETED}
 WORKING = {Status.QUEUED, Status.RUNNING}
 FAILED = "Сообщение пока не доставлено и ждёт в очереди"
 NO_ANSWER = "Не получилось ответить, модель не отвечает. Напишите ещё раз чуть позже"
@@ -62,11 +62,11 @@ class Steering:
         queue is empty.
         """
         claim = await self._claim(job_id, revision, force)
-        if claim is not None:
-            return await self._deliver(claim)
+        replaced = await self._deliver(claim) if claim is not None else False
+        # The user's own send also answers what they wrote in the chat meanwhile.
         if force:
             await self.answer(job_id)
-        return False
+        return replaced
 
     async def answer(self, job_id: str) -> None:
         """The reply to the messages the user sent while the job was idle."""
