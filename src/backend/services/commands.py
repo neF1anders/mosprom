@@ -25,6 +25,7 @@ async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
             await uow.attachments.save(attachment)
     await apply_stl(uow, job, attachments)
     await uow.jobs.save(job)
+    await uow.queue.cancel_pending(job.id)
     await uow.queue.stage1(job.id, job.revision)
     await uow.events.append(
         Event(

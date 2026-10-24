@@ -10,6 +10,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    PrimaryKeyConstraint,
     String,
     Table,
     Text,
@@ -94,3 +95,13 @@ agent_calls = Table(
     Column("cached", Boolean, nullable=False, server_default=false()),
 )
 Index("ix_agent_calls_job", agent_calls.c.job_id, agent_calls.c.revision)
+stage_results = Table(
+    "stage_results",
+    metadata,
+    Column("job_id", String, nullable=False),
+    Column("revision", Integer, nullable=False),
+    Column("stage", String, nullable=False),
+    Column("iteration", Integer, nullable=False),
+    Column("payload", JSONB, nullable=False),
+    PrimaryKeyConstraint("job_id", "revision", "stage", "iteration"),
+)
