@@ -81,6 +81,34 @@ uv run python scripts/fake_ste_slicer.py            # папка ~/Documents/STE
 
 Тестовый стенд `compose.test.yaml` поднимает ту же заглушку сервисом `slicer`, поэтому браузерный T13 доходит до проекта.
 
+## Проверка на Windows с настоящим STE Slicer
+
+1. Обновить ветку `feat/pipeline` (`git pull`).
+2. Поставить плагин AI Assistant из ветки `feat/ste-plugin`, в `feat/pipeline` его нет:
+   ```powershell
+   git fetch origin
+   git worktree add ..\mosprom-plugin origin/feat/ste-plugin
+   ```
+   Скопировать папку `..\mosprom-plugin\src\plugin\AIAssistant` в папку `plugins` внутри папки конфигурации слайсера (Справка → Показать папку конфигурации, обычно `%APPDATA%\steslicer\<версия>\plugins`) и перезапустить STE Slicer.
+3. Запустить сервер плагина: меню Extensions → AI Assistant → Open chat (или запускать слайсер с переменной `AIASSISTANT_AUTOSTART=1`). Должен появиться `Documents\STE_AIAssistant\server.json`. Пока слайсер открыт, он нужен запущенным.
+4. Подготовить `.env` и стенд:
+   ```powershell
+   python scripts\bootstrap.py              # допишет SLICER_HOST_FOLDER, если его нет
+   # в .env: QWEN_API_KEY, а SLICER_HOST_FOLDER должен указывать на папку с server.json
+   docker compose up --build -d
+   python scripts\bootstrap.py <user_id>    # ссылка на чат
+   ```
+5. В чате отправить ТЗ и STL одной из деталей 3D (например «Шестерня»). В таймлайне должны пройти «Слайсинг» и «Подготовка результата», а в чате появиться ссылки на проект и G-code. Оригиналы лежат в `Documents\STE_AIAssistant\mosprom\<задание>-r<ревизия>-i<заход>\`; `project.3mf` стоит открыть в STE Slicer и посмотреть, что принтер, режим, профиль, материал и настройки те, что в наборе.
+
+Во время прогона в слайсере ничего не трогать: конвейер очищает стол перед нарезкой (модели на столе пропадут), и настройки, заданные прошлой нарезкой, остаются в слайсере, пока у плагина нет `reset_settings`. Режимы 5D требуют активированной лицензии.
+
+Если проект не создан, чат пишет короткую причину, а подробности видны так:
+```powershell
+docker compose logs worker | Select-String "Slicer|server.json"
+docker compose exec db psql -U mosprom -d mosprom -c "SELECT payload FROM stage_results WHERE stage = 'slicing' ORDER BY job_id DESC LIMIT 1"
+```
+В отчёте нарезки по каждому вызову плагина есть `ok` и текст ошибки. «STE Slicer не отвечает» значит, что `server.json` есть, а порт не отвечает: сервер плагина не запущен или контейнер не достаёт до `host.docker.internal`. Отдельно плагин проверяется скриптами Фёдора без чата: `python tools\slicing\apply_parameter_set.py набор.json --model <attachment_id>=путь.stl --out-dir папка`.
+
 ## Контракты
 
 | Что | Где |
