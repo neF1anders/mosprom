@@ -167,12 +167,18 @@ class Feedback(Value):
 
 
 class Issue(Value):
-    """One finding of the check. ``kind`` is machine-readable; ``message`` is for people."""
+    """One finding of the check. ``kind`` is machine-readable; ``message`` is for people.
+
+    ``where`` is the place in the parameter set, ``key`` the slicer key or choice a feedback
+    item names and ``bound`` what that item needs: a limit, the allowed values, the value to
+    set or the orientation candidate to drop.
+    """
 
     level: Literal["error", "warning", "info"]
     where: str
     kind: str
     message: str
+    key: str | None = None
     bound: Any = None
 
 
