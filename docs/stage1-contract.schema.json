@@ -139,8 +139,8 @@
         "heat_deflection_min_c": {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2 (P1-7)", "map": "Vicat, HDT, «не размягчается при …»"},
         "tensile_modulus_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"},
         "tensile_strength_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"},
-        "elongation_min_pct":   {"kind": "number", "unit": "%", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2", "note": "единицы % нет в domain/units.py: до её добавления требование не прочитается"},
-        "water_absorption_max_pct": {"kind": "number", "unit": "%", "strict": "lower", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2", "note": "единицы % нет в domain/units.py: до её добавления требование не прочитается"}
+        "elongation_min_pct":   {"kind": "number", "unit": "%", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"},
+        "water_absorption_max_pct": {"kind": "number", "unit": "%", "strict": "lower", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"}
       }
     },
 
