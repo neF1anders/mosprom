@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Audit } from "./Audit";
+import { Icon } from "./Icon";
 import { modelSize } from "../format";
 import type { Card, Evidence, Geometry, Job, ProgressEvent } from "../types";
 import { answered, isRunning, jobStatus, UNKNOWN_ANSWER } from "../types";
@@ -133,7 +134,7 @@ export function TaskCard({
           aria-label="Свернуть карточку"
           onClick={onCollapse}
         >
-          <img src="/figma/collapse-right.svg" alt="" />
+          <Icon name="collapse-right" size={20} />
         </button>
       </div>
       {card && card.revision !== job?.revision && (

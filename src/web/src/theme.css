@@ -1,0 +1,64 @@
+/* Colours of the Figma pages "Chat UI — Stage 1" (light) and "Chat UI — Dark". */
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f5f5f7;
+  --raised: #ffffff;
+  --bubble: #f4f4f6;
+  --hover: #ebebef;
+  --agent-active: #e9e9ef;
+  --code: #f1f1f5;
+  --attachment: #ffffff;
+  --text: #13141a;
+  --text-2: #6b6e7b;
+  --text-3: #a5a7b3;
+  --path: #8c8f9c;
+  --placeholder: #b9bbc4;
+  --button-off: #b9bbc4;
+  --button-off-text: #ffffff;
+  --line: #e6e7eb;
+  --rail: #dddee3;
+  --guide: #babcc6;
+  --wait: #d5d6dc;
+  --checkbox: #e6e7eb;
+  --handle-hover: #6b6e7b;
+  --run: #6a5af9;
+  --run-tint: rgba(106, 90, 249, 0.16);
+  --done: #0e7a45;
+  --warn: #b8640a;
+  --error: #b4322a;
+  --on-status: #ffffff;
+  --overlay: rgba(19, 20, 26, 0.12);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0f1016;
+    --surface: #1a1b23;
+    --raised: #262733;
+    --bubble: #262733;
+    --hover: #262733;
+    --agent-active: #2a2b38;
+    --code: #14151b;
+    --attachment: #262733;
+    --text: #f1f1f6;
+    --text-2: #9b9dae;
+    --text-3: #6b6d7e;
+    --path: #6b6d7e;
+    --placeholder: #6b6d7e;
+    --button-off: #3b3d4a;
+    --button-off-text: #8a8c9c;
+    --line: #2c2d38;
+    --rail: #2c2d38;
+    --guide: #4e5060;
+    --wait: #3b3d4a;
+    --checkbox: #2c2d38;
+    --handle-hover: #9b9dae;
+    --run: #8f86ff;
+    --run-tint: rgba(143, 134, 255, 0.16);
+    --done: #18874a;
+    --warn: #d07a12;
+    --error: #c8372d;
+    --overlay: rgba(0, 0, 0, 0.4);
+  }
+}

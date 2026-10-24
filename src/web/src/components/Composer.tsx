@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Attachments, type DraftFile } from "./Attachments";
+import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
 type Recognition = {
@@ -19,6 +20,7 @@ export function Composer({
   onStop,
   pending,
   running,
+  connected = true,
   files,
   filesChanged,
   placeholder,
@@ -29,6 +31,7 @@ export function Composer({
   onStop: () => void;
   pending: boolean;
   running: boolean;
+  connected?: boolean;
   files: DraftFile[];
   filesChanged: boolean;
   placeholder?: string;
@@ -37,8 +40,16 @@ export function Composer({
   const sending = useRef(false);
   const [text, setText] = useState("");
   const [listening, setListening] = useState(false);
+  // A send without connection waits in the field and goes out once the stream is back.
+  const [waiting, setWaiting] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!connected || !waiting) return;
+    setWaiting(false);
+    form.current?.requestSubmit();
+  }, [connected, waiting]);
   // The field grows with Shift+Enter lines up to the CSS max height.
   useLayoutEffect(() => {
     const element = field.current;
@@ -84,9 +95,14 @@ export function Composer({
   }
   return (
     <form
+      ref={form}
       className={styles.composer}
       onSubmit={async (e) => {
         e.preventDefault();
+        if (!connected) {
+          setWaiting(true);
+          return;
+        }
         if (
           (!text.trim() && !filesChanged) ||
           pending ||
@@ -151,7 +167,7 @@ export function Composer({
           disabled={pending}
           onClick={() => fileInput.current?.click()}
         >
-          <img src="/figma/clip.svg" alt="" />
+          <Icon name="clip" />
         </button>
         <div className={styles.actions}>
           <button
@@ -166,7 +182,7 @@ export function Composer({
             }
             onClick={dictate}
           >
-            <img src="/figma/mic.svg" alt="" />
+            <Icon name="mic" size={32} />
           </button>
           {running && !text.trim() ? (
             <button
@@ -175,16 +191,16 @@ export function Composer({
               onClick={onStop}
               aria-label="Остановить"
             >
-              <img src="/figma/stop.svg" alt="" />
+              <Icon name="stop" size={32} />
             </button>
           ) : (
             <button
               type="submit"
-              className={styles.icon}
+              className={`${styles.icon} ${styles.send}`}
               disabled={pending || uploading || (!text.trim() && !filesChanged)}
               aria-label="Отправить"
             >
-              <img src="/figma/send.svg" alt="" />
+              <Icon name="arrow-up" size={32} />
             </button>
           )}
         </div>

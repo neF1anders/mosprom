@@ -32,10 +32,10 @@ describe("attachments in the composer", () => {
     expect(await screen.findByText("Корпус подшипника")).toBeVisible();
     expect(screen.getByText("Работа в помещении")).toBeVisible();
   });
-  it("spins while uploading and offers no removal yet", () => {
+  it("marks an uploading file busy without a spinner and offers no removal yet", () => {
     render(<Attachments files={[uploading]} onRemove={vi.fn()} />);
     expect(screen.getByRole("listitem")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByAltText("Загружаю")).toBeVisible();
+    expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });
   it("explains a rejected file and removes it", async () => {
