@@ -10,10 +10,12 @@ folder as the slicer sees it.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
 import shutil
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any
@@ -31,6 +33,9 @@ EXCHANGE = "mosprom"
 SLICE_SECONDS = 330
 CALL_SECONDS = 60
 RESET_TOOL = "reset_settings"
+SLICE_TOOL = "slice_model"
+# Calls that read the finished scene and leave it as it is.
+KEEPING = {"export_gcode", "save_project"}
 OVERRUN = "Слайсер не ответил вовремя"
 # What the chat says when a call fails; the plugin's own error stays in the report.
 FAILED = {
@@ -52,6 +57,10 @@ class SlicerSettings:
     host: str
     # How long a run may hold the slicer; waiting for another job's run is not counted.
     run_seconds: float
+    # After the scene or a setting changes the slicer rebuilds its backend and checks its stack;
+    # slicing started meanwhile crashes it (KeyError: 0 in CuraEngineBackend._onGCodePrefixMessage).
+    # The plugin has no ready signal, so slicing waits this long after the last change.
+    settle_seconds: float = 30
 
 
 class SlicerUnavailable(Exception):
@@ -200,7 +209,9 @@ class McpSlicer:
                 "плагин не сбрасывает настройки: изменённые прошлыми нарезками ключи, "
                 "которых нет в наборе, остались в слайсере"
             )
+        changed = time.monotonic()
         for call in [*prelude, *calls]:
+            changed = await self._settled(call, changed, stop)
             if stop.is_set():
                 report.status, report.message = "failed", OVERRUN
                 return report
@@ -228,6 +239,17 @@ class McpSlicer:
             return report
         report.message = "G-code и проект сохранены"
         return report
+
+    async def _settled(self, call: SlicerCall, changed: float, stop: asyncio.Event) -> float:
+        """The moment of the last change of the scene; slicing first waits until the slicer has had
+        ``settle_seconds`` without one, and a stop ends that wait."""
+        if call.tool != SLICE_TOOL:
+            return changed if call.tool in KEEPING else time.monotonic()
+        left = self.settings.settle_seconds - (time.monotonic() - changed)
+        if left > 0:
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(stop.wait(), left)
+        return changed
 
     async def _call(self, client: httpx.AsyncClient, call: SlicerCall) -> Any:
         if call.step == "clear_scene":

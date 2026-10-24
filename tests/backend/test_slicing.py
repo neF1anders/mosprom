@@ -2,6 +2,7 @@
 written G-code and the MCP adapter against the stand-in of the plugin."""
 
 import asyncio
+import contextlib
 import json
 import math
 import time
@@ -246,11 +247,15 @@ def plugin(tmp_path):
 
 
 def adapter(
-    tmp_path, folder: Path, host_folder: str = "", run_seconds: float = 60
+    tmp_path,
+    folder: Path,
+    host_folder: str = "",
+    run_seconds: float = 60,
+    settle_seconds: float = 0,
 ) -> tuple[McpSlicer, LocalFiles]:
     files = LocalFiles(tmp_path / "files")
     files.path("att").write_bytes(BOX.read_bytes())
-    settings = SlicerSettings(folder, host_folder, "127.0.0.1", run_seconds)
+    settings = SlicerSettings(folder, host_folder, "127.0.0.1", run_seconds, settle_seconds)
     return McpSlicer(files, settings), files
 
 
@@ -435,3 +440,26 @@ async def test_an_answer_that_is_not_json_rpc_is_a_failed_call(body):
     async with httpx.AsyncClient(transport=transport, base_url="http://plugin") as client:
         with pytest.raises(CallFailed):
             await _rpc(client, "tools/list", {})
+
+
+async def test_slicing_waits_for_the_slicer_to_settle_after_the_last_change(tmp_path, plugin):
+    """Slicing started right after a change of the scene or of a setting crashes the slicer."""
+    moments = slow_slicing(plugin, 0)
+    slicer, _ = adapter(tmp_path, plugin.folder, settle_seconds=0.4)
+    report = await slicer.slice("a", parameter_set(), {"att": "att"})
+    assert report.status == "sliced", report
+    before = moments[: [name for name, _ in moments].index("slice_model")]
+    assert moment(moments, "slice_model") - before[-1][1] >= 0.4
+
+
+async def test_a_stop_ends_the_wait_for_the_slicer_to_settle(tmp_path, plugin):
+    moments = slow_slicing(plugin, 0)
+    slicer, _ = adapter(tmp_path, plugin.folder, settle_seconds=30)
+    run = asyncio.create_task(slicer.slice("a", parameter_set(), {"att": "att"}))
+    await asyncio.sleep(1)
+    started = time.monotonic()
+    run.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await run
+    assert time.monotonic() - started < 5
+    assert "slice_model" not in [name for name, _ in moments]
