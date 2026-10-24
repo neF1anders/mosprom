@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<fdmmaterial version="1.3"
+  xmlns="http://www.ultimaker.com/material">
+  <metadata>
+    <name>
+      <brand>Stereotech</brand>
+      <material>Enduse</material>
+      <color></color>
+      <label>Enduse SBS</label>
+    </name>
+    <compatible>True</compatible>
+    <version>7</version>
+    <adhesion_info>печать на столе: нанести клей-адгезив на чистое
+обезжиренное стекло;
+печать на цилиндрическом основании: наклеить
+малярный скотч на основание и нанести клей-
+адгезив</adhesion_info>
+    <description>Полимерный материал с допуском для контакта с пищей (в том числе горячей).
+Предназначен для печати ударопрочных корпусов, тактильно приятных конечных
+изделий (накладок, ручек, панелей).</description>
+    <color_code>#873757</color_code>
+    <GUID>f81d9901-bb3c-457e-8b83-2bd81965cc25</GUID>
+    <definition>fdmprinter</definition>
+  </metadata>
+  <properties>
+    <diameter>1.75</diameter>
+    <density>1.01</density>
+    <weight>750</weight>
+  </properties>
+  <settings>
+    <setting key="print temperature">230</setting>
+    <setting key="standby temperature">175</setting>
+    <setting key="heated bed temperature">80</setting>
+    <setting key="print cooling">20.0</setting>
+    <setting key="retraction amount">2.0</setting>
+    <setting key="retraction speed">20</setting>
+    <setting key="speed print">50</setting>
+  </settings>
+</fdmmaterial>

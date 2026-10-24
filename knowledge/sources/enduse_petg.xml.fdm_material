@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8'?>
+<fdmmaterial version="1.3"
+  xmlns="http://www.ultimaker.com/material">
+  <metadata>
+    <name>
+      <brand>Stereotech</brand>
+      <material>Enduse</material>
+      <color></color>
+      <label>Enduse PETG</label>
+    </name>
+    <compatible>True</compatible>
+    <version>7</version>
+    <adhesion_info>печать на столе: нанести клей-адгезив на чистое
+обезжиренное стекло;
+печать на цилиндрическом основании: наклеить
+малярный скотч на основание и нанести клей-
+адгезив</adhesion_info>
+    <description>Полимерный материал с высокой ударопрочностью, высокой адгезией между слоев и
+низкой усадкой. Предназначен для корпусов, держателей и габаритных изделий.</description>
+    <color_code>#00FF00</color_code>
+    <GUID>b8d13d29-6eb3-40ec-aace-4a46ccf3519c</GUID>
+    <definition>fdmprinter</definition>
+  </metadata>
+  <properties>
+    <diameter>1.75</diameter>
+    <density>1.3</density>
+    <weight>750</weight>
+  </properties>
+  <settings>
+    <setting key="print temperature">235</setting>
+    <setting key="standby temperature">175</setting>
+    <setting key="heated bed temperature">60</setting>
+    <setting key="print cooling">20.0</setting>
+    <setting key="retraction amount">1.5</setting>
+    <setting key="retraction speed">11.5</setting>
+    <setting key="speed print">45</setting>
+  </settings>
+</fdmmaterial>

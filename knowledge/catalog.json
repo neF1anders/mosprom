@@ -1,0 +1,460 @@
+[
+  {
+    "id": "contifiber_cpa.density",
+    "material_id": "contifiber_cpa",
+    "aliases": [
+      "ContiFiber CPA",
+      "Stereotech ContiFiber CPA"
+    ],
+    "property": "density",
+    "value": "2.1",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "ContiFiber CPA плотность density 2.1 г/см³. Непрерывное углеволокно со связующим из полиамида для 5D печати. Применяется\nдля печати прочных и легких функциональных изделий, конструктивных элементов,\nприменяющихся в производстве, аэрокосмической отрасли, медицине и робототехнике.",
+    "source": "knowledge/sources/contifiber_cpa.xml.fdm_material SHA256 10bc317ccb9a48cc01a668c8122b0f2e639afca08177fbb76e31a75753e27fe3",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_abs.density",
+    "material_id": "enduse_abs",
+    "aliases": [
+      "Enduse ABS",
+      "Stereotech Enduse ABS"
+    ],
+    "property": "density",
+    "value": "1.05",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse ABS плотность density 1.05 г/см³. Предназначен для производства разнообразных функциональных деталей, в первую очередь корпусов,рукояток,\nкрючков, держателей и оснастки. Не стоек к атмосферным воздействиям(УФ-излучение, высокая влажность).",
+    "source": "knowledge/sources/enduse_abs.xml.fdm_material SHA256 e655e2e68b5a23d4eb2543f033b17cfc73c7a79f42dfb5ac8dd10e8a0b0f839d",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_pa6.density",
+    "material_id": "enduse_pa6",
+    "aliases": [
+      "Enduse PA6",
+      "Stereotech Enduse PA6"
+    ],
+    "property": "density",
+    "value": "1.05",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse PA6 плотность density 1.05 г/см³. Полимерный материал на основе полиамида-6. Обладает высокой химической стойкостью, в том числе к\nразбавленным щелочам и кислотам, маслам, спиртам, смазочным жидкостям, бензину. Также отличается упругостью,\nэластичностью, очень стоек к истиранию и ударным нагрузкам. Предназначен для печати изделий, работающих в агрессивной\nсреде, особенно для элементов скольжения (направляющие кольца, вкладыши подшипников трения).",
+    "source": "knowledge/sources/enduse_pa6.xml.fdm_material SHA256 d570ed9ac832c42bfe457a9ea570259cc80642400a45d9de9cd4047e5f510aa5",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_pc.density",
+    "material_id": "enduse_pc",
+    "aliases": [
+      "Enduse PC",
+      "Stereotech Enduse PC"
+    ],
+    "property": "density",
+    "value": "1.2",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse PC плотность density 1.2 г/см³. Поликарбонат (PC) выделяется оптической прозрачностью, термостойкостью и невероятной прочностью.\nЭто делает его идеальным для использования в электронных корпусах, автомобильных деталях, элементах беспилотных\nлетательных аппаратов и других подобных деталях, требующих долговечности.",
+    "source": "knowledge/sources/enduse_pc.xml.fdm_material SHA256 d872831884803bda15a65805bd4310a80d1ecca0dccf0d5b7bab29ee2d69122b",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_petg.density",
+    "material_id": "enduse_petg",
+    "aliases": [
+      "Enduse PETG",
+      "Stereotech Enduse PETG"
+    ],
+    "property": "density",
+    "value": "1.3",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse PETG плотность density 1.3 г/см³. Полимерный материал с высокой ударопрочностью, высокой адгезией между слоев и\nнизкой усадкой. Предназначен для корпусов, держателей и габаритных изделий.",
+    "source": "knowledge/sources/enduse_petg.xml.fdm_material SHA256 c7f1a9c45f1f1570024a6179410d58c010c6ee12b9a640d681e34bfaa1ba8349",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_pp.density",
+    "material_id": "enduse_pp",
+    "aliases": [
+      "Enduse PP",
+      "Stereotech Enduse PP"
+    ],
+    "property": "density",
+    "value": "0.9",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse PP плотность density 0.9 г/см³. Полимерный материал с высокой химической стойкостью и эластичностью.\nПредназначен для печати изделий, работающих в агрессивной среде.",
+    "source": "knowledge/sources/enduse_pp.xml.fdm_material SHA256 78ebdff253e85360ef472172a7c96f0acda7db0c5ce2a28ac08f4bf505e69ba3",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_sbs.density",
+    "material_id": "enduse_sbs",
+    "aliases": [
+      "Enduse SBS",
+      "Stereotech Enduse SBS"
+    ],
+    "property": "density",
+    "value": "1.01",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse SBS плотность density 1.01 г/см³. Полимерный материал с допуском для контакта с пищей (в том числе горячей).\nПредназначен для печати ударопрочных корпусов, тактильно приятных конечных\nизделий (накладок, ручек, панелей).",
+    "source": "knowledge/sources/enduse_sbs.xml.fdm_material SHA256 84dcf57ffc3dd435bcd579a3e271bc378f4b0bb225cfec939164ef19680580c2",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "enduse_tpu_d70.density",
+    "material_id": "enduse_tpu_d70",
+    "aliases": [
+      "Enduse TPU D70",
+      "Stereotech Enduse TPU D70"
+    ],
+    "property": "density",
+    "value": "1.23",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Enduse TPU D70 плотность density 1.23 г/см³. Термопластичный полиуретан с твёрдостью 70 по шкале Шора D.\nОбладает высокой химической стойкостью к растворам кислот и щелочей, жирам, маслам, ксилолу, дизельному топливу.\nПодходит для изготовления различных уплотнений, в том числе для подвижных соединений – О-образных колец,\nманжетных уплотнений.\n",
+    "source": "knowledge/sources/enduse_tpu_d70.xml.fdm_material SHA256 2e897c31d2024d14d1fb4daa7c9affd5bc94c2da781155094a25aaab2281cb2d",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_abs_g13.density",
+    "material_id": "fiberpart_abs_g13",
+    "aliases": [
+      "Fiberpart ABS G13",
+      "Stereotech Fiberpart ABS G13"
+    ],
+    "property": "density",
+    "value": "1.15",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart ABS G13 плотность density 1.15 г/см³. Прочный композитный материал на основе ABS-пластика с высоким содержанием стекловолокна (13%).\n                 Отличается от ненаполненного ABS лучшей прочностью (в том числе на межслойный разрыв) и\n                 теплостойкостью, меньшей температурной усадкой; после печати даёт ровную шероховатую поверхность\n                 без ярко выраженного перехода между слоями. Как и обычный ABS, хорошо обрабатывается резанием,\n                 шлифованием и растворением (с помощью ацетона или другого органического растворителя).\n                 Предназначен для изготовления корпусов, кронштейнов, держателей, оснастки и других изделий,\n                 для которых прочности обычного ABS недостаточно.",
+    "source": "knowledge/sources/fiberpart_abs_g13.xml.fdm_material SHA256 4aee2fa63353c6c0d3ad2ba6de69f4b35617e054e5cd0b4af7aab68cab6d0290",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_abs_g4.density",
+    "material_id": "fiberpart_abs_g4",
+    "aliases": [
+      "Fiberpart ABS G4",
+      "Stereotech Fiberpart ABS G4"
+    ],
+    "property": "density",
+    "value": "1.1",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart ABS G4 плотность density 1.1 г/см³. Полимерный материал на основе ABS с добавлением небольшого количества стекловолокна(4%).\n                 От простого ABS-пластика отличается повышенной прочностью и шероховатой поверхностью после печати.\n                 Применяется для печати функциональных изделий, конструктивных элементов.",
+    "source": "knowledge/sources/fiberpart_abs_g4.xml.fdm_material SHA256 8df988b51ce4d78cf36acbd4cc1793ad5442f561ede5b0477d07c590c614b6e8",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_abspa_g8.density",
+    "material_id": "fiberpart_abspa_g8",
+    "aliases": [
+      "Fiberpart ABSPA G8",
+      "Stereotech Fiberpart ABSPA G8"
+    ],
+    "property": "density",
+    "value": "1.12",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart ABSPA G8 плотность density 1.12 г/см³. Композит на основе ABS/PA армированный стекловолокном. Применяется для печати\n                 функциональных изделий, конструктивных элементов, где требуется высокая\n                 ударопрочность и стойкость к ультрафиолету. Инертен к большинству доступных\n                 химических растворителей",
+    "source": "knowledge/sources/fiberpart_abspa_g8.xml.fdm_material SHA256 79e51648bc260579365c248fbf5dbd02079c1fc217b25b94aeceec127e1d5019",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_pa12_g12.density",
+    "material_id": "fiberpart_pa12_g12",
+    "aliases": [
+      "Fiberpart PA12 G12",
+      "Stereotech Fiberpart PA12 G12"
+    ],
+    "property": "density",
+    "value": "1.05",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart PA12 G12 плотность density 1.05 г/см³. Композитный материал на основе полиамида PA12, армированный стекловолокном (12%).\n                 Материал, отличающийся повышенной прочностью, термостойкостью и стойкостью к истиранию.\n                 Способен выдерживать циклические нагрузки. Сохраняет свои характеристики в широком\n                 диапазоне температур. Растворяется в концентрированной серной кислоте, в феноле, крезоле,\n                 хлорале и трифторэтаноле. Устойчив к действию спиртов, щелочей, масел и бензина.",
+    "source": "knowledge/sources/fiberpart_pa12_g12.xml.fdm_material SHA256 21c70dcdf2c3d1cf3425f6de889e1fe0ada51e6a1566abb033593b043ce6e632",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_pc_g20.density",
+    "material_id": "fiberpart_pc_g20",
+    "aliases": [
+      "Fiberpart PC G20",
+      "Stereotech Fiberpart PC G20"
+    ],
+    "property": "density",
+    "value": "1.18",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart PC G20 плотность density 1.18 г/см³. Очень прочный и жёсткий композит на основе PC с высоким содержанием стекловолокна (20%).\n                 Максимально широкий диапазон температур, высокая химстойкость.\n                 Для нагруженных функциональных деталей.",
+    "source": "knowledge/sources/fiberpart_pc_g20.xml.fdm_material SHA256 0503fcf0970387bb926bec3d0336cb94fe956416c00c3d430ff06da8b9df2a9c",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_pp_g30.density",
+    "material_id": "fiberpart_pp_g30",
+    "aliases": [
+      "Fiberpart PP G30",
+      "Stereotech Fiberpart PP G30"
+    ],
+    "property": "density",
+    "value": "1.18",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart PP G30 плотность density 1.18 г/см³. Материал на основе полипропилена с добавлением стекловолокна.\n                 Применяется для печати функциональных изделий, инженерного и промышленного применения.\n                 Обладает высокой химической стойкостью к большинству кислот и органических растворителей,\n                 морозостойкостью, гидролизостоек, устойчив к горячему тосолу.",
+    "source": "knowledge/sources/fiberpart_pp_g30.xml.fdm_material SHA256 08f1c0858528371b2c51022109d310b38f1b6b930549d2cb38aff23873707053",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_tpu_c5.density",
+    "material_id": "fiberpart_tpu_c5",
+    "aliases": [
+      "Fiberpart TPU C5",
+      "Stereotech Fiberpart TPU C5"
+    ],
+    "property": "density",
+    "value": "1.16",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart TPU C5 плотность density 1.16 г/см³. Полимерный материал на основе TPU с добавлением углеволокна. Применяется для\n                 печати шестерён, механически нагруженных деталей. Обладает высокой химической\n                 стойкостью к растворам кислот и щелочей, жирам, маслам, ксилолу, бензину, керосину.",
+    "source": "knowledge/sources/fiberpart_tpu_c5.xml.fdm_material SHA256 5460e0d4515e7a6fd915b4accd245938af435ad24c7b30f7c6a9b4f802f2fba0",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "fiberpart_tpu_g30.density",
+    "material_id": "fiberpart_tpu_g30",
+    "aliases": [
+      "Fiberpart TPU G30",
+      "Stereotech Fiberpart TPU G30"
+    ],
+    "property": "density",
+    "value": "1.45",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Fiberpart TPU G30 плотность density 1.45 г/см³. Полимерный материал на основе твёрдого TPU с добавлением стекловолокна (30%),\n                 подходит для производства изделий с повышенными требованиями к нагрузке и ударопрочности.\n                 Обладает высокой теплостойкостью и применяется для печати крупных шестерён, прочных корпусов,\n                 механически нагруженных деталей, аэродинамических обвесов для автомобилей.",
+    "source": "knowledge/sources/fiberpart_tpu_g30.xml.fdm_material SHA256 73fe19039b7c1ed75ea83e98e172cd24644699e7fc3f035e7c1afd4c4409948a",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "metalcast_316l.density",
+    "material_id": "metalcast_316l",
+    "aliases": [
+      "Metalcast 316L",
+      "Stereotech Metalcast 316L"
+    ],
+    "property": "density",
+    "value": "7.5",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Metalcast 316L плотность density 7.5 г/см³. Нержавеющая конструкционная сталь марки AISI 316L. Предназначена для\nизготовления деталей промышленного оборудования в химической, пищевой,\nфармацевтической и химической промышленностях.",
+    "source": "knowledge/sources/metalcast_316l.xml.fdm_material SHA256 e18ad15a91ee5d6eada0e073046515bea7a7c613f08d0f4f3bfc1d9f2ec54d3e",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "metalcast_al99.density",
+    "material_id": "metalcast_al99",
+    "aliases": [
+      "Metalcast AL99",
+      "Stereotech Metalcast AL99"
+    ],
+    "property": "density",
+    "value": "2.54",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Metalcast AL99 плотность density 2.54 г/см³. Оксидная керамика высокой чистоты. Предназначена для изготовления изоляторов и износостойких элементов, например, подложек резисторов, нитенаправителей или носителей катализаторов.\n    ",
+    "source": "knowledge/sources/metalcast_al99.xml.fdm_material SHA256 9ed57de1a1e5ae2b524904ee6627ecdf5528022f43850028c78255f2309f4b5f",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "proto_pla.density",
+    "material_id": "proto_pla",
+    "aliases": [
+      "Proto PLA",
+      "Stereotech Proto PLA"
+    ],
+    "property": "density",
+    "value": "1.25",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Proto PLA плотность density 1.25 г/см³. Полимерный материал на основе PLA. Прост в печати и не требует специальных\nтемпературных условий, имеет низкую усадку. Предназначен для печати любых\nдекоративных и функциональных моделей, макетов и прототипов.",
+    "source": "knowledge/sources/proto_pla.xml.fdm_material SHA256 cff9f318ecb7bf21d7e18819f5fcbe1018e0e28cad959ab1f575382e7e67d1a3",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "proto_pva.density",
+    "material_id": "proto_pva",
+    "aliases": [
+      "Proto PVA",
+      "Stereotech Proto PVA"
+    ],
+    "property": "density",
+    "value": "1.05",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Proto PVA плотность density 1.05 г/см³. Полимерный материал на основе поливинилового спирта PVA. Этот материал нетоксичен и легко растворяется\nв ванне с тёплой водой (35-50°С), поэтому он отлично подходит для печати поддерживающих структур изделий со сложной\nгеометрией.",
+    "source": "knowledge/sources/proto_pva.xml.fdm_material SHA256 036316ae45b9845606a52c391bae8dcb3cba2ea1ee1c3221d6fc9f57be9a1b21",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "sealant_sebs.density",
+    "material_id": "sealant_sebs",
+    "aliases": [
+      "Sealant SEBS",
+      "Stereotech Sealant SEBS"
+    ],
+    "property": "density",
+    "value": "0.95",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Sealant SEBS плотность density 0.95 г/см³. Синтетический каучук. Специальный материал, который своим свойствам очень близок\nк настоящей резине, повторяя все её свойства. Предназначен для изготовления кнопок,\nуплотнителей, амортизаторов.",
+    "source": "knowledge/sources/sealant_sebs.xml.fdm_material SHA256 fb8c296ce7ec6fe092b10a2ca9e38a8fef2854068b193d829679907a028aa5ed",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "sealant_tpe.density",
+    "material_id": "sealant_tpe",
+    "aliases": [
+      "Sealant TPE",
+      "Stereotech Sealant TPE"
+    ],
+    "property": "density",
+    "value": "1.1",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Sealant TPE плотность density 1.1 г/см³. Гибкий полимер, по свойствам похожий на твердый силикон. предназначен для печати\nкнопок, патрубков, уплотнений, прокладок и гибких элементов.",
+    "source": "knowledge/sources/sealant_tpe.xml.fdm_material SHA256 4b6be3aed76224fcbd3b2bc1d345c78ec42188585999f9ff1627fa5d48971929",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "sealant_tpu.density",
+    "material_id": "sealant_tpu",
+    "aliases": [
+      "Sealant TPU",
+      "Stereotech Sealant TPU"
+    ],
+    "property": "density",
+    "value": "1.15",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Sealant TPU плотность density 1.15 г/см³. Гибкий термополиуретан. Обладает высокой химической стойкостью к растворам\nкислот и щелочей, жирам, маслам, ксилолу, дизельному топливу и предназначен для\nпечати уплотнений, прокладок и гибких элементов.",
+    "source": "knowledge/sources/sealant_tpu.xml.fdm_material SHA256 d1b621aa025cc494cb524ed01cca033d986714b4d67c8e839737a18d259352e5",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "sealant_tpu93.density",
+    "material_id": "sealant_tpu93",
+    "aliases": [
+      "Sealant TPU93",
+      "Stereotech Sealant TPU93"
+    ],
+    "property": "density",
+    "value": "1.13",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Sealant TPU93 плотность density 1.13 г/см³. Термополиуретан повышенной гибкости. Обладает высокой химической стойкостью к\nрастворам кислот и щелочей, жирам, маслам, ксилолу, дизельному топливу и\nпредназначен для печати уплотнений, прокладок и гибких элементов.",
+    "source": "knowledge/sources/sealant_tpu93.xml.fdm_material SHA256 d5f5b3fa00b7d400ef564d8b66f163b003cab6fedc2216f0c98596f12cc7c7a3",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "sealant_tpu_A95.density",
+    "material_id": "sealant_tpu_A95",
+    "aliases": [
+      "Sealant TPU A95",
+      "Stereotech Sealant TPU A95"
+    ],
+    "property": "density",
+    "value": "1.15",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Sealant TPU A95 плотность density 1.15 г/см³. Гибкий термополиуретан. Обладает высокой химической стойкостью к растворам кислот и щелочей,\n                 жирам, маслам, ксилолу, дизельному топливу. Термопластичный полиуретан весьма гигроскопичен,\n                 то есть хорошо впитывает влагу. При правильной температуре 3D-печати и использовании сухого\n                 материала получаемые изделия будут демонстрировать очень высокую прочность на разрыв.\n                 Предназначен для печати уплотнений, прокладок и гибких элементов. ",
+    "source": "knowledge/sources/sealant_tpu_A95.xml.fdm_material SHA256 9b9a3b276024f9ae3ee084148c6e2e8d511dd848874846c56ba91b4e10413cd2",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "sealant_tpv80.density",
+    "material_id": "sealant_tpv80",
+    "aliases": [
+      "Sealant TPV80",
+      "Stereotech Sealant TPV80"
+    ],
+    "property": "density",
+    "value": "1.13",
+    "unit": "g/cm3",
+    "conditions": "Настройка профиля STE Slicer; метод и температура измерения не указаны",
+    "method": "Значение properties/density в профиле; единица подтверждена MaterialsView.qml:220",
+    "text": "Sealant TPV80 плотность density 1.13 г/см³. Термопластичный вулканизат. Жиро-, масло-, бензостойкий термоэластопласт на\nоснове полипропилена, применяется для изготовления химически стойких уплотнений,\nпрокладок и гибких элементов.",
+    "source": "knowledge/sources/sealant_tpv80.xml.fdm_material SHA256 c10dcb73e0d2ceb802fbcf918ab9690d5c19718f3e52bb4a1227d47428703a0e",
+    "version": "kb001-v1",
+    "scope": "grade"
+  },
+  {
+    "id": "printer.hybrid530",
+    "property": "profile",
+    "value": "hte530v5.2.4",
+    "text": "Stereotech Hybrid 530 V5.2.4 основной тестовый профиль. Рабочие области зависят от режима печати и унаследованных настроек, не выводить их из одного файла.",
+    "source": "knowledge/sources/hte530v5.2.4.def.json",
+    "scope": "printer"
+  },
+  {
+    "id": "rule.kb001",
+    "property": "coverage",
+    "value": "KB-001",
+    "text": "Покрытие базы ограничено профилями материалов STE Slicer и профилем Hybrid 530 V5.2.4. Свойства семейства не подтверждают свойства марки. Отсутствие сведений не доказывает непригодность. Веб поиск отключён.",
+    "source": "docs/STAGE1_DESIGN.md",
+    "scope": "rule"
+  }
+]
