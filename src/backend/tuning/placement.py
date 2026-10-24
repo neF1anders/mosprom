@@ -2,7 +2,7 @@
 
 The orientation is not searched yet: the overhang share of the STL report is measured for the
 model as loaded, which stays the only candidate. In 5D the cylinder the slicer prints around
-follows the bore of the part when the report gives one.
+follows the through bore of a body of revolution when the report gives one.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from .geometry import Geometry
 from .intake import TuningInput
 from .notes import SettingChoice, Unmet
 from .printer import BASE_DIAMETER_KEY, Mode
@@ -56,7 +57,7 @@ def place_model(request: TuningInput, mode: Mode, excluded: Sequence[str | None]
         assumptions.append(
             f"партия {request.quantity} шт.: в проекте одна модель, копии в раскладку не добавлены"
         )
-    settings, base_assumptions = _base_diameter(request.geometry.bore_diameter, mode)
+    settings, base_assumptions = _base_diameter(request.geometry, mode)
     return Placement(
         attachment_id=request.attachment_id,
         position=(round((low + high) / 2.0, 3), 0.0, round(height / 2.0, 3)),
@@ -68,13 +69,20 @@ def place_model(request: TuningInput, mode: Mode, excluded: Sequence[str | None]
     )
 
 
-def _base_diameter(bore: float | None, mode: Mode) -> tuple[dict[str, SettingChoice], list[str]]:
-    """The bore rounded down to 0.5 mm; the build default without a bore or below its minimum."""
+def _base_diameter(geometry: Geometry, mode: Mode) -> tuple[dict[str, SettingChoice], list[str]]:
+    """The through bore of a body of revolution rounded down to 0.5 mm; the build default
+    without one or below its minimum."""
     if mode.base_diameter is None:
         return {}, []
     kept = f"диаметр основания 5D оставлен по умолчанию ({mode.base_diameter} мм)"
+    bore = geometry.bore_diameter
     if bore is None:
         return {}, [f"{kept}: диаметр отверстия детали в отчёте STL не передан"]
+    # The base cylinder runs through the part along its axis.
+    if not geometry.revolution:
+        return {}, [f"{kept}, деталь по отчёту STL не тело вращения"]
+    if not geometry.bore_through:
+        return {}, [f"{kept}, отверстие детали {bore:g} мм по отчёту STL не сквозное"]
     base = math.floor(bore * 2) / 2
     if base < mode.base_diameter_min:
         return {}, [

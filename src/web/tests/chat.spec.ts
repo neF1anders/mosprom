@@ -251,6 +251,33 @@ test("T15 off-topic message gets a reply from the gate without a run", async ({
     card.getByText("Шестерня привода", { exact: true }),
   ).toBeVisible();
 });
+test("T15 a reply in the chat after the project keeps the project", async ({
+  page,
+}) => {
+  await task(page, "Шестерня привода");
+  await pipelineDone(page);
+  await send(page, "TEST_OFFTOPIC Спасибо");
+  await expect(
+    page
+      .getByRole("main")
+      .getByText("Я помогаю только с подготовкой задания на печать"),
+  ).toBeVisible();
+  await pipelineDone(page);
+  // Nothing ran again: the timeline and the files are those of the work before.
+  const job = new URL(page.url()).searchParams.get("job");
+  const snapshot = await (await page.request.get(`/api/v1/jobs/${job}`)).json();
+  expect(snapshot.job.work_revision).toBeLessThan(snapshot.job.revision);
+  expect(snapshot.job.status).toBe("completed");
+  const timeline = page.getByRole("region", { name: "Ход работы" });
+  for (const title of ["Подбор параметров", "Слайсинг"])
+    await expect(
+      timeline.locator("details").filter({
+        has: page.getByText(title, { exact: true }),
+      }),
+    ).toHaveAttribute("data-state", /done|warn/);
+  const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
+  expect(project.status()).toBe(200);
+});
 test("T15 the gate asks for details once, the next message starts the work", async ({
   page,
 }) => {

@@ -54,7 +54,7 @@ async def test_message_creates_revision_and_queues_work_in_one_transaction(pg, h
             "task_name": "stage1.run",
             "queue_name": "stage1",
             "lock": f"job:{job_id}",
-            "args": {"job_id": job_id, "revision": 1},
+            "args": {"job_id": job_id, "revision": 1, "start": False},
         }
     ]
 
@@ -99,35 +99,30 @@ async def test_answers_require_current_questions(http):
     job_id = await new_job(http)
     response = await http.post(
         f"/api/v1/jobs/{job_id}/answers",
-        json={"request_id": rid(), "expected_revision": 0, "answers": {"units": "mm"}},
+        json={"request_id": rid(), "expected_revision": 0, "answers": {"clarify.1": "да"}},
     )
     assert response.status_code == 409
 
 
 async def test_an_unsent_stl_never_displaces_the_model_in_use(pg, http):
-    """Regression: removing an unsent STL dropped the sent one and its confirmed scale."""
+    """Regression: removing an unsent STL dropped the sent one."""
     job_id = await new_job(http)
     first = (await upload(http, job_id, "box.stl")).json()
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
-    async with pg.uow() as uow:
-        job = await uow.jobs.get(job_id, lock=True)
-        job.units = "mm"
-        await uow.jobs.save(job)
-        await uow.commit()
     second = (await upload(http, job_id, "box.stl")).json()
     third = (await upload(http, job_id, "box.stl")).json()
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
-    assert (snapshot["job"]["active_stl"], snapshot["job"]["units"]) == (first["id"], "mm")
+    assert snapshot["job"]["active_stl"] == first["id"]
     # A newer unsent STL replaces the unsent one before it.
     assert [a["id"] for a in snapshot["attachments"]] == sorted([first["id"], third["id"]])
     assert second["id"] not in {a["id"] for a in snapshot["attachments"]}
     detached = await http.post(
         f"/api/v1/jobs/{job_id}/attachments/{third['id']}/detach", json={"request_id": rid()}
     )
-    assert (detached.json()["active_stl"], detached.json()["units"]) == (first["id"], "mm")
+    assert detached.json()["active_stl"] == first["id"]
     fourth = (await upload(http, job_id, "box.stl")).json()
     sent = await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
-    assert (sent.json()["active_stl"], sent.json()["units"]) == (fourth["id"], "unknown")
+    assert sent.json()["active_stl"] == fourth["id"]
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
     assert [a["id"] for a in snapshot["attachments"]] == [fourth["id"]]
 
@@ -279,7 +274,11 @@ async def test_an_edit_after_a_ready_card_reaches_the_stage_one_worker(pg, http)
         await pg.queue.job_manager.finish_job(first, JobStatus.SUCCEEDED, delete_job=False)
         await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
         edit = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
-    assert edit is not None and edit.task_kwargs == {"job_id": job_id, "revision": 2}
+    assert edit is not None and edit.task_kwargs == {
+        "job_id": job_id,
+        "revision": 2,
+        "start": False,
+    }
 
 
 async def test_rename_and_delete_a_chat(pg, http):

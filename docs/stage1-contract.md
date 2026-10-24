@@ -73,11 +73,9 @@
 - `file.sha256` — должен совпасть с `stl_analysis.sha256`;
 - `units.coordinate_unit` — `mm` или `unknown`;
 - `geometry.bounds` — обязательно;
-- `geometry.volume`, `geometry.surface_area`;
-- `topology.watertight`, `topology.winding_consistent`, `topology.components[].signed_volume`;
-- `validation.defects`;
-- `normal_chords.minimum_sampled`;
 - `warnings`, `partial_errors`.
+
+Объём, площадь, топологию, дефекты и хорды этап 2 пока не читает: ни одно правило на них не опирается.
 
 Для оси (подпункт 4а) нужны ещё `geometry.extents` и `geometry.inertia_unit_density` — они в отчёте уже есть.
 
@@ -97,7 +95,7 @@
 |---|---|---|---|
 | `printing_mode` | `printing_mode`, `overhangs` + `no_supports`, `revolution` + `part_class` + `functional_surface_of_revolution` + `rotation_speed_max_rpm` + `flexible`, `bounds` (вместимость) | да | Правило MODE-REVOLUTION-5D и вето (P1-4/4а) |
 | `quality` | `dimensional_tol_mm`, `no_visible_layers`, `priority` | да | — |
-| `materials` | 12 кодов ранжирования, `material`, ответ на вопрос `material_choice` | да | Числовые свойства материалов (materials v2) для резервных кодов |
+| `materials` | 12 кодов ранжирования, `material` | да | Числовые свойства материалов (materials v2) для резервных кодов |
 | `settings`: стенки, кожа, заполнение, температура, скорость | `load_bearing`, `high_stiffness`, `flexible`, `priority`, `dimensional_tol_mm`, свойства материала | да | Заполнение до 100 % по `sealed` / `balanced_rotor` (P1-6) |
 | `settings.support_enable` | `overhangs`, `no_supports`, `pref.supports_allowed` | да | Адаптер чтения (проверен) |
 | `settings.infill_pattern` | `load_bearing`, `flexible` | да | — |

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,7 +14,7 @@ from .concurrency import together
 from .runner import RunContext
 from .store import RunStore
 
-ANALYZER_VERSION = "1.3-revolution"
+ANALYZER_VERSION = "1.4-bore-axis"
 # STL has no units; like Cura, the file is read in millimetres and nobody is asked.
 UNITS = "mm"
 
@@ -64,13 +63,8 @@ class Sources:
         await self.store.save(attachment)
 
     async def stl(
-        self,
-        job: Job,
-        attachments: list[Attachment],
-        ctx: RunContext,
-        ready: Callable[[StlFacts], Awaitable[None]] | None = None,
+        self, job: Job, attachments: list[Attachment], ctx: RunContext
     ) -> StlFacts | None:
-        """``ready`` runs before the completion event, so the interface sees its effect."""
         attachment = next((a for a in attachments if a.id == job.active_stl), None)
         if attachment is None:
             return None
@@ -97,14 +91,11 @@ class Sources:
             )
         )
         await self.store.save(attachment)
-        facts = StlFacts(attachment, report, analysis, geometry)
-        if ready is not None:
-            await ready(facts)
         status = "warning" if geometry.defects else "completed"
         await ctx.event(
             "stl.completed", "STL проанализирован", status, geometry=geometry.model_dump()
         )
-        return facts
+        return StlFacts(attachment, report, analysis, geometry)
 
 
 def _outdated(attachment: Attachment) -> bool:

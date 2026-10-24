@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Делает набор тестовых parameter_set для проверки apply_parameter_set.py на настоящем слайсере.
 Использование: python make_apply_test_sets.py <tests/slicing/example_bracket_petg_classic.json> <папка_вывода>"""
-import copy, json, math, os, sys
+import copy
+import json
+import math
+import os
+import sys
 
 
 def rot_x(deg):

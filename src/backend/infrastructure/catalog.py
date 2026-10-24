@@ -101,7 +101,11 @@ def _trains(definition: dict[str, Any]) -> bool:
 
 
 def _default(value: Any) -> Any:
-    return value.get("default_value") if isinstance(value, dict) else value
+    """An extruder's own constant ``value`` wins over its ``default_value``, as in Cura."""
+    if not isinstance(value, dict):
+        return value
+    constant = value.get("value")
+    return value.get("default_value") if constant is None or isinstance(constant, str) else constant
 
 
 def _qualities(folder: Path) -> dict[str, QualityProfile]:

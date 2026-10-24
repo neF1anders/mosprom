@@ -1,26 +1,23 @@
 """The printer as parameter selection sees it, read from the catalog of the issued build.
 
-Values follow the slicer: a value chosen by selection or set by the quality profile, else the
-extruder's, else the printer's (override formulas are resolved by the catalog), else the
-``fdmprinter`` formula or default. Only the preferred quality profile is not in the catalog;
-it comes from ``printer.json``.
+Values follow the slicer through the catalog's ``ModeValues``, with the quality profile and the
+chosen values over the printer. Only the preferred quality profile is not in the catalog; it
+comes from ``printer.json``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-from ..domain.catalog import PRINTING_MODES, Catalog
+from ..domain.catalog import EXTRUDER, PRINTING_MODES, Catalog
 from ..domain.errors import AppError
 from ..domain.formulas import evaluate
 from ..domain.models import Value
 
-EXTRUDER = "0"
 BASE_DIAMETER_KEY = "cylindrical_mode_base_diameter"
 _NOTHING: Mapping[str, Any] = MappingProxyType({})
 
@@ -72,7 +69,7 @@ class Mode:
     ) -> Any:
         """The value the slicer uses for ``key`` with ``chosen`` and the quality profile."""
         above = {**(quality.values if quality else {}), **chosen}
-        return slicer_value(self.catalog, self.name, key, above)
+        return self.catalog.values(self.name, above).get(key)
 
 
 @dataclass(frozen=True)
@@ -100,21 +97,8 @@ def load_printer(catalog: Catalog) -> Printer:
     )
 
 
-def slicer_value(catalog: Catalog, mode: str, key: str, above: Mapping[str, Any]) -> Any:
-    """The slicer's value of ``key`` in ``mode``; ``above`` holds values set over the printer."""
-    if key in above:
-        return above[key]
-    extruder = catalog.extruder_overrides.get(EXTRUDER, {})
-    if key in extruder:
-        return extruder[key]
-    formula = catalog.settings.get(key, {}).get("value")
-    if key in catalog.printer_overrides or not isinstance(formula, str):
-        return catalog.values(mode).get(key)
-    return evaluate(formula, partial(slicer_value, catalog, mode, above=above))
-
-
 def _mode(catalog: Catalog, name: str) -> Mode:
-    value = partial(slicer_value, catalog, name, above=_NOTHING)
+    value = catalog.values(name).get
     width = float(value("machine_width"))
     warning = catalog.definition("material_print_temperature")["maximum_value_warning"]
     base = catalog.definition(BASE_DIAMETER_KEY)
@@ -149,7 +133,7 @@ def _usable_x(width: float, disallowed: list[list[list[float]]]) -> tuple[float,
 
 
 def _base_diameter(catalog: Catalog, mode: str) -> float | None:
-    lookup = partial(slicer_value, catalog, mode, above=_NOTHING)
+    lookup = catalog.values(mode).get
     enabled = catalog.definition(BASE_DIAMETER_KEY).get("enabled", True)
     if isinstance(enabled, str) and not evaluate(enabled, lookup):
         return None
@@ -158,20 +142,10 @@ def _base_diameter(catalog: Catalog, mode: str) -> float | None:
 
 def _qualities(catalog: Catalog, mode: str) -> dict[str, QualityOption]:
     """Profiles without a layer print with the printer's layer height."""
-    default_layer = float(slicer_value(catalog, mode, "layer_height", _NOTHING))
+    default_layer = float(catalog.values(mode).get("layer_height"))
     options = {}
     for name, profile in catalog.qualities.items():
-        values = _numbers(profile.values)
+        values = profile.numbers()
         layer = values.get("layer_height", default_layer)
         options[name] = QualityOption(name, profile.name, layer, MappingProxyType(values))
     return options
-
-
-def _numbers(values: Mapping[str, str]) -> dict[str, float]:
-    found = {}
-    for key, text in values.items():
-        try:
-            found[key] = float(text)
-        except ValueError:
-            continue  # a formula such as "=math.ceil(speed_print * 40 / 60)"
-    return found

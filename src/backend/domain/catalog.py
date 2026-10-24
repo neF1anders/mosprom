@@ -1,20 +1,22 @@
 """The issued STE Slicer build as data: settings, printer and extruder overrides, quality
-profiles and materials. Parameter selection and its check read the same catalog.
-
-Values are resolved per printing mode the way the slicer does for the printer: an override
-formula is evaluated, otherwise its default, otherwise the ``fdmprinter`` default. Formulas of
-``fdmprinter`` itself are not evaluated, their defaults stand in for them.
+profiles and materials. Parameter selection and its check read the same catalog and resolve
+values through the same ``ModeValues``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 
 from .formulas import FormulaError, evaluate
 
 PRINTING_MODES = ("classic", "cylindrical", "cylindrical_full")
+# How people call each printing mode.
+MODE_NAMES = {"classic": "3D", "cylindrical": "5D Spiral", "cylindrical_full": "5D"}
+# The extruder a parameter set prints with; formulas naming another extruder read it too.
+EXTRUDER = "0"
 # Keys of an override that change a setting's value rather than its limits or conditions.
 _VALUE_KEYS = ("value", "default_value")
 
@@ -39,6 +41,17 @@ class QualityProfile:
     name: str
     values: Mapping[str, str]
 
+    def numbers(self) -> dict[str, float]:
+        """The plain numbers the profile sets; a formula such as
+        ``=math.ceil(speed_print * 40 / 60)`` is left to the slicer."""
+        found = {}
+        for key, text in self.values.items():
+            try:
+                found[key] = float(text)
+            except ValueError:
+                continue
+        return found
+
 
 @dataclass(frozen=True)
 class Catalog:
@@ -57,8 +70,8 @@ class Catalog:
         merged.update({k: v for k, v in overrides.items() if k not in _VALUE_KEYS})
         return merged
 
-    def values(self, mode: str) -> ModeValues:
-        return ModeValues(self, mode)
+    def values(self, mode: str, above: Mapping[str, Any] = MappingProxyType({})) -> ModeValues:
+        return ModeValues(self, mode, above)
 
     def filament_diameter(self, position: str) -> float | None:
         return self.extruder_overrides.get(position, {}).get("material_diameter")
@@ -66,10 +79,17 @@ class Catalog:
 
 @dataclass
 class ModeValues:
-    """Printer values in one printing mode, resolved on demand and cached."""
+    """The values the slicer uses in one printing mode, resolved on demand and cached.
+
+    ``above`` holds what is set over the printer: a quality profile's values and the chosen
+    ones. A key takes the first of its value in ``above``, the extruder's, the printer's
+    override (its formula, else its default), the ``fdmprinter`` formula and the ``fdmprinter``
+    default, as in the slicer's stack of settings. Formulas read other keys the same way.
+    """
 
     catalog: Catalog
     mode: str
+    above: Mapping[str, Any] = field(default_factory=dict)
     _cache: dict[str, Any] = field(default_factory=dict)
     _resolving: set[str] = field(default_factory=set)
 
@@ -90,12 +110,20 @@ class ModeValues:
             self._resolving.discard(key)
 
     def _value(self, key: str) -> Any:
-        override = self.catalog.printer_overrides.get(key, {})
-        formula = override.get("value")
-        if isinstance(formula, str):
-            return evaluate(formula, self.get)
-        if "value" in override:
-            return formula
-        if "default_value" in override:
-            return override["default_value"]
-        return self.catalog.settings.get(key, {}).get("default_value")
+        if key in self.above:
+            return self.above[key]
+        extruder = self.catalog.extruder_overrides.get(EXTRUDER, {})
+        if key in extruder:
+            return extruder[key]
+        for source in (
+            self.catalog.printer_overrides.get(key, {}),
+            self.catalog.settings.get(key, {}),
+        ):
+            formula = source.get("value")
+            if isinstance(formula, str):
+                return evaluate(formula, self.get)
+            if "value" in source:
+                return formula
+            if "default_value" in source:
+                return source["default_value"]
+        return None

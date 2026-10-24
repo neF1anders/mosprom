@@ -78,7 +78,7 @@ def requirement(
     ).model_dump()
 
 
-def card(stl_report=None, answers=None, assumptions=(), **fields) -> TaskCard:
+def card(stl_report=None, assumptions=(), **fields) -> TaskCard:
     payload = {
         "job_id": "job-1",
         "revision": 1,
@@ -86,10 +86,6 @@ def card(stl_report=None, answers=None, assumptions=(), **fields) -> TaskCard:
         "readiness": "ready",
         "allowed_actions": ["select_parameters"],
         "assumptions": [{"text": text} for text in assumptions],
-        "questions": [
-            {"id": question, "kind": "clarify", "title": question, "answer": answer}
-            for question, answer in (answers or {}).items()
-        ],
         "stl_analysis": {"attachment_id": "att-1", "sha256": SHA, "report": stl_report or report()},
     }
     payload.update(fields)

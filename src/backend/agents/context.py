@@ -20,8 +20,7 @@ PREAMBLE = (
     "требует иного. Ссылайся на источники по их id."
 )
 _CLOSING = re.compile(
-    r"</(source|messages|documents|answers|stl|stl_report|knowledge|draft|readings|asked|"
-    r"fields|findings|questions|card|remarks|items|requirement_keys)>"
+    r"</(source|messages|documents|answers|stl|stl_report|knowledge|asked|card|requirement_keys)>"
 )
 
 
@@ -166,10 +165,6 @@ class ContentBuilder:
         self.codes = codes
         self._encoded: dict[str, asyncio.Future[str]] = {}
 
-    def use_answers(self, answers: dict[str, Answer]) -> None:
-        self.inputs = replace(self.inputs, answers=answer_sources(answers))
-        self.ctx.sources.update({s.id: s for s in self.inputs.answers})
-
     def use_geometry(self, geometry: Geometry | None) -> None:
         self.inputs = replace(
             self.inputs, geometry=geometry, preview=geometry.preview_id if geometry else None
@@ -202,7 +197,8 @@ class ContentBuilder:
             for s in self.inputs.documents
             if s.image
         ]
-        if stl and self.inputs.preview:
+        # The report replaces the summary, but the projections still show the shape.
+        if (stl or report) and self.inputs.preview:
             label = "Проекции STL XY, XZ и YZ в единицах файла, только для формы"
             images.append((self.inputs.preview, label))
         parts: list[dict[str, Any]] = [{"type": "text", "text": "\n\n".join(blocks)}]

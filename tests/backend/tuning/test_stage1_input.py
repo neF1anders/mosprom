@@ -11,7 +11,7 @@ from src.backend.domain.requirement_keys import RequirementKey
 from src.backend.tuning.facts import build_facts
 from src.backend.tuning.intake import Unreadable, read_card, read_flag, stricter_end
 from src.backend.tuning.materials import printable_materials
-from src.backend.tuning.select import select_parameters
+from src.backend.tuning.select import READ_CODES, select_parameters
 from tests.backend.tuning.cards import SHA, card, report, requirement
 
 pytestmark = pytest.mark.unit
@@ -138,9 +138,9 @@ def test_partial_errors_of_the_analyzer_are_warnings(select):
 
 
 def test_material_named_by_the_user_matches_the_extruder_filament(select):
-    material = select(card(answers={"material_choice": "PLA"}))["materials"]["0"]
+    material = select(card(requirements=[requirement("material", "PLA")]))["materials"]["0"]
     assert material["id"] == "generic_pla_175"
-    assert material["source"] == "requirement:answer.material_choice"
+    assert material["source"] == "requirement:material"
 
 
 def test_unconfirmed_material_is_not_used(select):
@@ -190,6 +190,21 @@ def test_canonical_load_code_is_taken_as_stated(select):
     assert not any(text.startswith("нагрузка") for text in assumption_texts(parameter_set))
 
 
+def test_unconfirmed_load_and_mode_codes_are_told_as_assumptions(select):
+    # Both were applied as stated with no word that the card had not confirmed them.
+    guessed = card(
+        requirements=[
+            requirement("load_bearing", "cyclic", provenance="assumption", verified=False),
+            requirement("printing_mode", "classic", provenance="assumption", verified=False),
+        ]
+    )
+    parameter_set = select(guessed)
+    assert parameter_set["settings"]["wall_thickness"]["source"] == "rule:LOAD-WALLS"
+    texts = assumption_texts(parameter_set)
+    assert "нагрузка «cyclic» в карточке не подтверждена и принята как допущение" in texts
+    assert "режим печати classic в карточке не подтверждён и принят как допущение" in texts
+
+
 def test_load_is_read_from_production_constraints(select):
     parameter_set = select(card(production_constraints=["Работа при вибрации привода"]))
     assert parameter_set["settings"]["infill_pattern"]["value"] == "gyroid"
@@ -202,6 +217,18 @@ def test_load_is_read_from_production_constraints(select):
 def test_supports_forbidden_by_the_wishes_are_an_assumption(select):
     texts = assumption_texts(select(card(preferences=["Печатать без поддержек"])))
     assert "поддержки запрещены по тексту пожеланий" in texts
+
+
+def test_wish_phrases_match_only_at_the_start_of_a_word(select):
+    # "точн" was found in "достаточно" and "допуск" in "допускаются": priority accuracy.
+    wishes = card(preferences=["деталь должна быть достаточно прочной, допускаются поддержки"])
+    texts = assumption_texts(select(wishes))
+    assert "приоритеты strength выведены из текста пожеланий" in texts
+    assert not any("accuracy" in text for text in texts)
+    tolerance = card(preferences=["Главное допуски на посадку, потом прочность"])
+    assert "приоритеты accuracy, strength выведены из текста пожеланий" in assumption_texts(
+        select(tolerance)
+    )
 
 
 def test_material_without_print_temperature_is_skipped_or_refused(catalog, keys):
@@ -298,9 +325,11 @@ def test_overhangs_of_the_report_switch_supports_on(select):
 
 def test_overhang_share_reaches_the_rules_as_a_fact(catalog, keys):
     material = next(iter(printable_materials(catalog, 1.75).candidates.values()))
-    measured = read_card(card(stl_report=report(overhang_fraction=0.03)), keys)
+    measured = read_card(card(stl_report=report(overhang_fraction=0.03)), keys, READ_CODES)
     assert build_facts(measured, material)["geometry.overhang_area_fraction"] == 0.03
-    assert "geometry.overhang_area_fraction" not in build_facts(read_card(card(), keys), material)
+    assert "geometry.overhang_area_fraction" not in build_facts(
+        read_card(card(), keys, READ_CODES), material
+    )
 
 
 def test_overhangs_with_supports_forbidden_are_unmet_and_vote_for_5d_spiral(select):
@@ -313,12 +342,40 @@ def test_overhangs_with_supports_forbidden_are_unmet_and_vote_for_5d_spiral(sele
     assert parameter_set["printing_mode"]["source"] == "rule:MODE-OVERHANG-5D"
 
 
+def test_supports_allowed_by_a_mandatory_no_supports_are_used_on_overhangs(select):
+    # The rules read only that no_supports is mandatory, not that its value is "no".
+    allowed = card(
+        stl_report=report(overhang_fraction=0.3), requirements=[requirement("no_supports", "нет")]
+    )
+    parameter_set = select(allowed)
+    assert parameter_set["settings"]["support_enable"]["source"] == "rule:SUPPORT-OVERHANG"
+    assert parameter_set["printing_mode"]["value"] == "classic"
+    assert parameter_set["unsatisfied"] == []
+
+
+def test_wish_to_print_without_supports_is_reported_when_overhangs_need_them(select):
+    wish = card(
+        stl_report=report(overhang_fraction=0.3),
+        requirements=[requirement("no_supports", "да", mandatory=False)],
+    )
+    parameter_set = select(wish)
+    assert parameter_set["settings"]["support_enable"]["value"] is True
+    assert parameter_set["printing_mode"]["value"] == "classic"
+    assert parameter_set["unsatisfied"] == [
+        {
+            "requirement_id": "no_supports",
+            "why": "у модели есть нависания, поэтому поддержки включены вопреки пожеланию "
+            "печатать без них",
+        }
+    ]
+
+
 def test_priority_code_comes_before_the_wishes(keys, select):
     coded = card(
         requirements=[requirement("priority", "Speed, quality; strength, speed")],
         preferences=["Важна прочность, затем точность"],
     )
-    request = read_card(coded, keys)
+    request = read_card(coded, keys, READ_CODES)
     assert request.priority == ("speed", "strength")
     assert "priority" not in {requirement.key for requirement in request.requirements}
     assert not any("выведены из текста" in text for text in request.assumptions)
@@ -330,7 +387,8 @@ def test_priority_code_comes_before_the_wishes(keys, select):
 
 
 def test_unconfirmed_priority_code_is_told_as_an_assumption(keys):
-    request = read_card(card(requirements=[requirement("priority", "cost", verified=False)]), keys)
+    unconfirmed = card(requirements=[requirement("priority", "cost", verified=False)])
+    request = read_card(unconfirmed, keys, READ_CODES)
     assert request.priority == ("cost",)
     assert (
         "приоритеты cost в карточке не подтверждены и приняты как допущение" in request.assumptions
@@ -342,7 +400,7 @@ def test_priority_code_without_a_known_value_leaves_the_wishes(keys):
         requirements=[requirement("priority", "качество")],
         preferences=["Важна прочность, затем точность"],
     )
-    request = read_card(stated, keys)
+    request = read_card(stated, keys, READ_CODES)
     assert request.priority == ("strength", "accuracy")
     assert (
         "обязательное требование priority (priority): expected some of strength, accuracy, "
@@ -351,19 +409,63 @@ def test_priority_code_without_a_known_value_leaves_the_wishes(keys):
     assert "приоритеты strength, accuracy выведены из текста пожеланий" in request.assumptions
 
 
-def test_choice_code_is_read_as_one_of_its_options(keys):
-    request = read_card(card(requirements=[requirement("part_class", " Gear ")]), keys)
-    (read,) = request.requirements
-    assert (read.key, read.value) == ("part_class", "gear")
-
-
-def test_choice_code_outside_its_options_is_not_taken_into_account(select):
-    parameter_set = select(card(requirements=[requirement("part_class", "шестерня")]))
+def test_codes_no_step_reads_are_told_as_not_taken_into_account(select):
+    # A mandatory code no rule or material check reads was accepted and dropped silently.
+    parameter_set = select(
+        card(
+            requirements=[
+                requirement("rotation_speed_max_rpm", "450", "об/мин"),
+                requirement("sealed", "да", mandatory=False),
+            ]
+        )
+    )
     assert (
-        "обязательное требование part_class (part_class): expected one of gear, shaft, "
-        "wheel_roller, impeller_fan, bushing_sleeve, housing_bracket, cover_boot_seal, "
-        "decorative, other, got 'шестерня' не учтено подбором параметров"
+        "обязательное требование rotation_speed_max_rpm (rotation_speed_max_rpm) не учтено "
+        "подбором параметров"
     ) in assumption_texts(parameter_set)
+    assert (
+        "requirement sealed (sealed) is not used by parameter selection"
+        in (parameter_set["warnings"])
+    )
+
+
+def test_part_class_describes_the_part_and_is_only_logged(select):
+    parameter_set = select(card(requirements=[requirement("part_class", "gear")]))
+    assert not any("part_class" in text for text in assumption_texts(parameter_set))
+    assert (
+        "requirement part_class (part_class) is not used by parameter selection"
+        in (parameter_set["warnings"])
+    )
+
+
+def test_material_properties_without_catalog_data_are_told_as_unchecked(select):
+    # Modulus and heat deflection were read by nothing: "proposed" with no word about them.
+    parameter_set = select(
+        card(
+            requirements=[
+                requirement("tensile_modulus_min_mpa", "2500", "МПа"),
+                requirement("heat_deflection_min_c", "120", "°C"),
+            ]
+        )
+    )
+    texts = assumption_texts(parameter_set)
+    for key in ("tensile_modulus_min_mpa", "heat_deflection_min_c"):
+        assert (
+            f"требование {key} не проверено по каталогу: cannot be checked from the catalog"
+            in texts
+        )
+    statuses = {
+        check["key"]: check["status"] for check in parameter_set["materials"]["0"]["checks"]
+    }
+    assert statuses == {"tensile_modulus_min_mpa": "unknown", "heat_deflection_min_c": "unknown"}
+
+
+def test_high_friction_is_checked_against_the_friction_of_the_material(select):
+    checks = select(card(requirements=[requirement("high_friction", "да")]))["materials"]["0"][
+        "checks"
+    ]
+    (check,) = checks
+    assert (check["key"], check["status"]) == ("high_friction", "ok")
 
 
 def test_percent_codes_are_read_in_percent(keys):
@@ -373,7 +475,7 @@ def test_percent_codes_are_read_in_percent(keys):
             requirement("elongation_min_pct", "20", "%"),
         ]
     )
-    read = [(found.key, found.value) for found in read_card(stated, keys).requirements]
+    read = [(found.key, found.value) for found in read_card(stated, keys, READ_CODES).requirements]
     assert read == [("water_absorption_max_pct", 0.05), ("elongation_min_pct", 20.0)]
 
 
@@ -391,5 +493,9 @@ def test_contract_example_is_selected_with_overhangs_and_priority(select):
     assert any(setting["source"] == "rule:PRIORITY-STRENGTH" for setting in settings.values())
     not_used = [text for text in assumption_texts(parameter_set) if "не учтено" in text]
     assert not_used == [
-        "обязательное требование no_dust (Без микропыли) не учтено подбором параметров"
+        "обязательное требование functional_surface_of_revolution (Цилиндрический протектор) "
+        "не учтено подбором параметров",
+        "обязательное требование rotation_speed_max_rpm (Частота вращения) не учтено подбором "
+        "параметров",
+        "обязательное требование no_dust (Без микропыли) не учтено подбором параметров",
     ]

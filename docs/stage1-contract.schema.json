@@ -28,7 +28,7 @@
       "type": "array",
       "items": {"$ref": "#/$defs/Question"},
       "x-stage2": "used",
-      "description": "Этап 2 читает только ответ на вопрос с id = material_choice (материал, названный пользователем). Лучше, чтобы ответ пользователя о материале сразу становился требованием material."
+      "description": "Этап 2 вопросы не читает: ответы пользователя этап 1 сам переводит в требования, материал в код material."
     },
     "geometry": {"type": ["object", "null"], "x-stage2": "reserved", "description": "Сводка для UI. Этап 2 читает только stl_analysis.report."},
     "stl_analysis": {
@@ -41,7 +41,6 @@
         "report": {"$ref": "#/$defs/StlReport"}
       }
     },
-    "verdict": {"type": ["object", "null"], "x-stage2": "reserved"},
     "files": {"type": "array", "x-stage2": "reserved"},
     "versions": {"type": "object", "x-stage2": "reserved", "description": "Желательно добавить versions.requirement_keys = версия словаря кодов, по которой карточка собрана."}
   },
@@ -129,19 +128,19 @@
         "printing_mode":        {"kind": "choice", "options": ["classic", "cylindrical", "cylindrical_full"], "x-stage2": "used", "uses": "MODE-CARD-HINT (вес 10)", "map": "только если режим явно назван в ТЗ или пользователем; из имени файла/папки не выводить"},
 
         "priority":             {"kind": "list", "options": ["strength", "accuracy", "speed", "cost"], "x-stage2": "adapter", "uses": "PRIORITY-* (первый элемент)", "map": "приоритеты по убыванию; заменяет разбор текста preferences"},
-        "part_class":           {"kind": "choice", "options": ["gear", "shaft", "wheel_roller", "impeller_fan", "bushing_sleeve", "housing_bracket", "cover_boot_seal", "decorative", "other"], "x-stage2": "adapter", "uses": "режим 5D (P1-4а), вето «зубчатый профиль», заполнение у роторов"},
+        "part_class":           {"kind": "choice", "options": ["gear", "shaft", "wheel_roller", "impeller_fan", "bushing_sleeve", "housing_bracket", "cover_boot_seal", "decorative", "other"], "x-stage2": "reserved", "uses": "описание детали, этап 2 пишет его только в warnings; позже режим 5D (P1-4а), вето «зубчатый профиль», заполнение у роторов"},
         "rotation_speed_max_rpm": {"kind": "number", "unit": "rpm", "strict": "upper", "x-stage2": "reserved", "uses": "выигрыш 5D (центробежная нагрузка), заполнение у роторов"},
         "functional_surface_of_revolution": {"kind": "flag", "x-stage2": "reserved", "uses": "MODE-REVOLUTION-5D", "map": "рабочая поверхность — тело вращения (протектор, профиль кулачка, посадка), ступеньки на ней недопустимы"},
         "balanced_rotor":       {"kind": "flag", "x-stage2": "reserved", "uses": "заполнение 100 % (P1-6)", "map": "требование балансировки / остаточного дисбаланса"},
         "sealed":               {"kind": "flag", "x-stage2": "reserved", "uses": "заполнение и стенки (P1-6)", "map": "герметичность, непроницаемость стенки"},
-        "high_friction":        {"kind": "flag", "x-stage2": "reserved", "uses": "ранжирование (трение, обратная шкала)", "map": "высокое сцепление/трение с ответной поверхностью"},
-        "no_conductive_fillers": {"kind": "flag", "x-stage2": "reserved", "uses": "исключить углерод/металл-наполненные материалы", "map": "диэлектрик, без токопроводящих наполнителей"},
-        "service_temp_peak_c":  {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "reserved", "uses": "предупреждение о кратковременном нагреве", "map": "кратковременный контакт / пик температуры"},
-        "heat_deflection_min_c": {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2 (P1-7)", "map": "Vicat, HDT, «не размягчается при …»"},
-        "tensile_modulus_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2"},
-        "tensile_strength_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2"},
-        "elongation_min_pct":   {"kind": "number", "unit": "%", "strict": "upper", "x-stage2": "reserved", "uses": "материалы v2", "note": "единицы % нет в domain/units.py: до её добавления требование не прочитается"},
-        "water_absorption_max_pct": {"kind": "number", "unit": "%", "strict": "lower", "x-stage2": "reserved", "uses": "материалы v2", "note": "единицы % нет в domain/units.py: до её добавления требование не прочитается"}
+        "high_friction":        {"kind": "flag", "x-stage2": "used", "uses": "ранжирование (трение, обратная шкала)", "map": "высокое сцепление/трение с ответной поверхностью"},
+        "no_conductive_fillers": {"kind": "flag", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже исключить углерод/металл-наполненные материалы", "map": "диэлектрик, без токопроводящих наполнителей"},
+        "service_temp_peak_c":  {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже предупреждение о кратковременном нагреве", "map": "кратковременный контакт / пик температуры"},
+        "heat_deflection_min_c": {"kind": "number", "unit": "°C", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2 (P1-7)", "map": "Vicat, HDT, «не размягчается при …»"},
+        "tensile_modulus_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"},
+        "tensile_strength_min_mpa": {"kind": "number", "unit": "MPa", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"},
+        "elongation_min_pct":   {"kind": "number", "unit": "%", "strict": "upper", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"},
+        "water_absorption_max_pct": {"kind": "number", "unit": "%", "strict": "lower", "x-stage2": "used", "uses": "в каталоге нет данных, этап 2 сообщает, что требование не проверено; позже материалы v2"}
       }
     },
 
@@ -164,22 +163,22 @@
           "properties": {
             "bounds": {"type": "array", "items": {"$ref": "#/$defs/Point"}, "minItems": 2, "maxItems": 2, "x-stage2": "used", "description": "Обязательно: без габаритов отказ stl_report_bounds. Задаёт размер, проверку вместимости в режим и положение на столе."},
             "extents": {"$ref": "#/$defs/Point", "x-stage2": "adapter", "description": "Для оценки оси по P1-4а."},
-            "volume": {"type": ["number", "null"], "x-stage2": "used"},
-            "surface_area": {"type": ["number", "null"], "x-stage2": "used", "description": "Знаменатель overhangs.area_fraction."},
+            "volume": {"type": ["number", "null"], "x-stage2": "reserved"},
+            "surface_area": {"type": ["number", "null"], "x-stage2": "reserved", "description": "Знаменатель overhangs.area_fraction."},
             "inertia_unit_density": {"type": ["array", "null"], "x-stage2": "adapter", "description": "Тензор 3×3. Запасной источник оси, если revolution не посчитан."}
           }
         },
         "topology": {
           "type": "object",
-          "x-stage2": "used",
+          "x-stage2": "reserved",
           "properties": {
             "watertight": {"type": "boolean"},
             "winding_consistent": {"type": "boolean"},
             "components": {"type": "array", "items": {"type": "object", "properties": {"signed_volume": {"type": ["number", "null"]}, "genus": {"type": ["integer", "null"]}}}}
           }
         },
-        "validation": {"type": "object", "properties": {"defects": {"type": "array", "items": {"type": "string"}}}, "x-stage2": "used"},
-        "normal_chords": {"type": "object", "properties": {"minimum_sampled": {"type": ["number", "null"]}}, "x-stage2": "used", "description": "Оценка тонкой стенки (факт geometry.min_wall_estimate_mm)."},
+        "validation": {"type": "object", "properties": {"defects": {"type": "array", "items": {"type": "string"}}}, "x-stage2": "reserved"},
+        "normal_chords": {"type": "object", "properties": {"minimum_sampled": {"type": ["number", "null"]}}, "x-stage2": "reserved", "description": "Оценка тонкой стенки. Ни одно правило этапа 2 её пока не читает."},
         "sections": {"type": "array", "x-stage2": "reserved"},
         "warnings": {"type": "array", "items": {"type": "string"}, "x-stage2": "used"},
         "partial_errors": {"type": "object", "additionalProperties": {"type": "string"}, "x-stage2": "used"},
@@ -190,7 +189,7 @@
           "description": "НОВОЕ. Нависания в ориентации «как в файле» (Z вверх). Оживляет SUPPORT-OVERHANG, SUPPORT-FORBIDDEN-OVERHANG, MODE-OVERHANG-5D (ревизия B1).",
           "required": ["critical_angle_deg", "area_mm2", "area_fraction", "bed_contact_area_mm2", "method"],
           "properties": {
-            "critical_angle_deg": {"type": "number", "const": 45, "description": "Угол от вертикали, после которого грань — нависание: грань вниз с n_z < −sin(45°)."},
+            "critical_angle_deg": {"type": "number", "const": 45, "description": "Угол от вертикали, после которого грань — нависание: грань вниз с n_z < −sin(45°) − 1e-4. Допуск убирает шум float32 у фаски ровно 45°."},
             "bed_band_mm": {"type": "number", "default": 0.2, "description": "Грани, целиком лежащие в полосе min z … min z + bed_band_mm, — опора на стол, не нависание."},
             "area_mm2": {"type": "number", "minimum": 0, "description": "Площадь нависающих граней вне полосы стола."},
             "area_fraction": {"type": "number", "minimum": 0, "maximum": 1, "description": "area_mm2 / geometry.surface_area. Порог правил 0,05."},
@@ -239,7 +238,7 @@
               "required": ["through", "diameter_mm"],
               "properties": {
                 "through": {"type": "boolean", "description": "Сквозное по всей длине."},
-                "diameter_mm": {"type": "number", "minimum": 0, "description": "Минимальный вписанный диаметр по длине отверстия. Станет cylindrical_mode_base_diameter (floor до 0,5 мм)."},
+                "diameter_mm": {"type": "number", "minimum": 0, "description": "Минимальный вписанный диаметр по длине отверстия, от найденной оси. У сквозного отверстия тела вращения станет cylindrical_mode_base_diameter (floor до 0,5 мм)."},
                 "length_mm": {"type": "number", "minimum": 0}
               }
             },

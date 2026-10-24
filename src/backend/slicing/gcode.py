@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from ..domain.catalog import Catalog
+from ..domain.catalog import Catalog, ModeValues
 from ..domain.parameters import Exclusion, Feedback, FeedbackWarning, ParameterSet
 from ..domain.slicing import GcodeCheck, GcodeFinding
 
@@ -155,7 +155,7 @@ def check_gcode(
     elif written_mode != mode:
         add("apply", "error", f"режим в G-code {written_mode}, ожидался {mode}", "printing_mode")
     _layer_height(facts, parameter_set, catalog, add)
-    _temperatures(facts, settings, mode, add)
+    _temperatures(facts, catalog.values(mode, settings), settings, mode, add)
     _written_settings(facts, settings, add)
     if mode == "classic":
         _bed(facts, catalog, add)
@@ -202,27 +202,19 @@ def _expected_layer_height(parameter_set: ParameterSet, catalog: Catalog) -> Any
     return catalog.values(parameter_set.printing_mode.value).get("layer_height")
 
 
-def _temperatures(facts: GcodeFacts, settings: dict[str, Any], mode: str, add) -> None:
-    # The first layer and the standby may have temperatures of their own, so the requested
-    # one has to appear, not to be the only one.
+def _temperatures(
+    facts: GcodeFacts, values: ModeValues, settings: dict[str, Any], mode: str, add
+) -> None:
+    """Every heating command sets a temperature the set asks for: the print's or the first
+    layer's, which follows the print by the build's formula unless the set gives its own."""
     nozzle = settings.get("material_print_temperature")
-    if nozzle is not None and facts.nozzle and nozzle not in facts.nozzle:
-        found = ", ".join(map(str, sorted(set(facts.nozzle))))
-        add(
-            "apply",
-            "error",
-            f"температура сопла в G-code {found} °C, ожидалась {nozzle} °C",
-            "material_print_temperature",
-        )
+    if nozzle is not None:
+        layer = values.get("material_print_temperature_layer_0")
+        _heated(facts.nozzle, {nozzle, layer}, "сопла", nozzle, "material_print_temperature", add)
     bed = settings.get("material_bed_temperature")
-    if bed is not None and mode == "classic" and facts.bed and bed not in facts.bed:
-        found = ", ".join(map(str, sorted(set(facts.bed))))
-        add(
-            "apply",
-            "error",
-            f"температура стола в G-code {found} °C, ожидалась {bed} °C",
-            "material_bed_temperature",
-        )
+    if bed is not None and mode == "classic":
+        layer = values.get("material_bed_temperature_layer_0")
+        _heated(facts.bed, {bed, layer}, "стола", bed, "material_bed_temperature", add)
     if mode in FIVE_D and facts.bed:
         add(
             "apply",
@@ -230,6 +222,15 @@ def _temperatures(facts: GcodeFacts, settings: dict[str, Any], mode: str, add) -
             "в 5D стол не греется, а в G-code есть его нагрев",
             "material_bed_temperature",
         )
+
+
+def _heated(found: list[int], asked: set[Any], what: str, expected: Any, key: str, add) -> None:
+    other = sorted(set(found) - asked)
+    if other:
+        message = (
+            f"температура {what} в G-code {', '.join(map(str, other))} °C, ожидалась {expected} °C"
+        )
+        add("apply", "error", message, key)
 
 
 def _written_settings(facts: GcodeFacts, settings: dict[str, Any], add) -> None:

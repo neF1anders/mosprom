@@ -27,9 +27,13 @@ DEFAULT_MAX_FACES = 2_000_000
 # Shared with stage 2 rules (docs/stage1-contract.schema.json), so a 0.05 overhang
 # threshold means the same on both sides.
 OVERHANG_ANGLE = 45  # degrees from vertical
+# A normal this close to the limit counts as on it: the float32 coordinates of STL leave a
+# 45 degree chamfer either side of sin 45 depending on where the part sits in the file.
+LIMIT_TOLERANCE = 1e-4
 BED_BAND = 0.2
 BELTS, SECTORS = 24, 36
 ROUND_CV = 0.03  # radius variation below which a belt counts as round
+PAIRS = 1 << 22  # points x edges compared at once in the loop tests
 DOWN, UP = np.array([0.0, 0.0, -1.0]), np.array([0.0, 0.0, 1.0])
 
 
@@ -208,7 +212,7 @@ def overhang_stats(mesh: trimesh.Trimesh, rotation: np.ndarray) -> dict:
     # Faces wholly inside the band rest on the bed and need no support.
     in_band = face_z.max(axis=1) <= face_z.min() + BED_BAND
     areas = mesh.area_faces
-    over = (normal_z < -math.sin(math.radians(OVERHANG_ANGLE))) & ~in_band
+    over = (normal_z < -math.sin(math.radians(OVERHANG_ANGLE)) - LIMIT_TOLERANCE) & ~in_band
     area, total = float(areas[over].sum()), float(mesh.area)
     extents = np.ptp(mesh.vertices @ rotation.T, axis=0)
     return {
@@ -228,7 +232,10 @@ def overhangs(mesh: trimesh.Trimesh) -> dict:
         "area_mm2": stats["area_mm2"],
         "area_fraction": stats["area_fraction"],
         "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
-        "method": "face_normals_as_loaded; n_z_below_minus_sin45; faces_within_bed_band_excluded",
+        "method": (
+            f"face_normals_as_loaded; n_z_below_minus_sin45_by_{LIMIT_TOLERANCE:g}; "
+            "faces_within_bed_band_excluded"
+        ),
     })
 
 
@@ -259,12 +266,71 @@ def _loop_area(points: np.ndarray) -> float:
     return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
 
 
-def _inside(point: np.ndarray, loop: np.ndarray) -> bool:
-    x, y = point
+def _inside(points: np.ndarray, loop: np.ndarray) -> np.ndarray:
+    """Even-odd test of each point against one closed loop."""
     xs, ys = loop[:, 0], loop[:, 1]
     xn, yn = np.roll(xs, -1), np.roll(ys, -1)
-    crosses = ((ys > y) != (yn > y)) & (x < (xn - xs) * (y - ys) / (yn - ys + 1e-30) + xs)
-    return bool(np.count_nonzero(crosses) % 2)
+    result = np.empty(len(points), dtype=bool)
+    step = max(1, PAIRS // len(loop))  # bounds the points x edges arrays
+    for first in range(0, len(points), step):
+        x, y = points[first : first + step, :1], points[first : first + step, 1:]
+        crosses = ((ys > y) != (yn > y)) & (x < (xn - xs) * (y - ys) / (yn - ys + 1e-30) + xs)
+        result[first : first + step] = np.count_nonzero(crosses, axis=1) % 2 == 1
+    return result
+
+
+def _boxes(loops: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    return np.array([loop.min(axis=0) for loop in loops]), np.array([loop.max(axis=0) for loop in loops])
+
+
+def _material_area(loops: list[np.ndarray]) -> float:
+    """Area of a closed section: a loop inside an odd number of others cuts a hole."""
+    starts = np.array([loop[0] for loop in loops])
+    lows, highs = _boxes(loops)
+    depth = np.zeros(len(loops), dtype=int)
+    step = max(1, PAIRS // len(loops))
+    for first in range(0, len(loops), step):
+        chunk = starts[first : first + step, None]
+        # A start can be inside only the loops whose bounding box holds it.
+        near = ((chunk >= lows) & (chunk <= highs)).all(axis=2)
+        rows = np.arange(len(near))
+        near[rows, rows + first] = False
+        for index in np.nonzero(near.any(axis=0))[0]:
+            held = first + np.nonzero(near[:, index])[0]
+            depth[held] += _inside(starts[held], loops[index])
+    return sum(abs(_loop_area(loop)) * (1 if d % 2 == 0 else -1) for loop, d in zip(loops, depth))
+
+
+def _sectors(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Smallest radius per angular sector around the origin and the farthest point of each."""
+    radius = np.hypot(x, y)
+    sector = ((np.arctan2(y, x) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS
+    inner, outer_xy = np.full(SECTORS, np.nan), np.full((SECTORS, 2), np.nan)
+    for s in range(SECTORS):
+        mask = sector == s
+        if mask.any():
+            k = np.argmax(np.where(mask, radius, -1))
+            inner[s] = radius[mask].min()
+            outer_xy[s] = x[k], y[k]
+    return inner, outer_xy
+
+
+def _bore(loops: list[np.ndarray], closed: bool, centre: np.ndarray, outer: float) -> float | None:
+    """Inscribed radius of the bore around the axis through ``centre``, None without one."""
+    if closed:
+        lows, highs = _boxes(loops)
+        around = np.nonzero(((centre >= lows) & (centre <= highs)).all(axis=1))[0]
+        encircling = [loops[i] for i in around if _inside(centre[None], loops[i])[0]]
+        if len(encircling) < 2:
+            return None
+        # The smallest loop around the axis is the bore; its nearest point is the inscribed radius.
+        smallest = min(encircling, key=lambda loop: abs(_loop_area(loop)))
+        return float(np.hypot(*(_densify(smallest) - centre).T).min())
+    # Open section: a bore is the surface well inside the outer radius in every sector.
+    points = np.vstack([_densify(loop) for loop in loops]) - centre
+    inner, _ = _sectors(*points.T)
+    ring = not np.isnan(inner).any() and (inner < 0.9 * outer).all()
+    return float(inner.min()) if ring else None
 
 
 def _densify(loop: np.ndarray) -> np.ndarray:
@@ -275,7 +341,8 @@ def _densify(loop: np.ndarray) -> np.ndarray:
 
 
 def _belts(mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray) -> tuple[list, float, np.ndarray, np.ndarray]:
-    """Sections across the axis: outer/inner radius per sector, area and bore per belt."""
+    """Sections across the axis: the farthest point per sector around the centroid, the loops
+    in the plane of the belt and their area."""
     axis = axis / np.linalg.norm(axis)
     u = np.cross(axis, [1, 0, 0] if abs(axis[0]) < 0.9 else [0, 1, 0])
     u /= np.linalg.norm(u)
@@ -301,32 +368,11 @@ def _belts(mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray) -> tup
             rows.append(None)
             continue
         points = np.vstack([_densify(loop) for loop in loops]) - centroid
-        x, y = points @ u, points @ v
-        radius = np.hypot(x, y)
-        sector = ((np.arctan2(y, x) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS
-        outer, inner = np.full(SECTORS, np.nan), np.full(SECTORS, np.nan)
-        outer_xy = np.full((SECTORS, 2), np.nan)
-        for s in range(SECTORS):
-            mask = sector == s
-            if mask.any():
-                k = np.argmax(np.where(mask, radius, -1))
-                outer[s], inner[s] = radius[mask].max(), radius[mask].min()
-                outer_xy[s] = x[k], y[k]
+        _, outer_xy = _sectors(points @ u, points @ v)
         planar = [np.c_[(loop - centroid) @ u, (loop - centroid) @ v] for loop in loops]
         closed = all(np.allclose(loop[0], loop[-1]) for loop in loops)
-        area = bore = None
-        if closed:
-            # Nesting depth decides whether a loop adds material or cuts a hole.
-            area = 0.0
-            for index, loop in enumerate(planar):
-                depth = sum(_inside(loop[0], other) for j, other in enumerate(planar) if j != index)
-                area += abs(_loop_area(loop)) * (1 if depth % 2 == 0 else -1)
-            encircling = [loop for loop in planar if _inside(np.zeros(2), loop)]
-            if len(encircling) >= 2:
-                # The smallest loop around the axis is the bore; its nearest point is the inscribed radius.
-                smallest = min(encircling, key=lambda loop: abs(_loop_area(loop)))
-                bore = float(np.hypot(*_densify(smallest).T).min())
-        rows.append({"outer_xy": outer_xy, "inner": inner, "area": area, "closed": closed, "bore": bore})
+        area = _material_area(planar) if closed else None
+        rows.append({"outer_xy": outer_xy, "loops": planar, "area": area, "closed": closed})
     return rows, length, u, v
 
 
@@ -371,13 +417,8 @@ def revolution(mesh: trimesh.Trimesh) -> dict:
             outer = np.hypot(*xy.T)
             cvs.append(float(outer.std() / outer.mean()))
             outer_radii.append(float(outer.mean()))
-            if row["closed"]:
-                bores.append(row["bore"])
-            else:
-                inner = row["inner"]
-                # Open section: a bore is the surface well inside the outer radius in every sector.
-                ring = not np.isnan(inner).any() and (inner < 0.9 * outer.mean()).all()
-                bores.append(float(inner.min()) if ring else None)
+            # Measured around the axis: the centroid of a lopsided part is off it.
+            bores.append(_bore(row["loops"], row["closed"], shift, float(outer.mean())))
             if row["area"] is not None:
                 annulus = math.pi * (outer.mean() ** 2 - (bores[-1] or 0.0) ** 2)
                 fills.append(row["area"] / annulus if annulus > 0 else None)
@@ -565,12 +606,20 @@ def analyze_stl(
         ),
     }
     partial_errors = {}
+    # Stage 2 sections; each is optional, a failure leaves the rest of the report intact.
+    extra: dict[str, Any] = {}
+    # Overhangs are cheap and go into the checkpoint, so a model cut by the time limit keeps them.
+    try:
+        extra["overhangs"] = overhangs(mesh)
+    except Exception as exc:
+        partial_errors["overhangs"] = type(exc).__name__
     base_checkpoint = {
         "schema_version": "1.2", "status": "partial",
         "file": {"path": str(path), **file_info},
         "geometry": geometry, "validation": {"defects": defects},
         "units": {"input_unit": units, "coordinate_unit": "unknown" if units == "unknown" else "mm"},
         "topology": {"component_count": len(parts)},
+        **extra,
         "warnings": warnings, "partial_errors": partial_errors,
     }
     if checkpoint:
@@ -619,12 +668,6 @@ def analyze_stl(
     except Exception as exc:  # preserve validated geometry on section failure
         partial_errors["sections"] = type(exc).__name__
         sections = []
-    # Stage 2 sections; each is optional, a failure leaves the rest of the report intact.
-    extra: dict[str, Any] = {}
-    try:
-        extra["overhangs"] = overhangs(mesh)
-    except Exception as exc:
-        partial_errors["overhangs"] = type(exc).__name__
     try:
         extra["revolution"] = revolution(mesh)
     except Exception as exc:

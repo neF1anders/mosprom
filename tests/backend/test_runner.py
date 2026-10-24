@@ -194,3 +194,18 @@ async def test_talk_offers_the_tools_but_does_not_run_them():
     assert model.requests["gate"][0]["tools"] == [tool]
     assert model.requests["gate"][0]["thinking"] is False
     assert len(uow.traces.calls) == 1 and uow.cache.values == {}
+
+
+def test_a_null_in_an_optional_field_keeps_the_item():
+    """Regression: "conditions": null dropped the whole requirement it belonged to."""
+    text = """{"requirements": [
+      {"key": "duty", "label": null, "value": "24/7", "unit": null, "conditions": null,
+       "sources": [{"source_id": "f1p1", "page": null, "quote": "режим 24/7"}]},
+      {"key": "brittle", "value": null}
+    ]}"""
+    draft, dropped = parse_output(text, Draft)
+    [duty] = draft.requirements
+    assert (duty.key, duty.label, duty.conditions, duty.unit) == ("duty", "", "", None)
+    assert duty.sources[0].quote == "режим 24/7"
+    # A null in a required field still makes the item unusable.
+    assert dropped == ["requirements[1]: Input should be a valid string"]
