@@ -12,7 +12,6 @@ from ..ports.persistence import UnitOfWork
 from .runner import RunContext
 
 PAGE = 100
-FILES_CHANGED = "Файлы изменились, отправьте задание, чтобы я их учёл"
 
 
 class RunStore(JobStore):
@@ -66,16 +65,16 @@ class RunStore(JobStore):
             ensure_current(job.revision, job.status, ctx.revision)
             job.card = card
             await _hand_over(uow, job)
-            await _publish(uow, job, FILES_CHANGED if job.files_changed else text, "chat")
+            await _publish(uow, job, text, "chat")
             await uow.commit()
 
 
 async def _hand_over(uow: UnitOfWork, job: Job) -> None:
     """A ready card waits in the queue for parameter selection, in the same transaction.
 
-    Files attached during the run are not in the card, so it waits for the user's send.
+    Files sent during the run go with their message to the assistant, which decides.
     """
-    blocked = job.card is None or job.card.readiness == "blocked" or job.files_changed
+    blocked = job.card is None or job.card.readiness == "blocked"
     job.status = transition(job.status, Status.WAITING if blocked else Status.QUEUED)
     if not blocked:
         await uow.queue.stage2(job.id, job.revision)

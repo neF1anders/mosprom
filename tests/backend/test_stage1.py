@@ -499,7 +499,8 @@ async def test_unexpected_error_marks_the_job_failed(pg, http):
     assert job.status == Status.FAILED and job.error.startswith("Внутренняя ошибка")
 
 
-async def test_files_attached_during_a_run_keep_the_card_from_stage_two(pg, http):
+async def test_files_attached_during_a_run_leave_the_card_going_on(pg, http):
+    """The files go with the next message to the assistant; the card is not held back."""
     job_id = await job_with(http, "box.stl", "task.txt")
 
     async def attach_meanwhile(messages):
@@ -512,9 +513,8 @@ async def test_files_attached_during_a_run_keep_the_card_from_stage_two(pg, http
         return reply({})
 
     job = await run(pg, job_id, script(checker=[attach_meanwhile]))
-    assert job.files_changed and job.status == Status.WAITING
-    assert job.card.readiness == "ready" and job.stage == "understanding"
-    assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'stage2'") == []
+    assert job.files_changed and job.status == Status.QUEUED and job.stage == "parameters"
+    assert "Файлы изменились" not in [m["text"] for m in await chat(http, job_id)]
 
 
 async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):

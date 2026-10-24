@@ -64,8 +64,10 @@ def clean(text: str) -> str:
 def chat_text(text: str) -> str:
     """Markdown as the chat shows it: no dashes or colons, no full stop at the end."""
     text = _CJK.sub("", text)
-    text = re.sub(r"\s+[—–]\s+", ", ", text)
     text = re.sub(r"\s*:[ \t]*$", "", text, flags=re.M)
     # A colon before a space is punctuation; one inside a time like 10:30 stays.
     text = re.sub(r"(?<=\S):(?=\s)", ",", text)
+    # A dash that opens a line of dialogue goes; one inside a sentence becomes a comma.
+    text = re.sub(r"(?m)^([ \t]*)[—–][ \t]*", r"\1", text)
+    text = re.sub(r",?\s+[—–]\s+", ", ", text)
     return text.strip().removesuffix(".")
