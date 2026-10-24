@@ -22,7 +22,8 @@ class RenameJob(Command):
 
 
 class SendMessage(Command):
-    text: str = Field(min_length=1, max_length=30000)
+    # Files alone may go without a text; the service refuses a message with neither.
+    text: str = Field(default="", max_length=30000)
 
 
 class Answers(Command):

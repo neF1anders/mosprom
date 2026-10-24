@@ -174,7 +174,7 @@ export function App() {
   const send = useMutation({
     mutationFn: async ({ text, queue }: { text: string; queue: boolean }) => {
       const id = await ensureJob();
-      if (!text) return command(`/jobs/${id}/control/retry`);
+      // Files alone go as a message too: the assistant decides what they are for.
       return command(`/jobs/${id}/${queue ? "queue" : "messages"}`, { text });
     },
     onSuccess: () => {
