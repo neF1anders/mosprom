@@ -34,7 +34,8 @@ export async function send(page: Page, text: string) {
 export async function settled(page: Page) {
   await expect(
     page.getByRole("status").filter({
-      hasText: /Нужны уточнения|Первый этап завершён|Ошибка обработки/,
+      hasText:
+        /Нужны уточнения|Параметры подобраны|Параметры требуют внимания|Ошибка обработки/,
     }),
   ).toBeVisible();
 }
@@ -72,4 +73,11 @@ export async function answered(page: Page, question: string, value: string) {
     })
     .last();
   await expect(pair.getByRole("definition")).toHaveText(value);
+}
+// The pipeline ended: parameters are selected and checked, with or without remarks.
+export const PIPELINE_DONE = /Параметры подобраны|Параметры требуют внимания/;
+export async function pipelineDone(page: Page) {
+  await expect(
+    page.getByRole("status").filter({ hasText: PIPELINE_DONE }),
+  ).toBeVisible();
 }

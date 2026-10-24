@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Audit } from "./Audit";
 import { modelSize } from "../format";
 import type { Card, Evidence, Geometry, Job, ProgressEvent } from "../types";
-import { answered, isRunning, statusLabel, UNKNOWN_ANSWER } from "../types";
+import { answered, isRunning, jobStatus, UNKNOWN_ANSWER } from "../types";
 import styles from "../App.module.css";
 
 const methodLabels: Record<string, string> = {
@@ -232,12 +232,12 @@ export function TaskCard({
               aria-label="Показать журнал вызовов"
               title="Раскрыть журнал проверок"
             >
-              <span role="status">{statusLabel[job?.status || "draft"]}</span>
+              <span role="status">{jobStatus(job)}</span>
             </summary>
             <Audit events={events} />
           </details>
         ) : (
-          <p role="status">{statusLabel[job?.status || "draft"]}</p>
+          <p role="status">{jobStatus(job)}</p>
         )}
         {!!blockers.length && (
           <details className={styles.geometryDetails}>
@@ -247,13 +247,24 @@ export function TaskCard({
             ))}
           </details>
         )}
-        {job?.next_stage === "queued" && (
+        {(job?.stage === "parameters" || job?.stage === "validation") && (
           <p>Карточка передана на подбор параметров</p>
         )}
       </Field>
-      {card && !running && card.revision === job?.revision && (
-        <a href={`/api/v1/jobs/${job?.id}/card`} download="task-card.json">
-          Скачать карточку JSON
+      {/* The card stays available while later stages work on it. */}
+      {card &&
+        card.revision === job?.revision &&
+        (!running || job.stage !== "understanding") && (
+          <a href={`/api/v1/jobs/${job.id}/card`} download="task-card.json">
+            Скачать карточку JSON
+          </a>
+        )}
+      {job?.stage === "done" && job.parameters && (
+        <a
+          href={`/api/v1/jobs/${job.id}/parameters`}
+          download="parameter-set.json"
+        >
+          Скачать параметры JSON
         </a>
       )}
     </aside>
