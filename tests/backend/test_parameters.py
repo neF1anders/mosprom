@@ -82,6 +82,7 @@ def test_feedback_constraints_are_well_formed():
     ("step", "check", "after"),
     [
         (FIRST_STEP, None, Step("validation", 1)),
+        (FIRST_STEP, "infeasible", None),
         (Step("validation", 1), "ok", None),
         (Step("validation", 1), "needs_changes", Step("parameters", 2)),
         (Step("parameters", 2), None, Step("validation", 2)),
