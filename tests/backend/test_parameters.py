@@ -3,6 +3,7 @@ from pydantic import ValidationError
 
 from src.backend.domain.parameters import Constraint, Feedback, ParameterSet, Setting
 from src.backend.domain.pipeline import FIRST_STEP, Step, next_step
+from src.backend.pipeline.parameters import _count
 
 pytestmark = pytest.mark.unit
 
@@ -90,3 +91,18 @@ def test_feedback_constraints_are_well_formed():
 )
 def test_selection_is_checked_and_revised_at_most_once(step, check, after):
     assert next_step(step, check) == after
+
+
+@pytest.mark.parametrize(
+    ("number", "text"),
+    [
+        (1, "1 настройка"),
+        (3, "3 настройки"),
+        (5, "5 настроек"),
+        (11, "11 настроек"),
+        (21, "21 настройка"),
+        (0, "0 настроек"),
+    ],
+)
+def test_counts_read_as_russian(number, text):
+    assert _count(number, ("настройка", "настройки", "настроек")) == text

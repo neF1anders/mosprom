@@ -222,7 +222,7 @@ async def test_an_unmet_requirement_asks_for_attention_even_when_the_check_passe
     messages = await rows(
         pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
     )
-    assert "не выполнено требований 1" in messages[-1]["payload"]["text"]
+    assert "выполнены не все требования" in messages[-1]["payload"]["text"]
 
 
 async def test_a_stop_before_the_task_starts_keeps_the_job_stopped(pg, http):
