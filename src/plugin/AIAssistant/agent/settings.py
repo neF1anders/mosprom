@@ -44,3 +44,8 @@ def save(base_url=None, api_key=None, model=None, persist=True):
             prefs.setValue(names[key], value)
         else:
             _session_only[key] = value
+
+
+def forget_session():
+    """Drop the values given with persist=False, so the saved ones apply again."""
+    _session_only.clear()
