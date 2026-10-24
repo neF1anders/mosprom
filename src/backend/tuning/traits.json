@@ -1,5 +1,4 @@
 {
-  "schema": "material_traits/0",
   "verified": false,
   "note": "General polymer knowledge, NOT verified against vendor datasheets. Catalog files give only density, temperatures, speed and a Russian description. tg_c: glass transition, service_max_c: rough continuous-service ceiling; absent value = unknown.",
   "materials": {

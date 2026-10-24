@@ -1,127 +1,191 @@
-"""Apply stage-3 constraints: hard limits on searched axes, forced or banned discrete values, pass-through keys."""
+"""Apply check constraints: hard limits on searched axes, forced or banned discrete values, keys
+passed through as they are, and the three top-level choices."""
 
-from typing import Any  # noqa: F401  (used in type comments)
+from __future__ import annotations
 
-from tuning.planning import limit_param
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
+from typing import Any, Literal
 
-# Keys that select the printing mode, the quality profile and the material rather than a slicer setting.
+from ..domain.parameters import Constraint
+from .axes import Axis, SearchSpace
+from .notes import ConstraintResult, Unmet
+from .planning import Chosen, Plan, limit_axis
+
+# Keys that select the printing mode, the quality profile and the material, not a setting.
 MODE_KEY, QUALITY_KEY, MATERIAL_KEY = "printing_mode", "quality_type", "material"
+_CHOICE_KEYS = (MODE_KEY, QUALITY_KEY, MATERIAL_KEY)
 
 
-class Choices(object):
-    """Forced, allowed and banned values for the three top-level choices."""
+@dataclass(frozen=True)
+class Forced:
+    value: Any
+    constraint_id: str
 
-    def __init__(self):
-        self.forced = {}  # type: dict
-        self.allowed = {}  # type: dict
-        self.banned = {}  # type: dict
 
-    def restrict(self, name, constraint):
-        # type: (str, dict) -> None
-        operation, value = constraint["op"], constraint["value"]
-        if operation == "eq":
-            self.forced[name] = {"value": value, "constraint_id": constraint["id"]}
-        elif operation == "ne":
-            self.banned.setdefault(name, []).append(value)
-        elif operation == "in":
-            self.allowed[name] = list(value)
+@dataclass(frozen=True)
+class Choices:
+    """Forced, allowed and banned values of the three top-level choices."""
 
-    def permits(self, name, value):
-        # type: (str, Any) -> bool
-        if value in self.banned.get(name, []):
+    forced: Mapping[str, Forced] = field(default_factory=dict)
+    allowed: Mapping[str, tuple[Any, ...]] = field(default_factory=dict)
+    banned: Mapping[str, tuple[Any, ...]] = field(default_factory=dict)
+
+    def permits(self, name: str, value: Any) -> bool:
+        if value in self.banned.get(name, ()):
             return False
         return name not in self.allowed or value in self.allowed[name]
 
 
-def constraint_source(constraint_id):
-    # type: (str) -> str
-    return "constraint:" + constraint_id
+@dataclass(frozen=True)
+class PassThrough:
+    """A value for a key stage two does not model, sent as the check demands it."""
+
+    value: Any
+    reason: str
+    constraint_id: str
 
 
-def is_choice(constraint):
-    # type: (dict) -> bool
-    return constraint["key"] in (MODE_KEY, QUALITY_KEY, MATERIAL_KEY)
+@dataclass(frozen=True)
+class ConstraintOutcome:
+    plan: Plan
+    pass_through: Mapping[str, PassThrough]
+    results: tuple[ConstraintResult, ...]
+    unmet: tuple[Unmet, ...]
 
 
-def apply_constraints(constraints, plan, params, space, line_width):
-    # type: (list, dict, dict, dict, float) -> tuple
-    """Constraints on settings (not on the three choices). Return (pass-through {key: constraint}, applied
-    records, unsatisfied items)."""
-    by_key = _index(params, space)
-    passthrough = {}  # type: dict
-    applied, unsatisfied = [], []
+@dataclass(frozen=True)
+class _AxisTarget:
+    axis_id: str
+    domain: Literal["value", "thickness", "lines"]
+
+
+@dataclass(frozen=True)
+class _DiscreteTarget:
+    discrete_id: str
+
+
+def is_choice(constraint: Constraint) -> bool:
+    return constraint.key in _CHOICE_KEYS
+
+
+def choices_from(constraints: Sequence[Constraint]) -> Choices:
+    """Later constraints win for ``eq`` and ``in``; ``ne`` bans add up."""
+    choices = Choices()
     for constraint in constraints:
-        key = constraint["key"]
-        target = by_key.get(key)
-        if target is not None and target[0] == "param":
-            note = _limit_axis(constraint, params[target[1]], target[2], plan, line_width)
-        elif target is not None:
-            note = _restrict_discrete(constraint, target[1], plan)
+        if is_choice(constraint):
+            choices = _restrict(choices, constraint)
+    return choices
+
+
+def _restrict(choices: Choices, constraint: Constraint) -> Choices:
+    name, value = constraint.key, constraint.value
+    if constraint.op == "eq":
+        forced = Forced(value, constraint.id)
+        return replace(choices, forced={**choices.forced, name: forced})
+    if constraint.op == "ne":
+        banned = (*choices.banned.get(name, ()), value)
+        return replace(choices, banned={**choices.banned, name: banned})
+    if constraint.op == "in":
+        return replace(choices, allowed={**choices.allowed, name: tuple(value)})
+    return choices
+
+
+def apply_constraints(
+    plan: Plan,
+    constraints: Sequence[Constraint],
+    axes: Mapping[str, Axis],
+    space: SearchSpace,
+    line_width: float,
+) -> ConstraintOutcome:
+    """Constraints on settings, not on the three choices, in the order the check sent them."""
+    index = _index(axes, space)
+    pass_through: dict[str, PassThrough] = {}
+    results, unmet = [], []
+    for constraint in constraints:
+        target = index.get(constraint.key)
+        if isinstance(target, _AxisTarget):
+            plan, note = _limit_axis(plan, constraint, axes[target.axis_id], target, line_width)
+        elif isinstance(target, _DiscreteTarget):
+            plan, note = _restrict_discrete(plan, constraint, target.discrete_id)
         else:
-            note = _pass_through(constraint, passthrough)
+            note = _pass_through(constraint, pass_through)
         if note is None:
-            applied.append({"id": constraint["id"], "result": "applied", "why": constraint["reason"] or key})
-        else:
-            applied.append({"id": constraint["id"], "result": "not_applied", "why": note})
-            unsatisfied.append({"requirement_id": constraint_source(constraint["id"]), "why": note})
-    return passthrough, applied, unsatisfied
+            results.append(
+                ConstraintResult(constraint.id, "applied", constraint.reason or constraint.key)
+            )
+            continue
+        results.append(ConstraintResult(constraint.id, "not_applied", note))
+        unmet.append(Unmet(f"constraint:{constraint.id}", note))
+    return ConstraintOutcome(plan, pass_through, tuple(results), tuple(unmet))
 
 
-def _index(params, space):
-    """Slicer key -> ("param", id, domain) or ("discrete", id); derived keys map to the axis they come from."""
-    index = {}
-    for param in params.values():
-        index[param.key] = ("param", param.id, "thickness" if param.emit_as else "value")
-    index["wall_line_count"] = ("param", "wall_line_count", "lines")
-    for item in space["discrete"]:
-        keys = [item["key"]] if isinstance(item["key"], str) else []
-        if item["id"] == "cool_fan_enabled":
-            keys = ["cool_fan_enabled", "cool_fan_enabled_classic", "cool_fan_enabled_cylindrical"]
-        for key in keys:
-            index[key] = ("discrete", item["id"])
+def _index(
+    axes: Mapping[str, Axis], space: SearchSpace
+) -> dict[str, _AxisTarget | _DiscreteTarget]:
+    """Slicer key -> what it constrains; the wall line count maps to the axis it comes from."""
+    index: dict[str, _AxisTarget | _DiscreteTarget] = {
+        axis.key: _AxisTarget(axis.id, "thickness" if axis.spec.emit_as else "value")
+        for axis in axes.values()
+    }
+    index["wall_line_count"] = _AxisTarget("wall_line_count", "lines")
+    for item in space.discrete:
+        for key in item.constrained_keys():
+            index[key] = _DiscreteTarget(item.id)
     return index
 
 
-def _limit_axis(constraint, param, domain, plan, line_width):
-    operation, value = constraint["op"], constraint["value"]
-    if operation not in ("eq", "min", "max") or isinstance(value, bool) or not isinstance(value, (int, float)):
-        return "op %s with value %r is not supported on %s" % (operation, value, constraint["key"])
-    if domain == "thickness":
-        value = wall_lines(value, line_width)
-    minimum = value if operation in ("eq", "min") else None
-    maximum = value if operation in ("eq", "max") else None
-    limit_param(plan, param, constraint_source(constraint["id"]), minimum, maximum)
+def _limit_axis(
+    plan: Plan, constraint: Constraint, axis: Axis, target: _AxisTarget, line_width: float
+) -> tuple[Plan, str | None]:
+    op, value = constraint.op, constraint.value
+    if (
+        op not in ("eq", "min", "max")
+        or isinstance(value, bool)
+        or not isinstance(value, int | float)
+    ):
+        return plan, f"op {op} with value {value!r} is not supported on {constraint.key}"
+    limit = wall_lines(value, line_width) if target.domain == "thickness" else value
+    minimum = limit if op in ("eq", "min") else None
+    maximum = limit if op in ("eq", "max") else None
+    return limit_axis(plan, axis, f"constraint:{constraint.id}", minimum, maximum), None
+
+
+def _restrict_discrete(
+    plan: Plan, constraint: Constraint, discrete_id: str
+) -> tuple[Plan, str | None]:
+    rule_id = f"constraint:{constraint.id}"
+    restricted = {**plan.restricted_by, discrete_id: rule_id}
+    if constraint.op == "eq":
+        chosen = Chosen(constraint.value, rule_id)
+        return replace(plan, discrete={**plan.discrete, discrete_id: chosen}), None
+    if constraint.op == "ne":
+        banned = (*plan.banned.get(discrete_id, ()), constraint.value)
+        return replace(
+            plan, banned={**plan.banned, discrete_id: banned}, restricted_by=restricted
+        ), None
+    if constraint.op == "in":
+        allowed = {**plan.allowed, discrete_id: tuple(constraint.value)}
+        return replace(plan, allowed=allowed, restricted_by=restricted), None
+    return plan, f"op {constraint.op} is not supported on {constraint.key}"
+
+
+def _pass_through(constraint: Constraint, pass_through: dict[str, PassThrough]) -> str | None:
+    """A key stage two does not model: the demanded value as is (min/max: the bound itself)."""
+    op, value = constraint.op, constraint.value
+    if op == "ne":
+        return (
+            f"stage 2 does not model {constraint.key} and cannot pick a value other than {value!r}"
+        )
+    if op == "in" and not value:
+        return f"op in with no values is not supported on {constraint.key}"
+    chosen = value[0] if op == "in" else value
+    pass_through[constraint.key] = PassThrough(chosen, constraint.reason, constraint.id)
     return None
 
 
-def _restrict_discrete(constraint, discrete_id, plan):
-    operation, value = constraint["op"], constraint["value"]
-    rule_id = constraint_source(constraint["id"])
-    if operation == "eq":
-        plan["discrete"][discrete_id] = {"value": value, "rule_id": rule_id}
-    elif operation == "ne":
-        plan["banned"].setdefault(discrete_id, []).append(value)
-        plan["restricted_by"][discrete_id] = rule_id
-    elif operation == "in":
-        plan["allowed"][discrete_id] = list(value)
-        plan["restricted_by"][discrete_id] = rule_id
-    else:
-        return "op %s is not supported on %s" % (operation, constraint["key"])
-    return None
-
-
-def _pass_through(constraint, passthrough):
-    """A key stage 2 does not model: take the demanded value as is (min/max: the bound itself)."""
-    operation, value = constraint["op"], constraint["value"]
-    if operation == "ne":
-        return "stage 2 does not model %s and cannot pick a value other than %r" % (constraint["key"], value)
-    passthrough[constraint["key"]] = dict(constraint, value=value[0] if operation == "in" else value)
-    return None
-
-
-def wall_lines(thickness, line_width):
-    # type: (float, float) -> int
-    """Wall line count the slicer derives from wall_thickness (fdmprinter `wall_line_count` formula)."""
+def wall_lines(thickness: float, line_width: float) -> int:
+    """Wall line count the slicer derives from wall_thickness (``wall_line_count`` formula)."""
     if thickness == 0:
         return 0
     return max(1, int(round((thickness - line_width) / line_width)) + 1)
