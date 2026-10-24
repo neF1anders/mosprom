@@ -1,11 +1,16 @@
+import json
 from dataclasses import replace
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from src.backend.domain.errors import AppError
+from src.backend.domain.models import TaskCard
 from src.backend.domain.requirement_keys import RequirementKey
-from src.backend.tuning.intake import Unreadable, read_flag, stricter_end
+from src.backend.tuning.facts import build_facts
+from src.backend.tuning.intake import Unreadable, read_card, read_flag, stricter_end
+from src.backend.tuning.materials import printable_materials
 from src.backend.tuning.select import select_parameters
 from tests.backend.tuning.cards import SHA, card, report, requirement
 
@@ -277,3 +282,114 @@ def test_number_codes_of_the_shared_dictionary_have_units(keys):
     for entry in keys.keys:
         if entry.kind == "number" and entry.key not in card_fields:
             assert entry.unit, entry.key
+
+
+def test_overhangs_of_the_report_switch_supports_on(select):
+    parameter_set = select(card(stl_report=report(overhang_fraction=0.2)))
+    support = parameter_set["settings"]["support_enable"]
+    assert support["value"] is True and support["source"] == "rule:SUPPORT-OVERHANG"
+    texts = assumption_texts(parameter_set)
+    assert not any(text.startswith("доли нависаний нет") for text in texts)
+    assert (
+        "ориентация «как загружено» и положение в центре рабочей области стола, поворот пока "
+        "не подбирается"
+    ) in texts
+
+
+def test_overhang_share_reaches_the_rules_as_a_fact(catalog, keys):
+    material = next(iter(printable_materials(catalog, 1.75).candidates.values()))
+    measured = read_card(card(stl_report=report(overhang_fraction=0.03)), keys)
+    assert build_facts(measured, material)["geometry.overhang_area_fraction"] == 0.03
+    assert "geometry.overhang_area_fraction" not in build_facts(read_card(card(), keys), material)
+
+
+def test_overhangs_with_supports_forbidden_are_unmet_and_vote_for_5d_spiral(select):
+    forbidden = card(
+        stl_report=report(overhang_fraction=0.2), requirements=[requirement("no_supports", "да")]
+    )
+    parameter_set = select(forbidden)
+    assert "support_enable" not in parameter_set["settings"]
+    assert [item["requirement_id"] for item in parameter_set["unsatisfied"]] == ["no_supports"]
+    assert parameter_set["printing_mode"]["source"] == "rule:MODE-OVERHANG-5D"
+
+
+def test_priority_code_comes_before_the_wishes(keys, select):
+    coded = card(
+        requirements=[requirement("priority", "Speed, quality; strength, speed")],
+        preferences=["Важна прочность, затем точность"],
+    )
+    request = read_card(coded, keys)
+    assert request.priority == ("speed", "strength")
+    assert "priority" not in {requirement.key for requirement in request.requirements}
+    assert not any("выведены из текста" in text for text in request.assumptions)
+    assert (
+        "priority priority (priority): quality not one of strength, accuracy, speed, cost"
+        in request.warnings
+    )
+    assert select(coded)["quality"]["source"] == "rule:PRIORITY-SPEED"
+
+
+def test_unconfirmed_priority_code_is_told_as_an_assumption(keys):
+    request = read_card(card(requirements=[requirement("priority", "cost", verified=False)]), keys)
+    assert request.priority == ("cost",)
+    assert (
+        "приоритеты cost в карточке не подтверждены и приняты как допущение" in request.assumptions
+    )
+
+
+def test_priority_code_without_a_known_value_leaves_the_wishes(keys):
+    stated = card(
+        requirements=[requirement("priority", "качество")],
+        preferences=["Важна прочность, затем точность"],
+    )
+    request = read_card(stated, keys)
+    assert request.priority == ("strength", "accuracy")
+    assert (
+        "обязательное требование priority (priority): expected some of strength, accuracy, "
+        "speed, cost, got 'качество' не учтено подбором параметров"
+    ) in request.assumptions
+    assert "приоритеты strength, accuracy выведены из текста пожеланий" in request.assumptions
+
+
+def test_choice_code_is_read_as_one_of_its_options(keys):
+    request = read_card(card(requirements=[requirement("part_class", " Gear ")]), keys)
+    (read,) = request.requirements
+    assert (read.key, read.value) == ("part_class", "gear")
+
+
+def test_choice_code_outside_its_options_is_not_taken_into_account(select):
+    parameter_set = select(card(requirements=[requirement("part_class", "шестерня")]))
+    assert (
+        "обязательное требование part_class (part_class): expected one of gear, shaft, "
+        "wheel_roller, impeller_fan, bushing_sleeve, housing_bracket, cover_boot_seal, "
+        "decorative, other, got 'шестерня' не учтено подбором параметров"
+    ) in assumption_texts(parameter_set)
+
+
+def test_percent_codes_are_read_in_percent(keys):
+    stated = card(
+        requirements=[
+            requirement("water_absorption_max_pct", "0,05–0,1", "%"),
+            requirement("elongation_min_pct", "20", "%"),
+        ]
+    )
+    read = [(found.key, found.value) for found in read_card(stated, keys).requirements]
+    assert read == [("water_absorption_max_pct", 0.05), ("elongation_min_pct", 20.0)]
+
+
+def test_contract_example_is_selected_with_overhangs_and_priority(select):
+    schema = json.loads(Path("docs/stage1-contract.schema.json").read_text(encoding="utf-8"))
+    example = {key: value for key, value in schema["examples"][0].items() if key != "_comment"}
+    parameter_set = select(TaskCard.model_validate(example))
+    settings = parameter_set["settings"]
+    assert parameter_set["status"] == "proposed"
+    assert settings["support_enable"] == {
+        "value": True,
+        "why": "доля нависаний выше порога, поддержки разрешены",
+        "source": "rule:SUPPORT-OVERHANG",
+    }
+    assert any(setting["source"] == "rule:PRIORITY-STRENGTH" for setting in settings.values())
+    not_used = [text for text in assumption_texts(parameter_set) if "не учтено" in text]
+    assert not_used == [
+        "обязательное требование no_dust (Без микропыли) не учтено подбором параметров"
+    ]
