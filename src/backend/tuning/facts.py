@@ -33,12 +33,15 @@ def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValu
     facts["geometry.is_revolution"] = geometry.revolution
     facts["geometry.bore_through"] = geometry.bore_through
     facts["geometry.slenderness"] = round(geometry.slenderness, 3)
+    width, depth, height = geometry.size
+    facts["geometry.box_volume_cm3"] = round(width * depth * height / 1000.0, 1)
     measures = {
         OVERHANG_FACT: geometry.overhang_fraction,
         "geometry.length_to_diameter": geometry.length_to_diameter,
         "material.speed": material.speed,
         "material.cooling_pct": material.cooling_percent,
         "material.warp": material.traits.warp,
+        "material.infill_min_pct": material.traits.infill_min_pct,
     }
     facts.update({name: value for name, value in measures.items() if value is not None})
     return facts

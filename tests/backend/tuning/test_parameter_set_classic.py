@@ -117,8 +117,12 @@ def test_neutral_card_keeps_slicer_defaults_with_the_standard_layer(select):
     material = parameter_set["materials"]["0"]
     assert material["id"] == "generic_pla_175"
     assert material["why"].startswith("требования задания не различают")
-    # PLA is cooled and has no speed of its own: only the layer and the skirt of 3D are sent.
-    assert sorted(parameter_set["settings"]) == ["adhesion_type", "layer_height"]
+    # PLA is cooled and has no speed of its own: only the layer, three walls and the skirt of
+    # 3D are sent.
+    settings = parameter_set["settings"]
+    assert sorted(settings) == ["adhesion_type", "layer_height", "wall_thickness"]
+    walls = settings["wall_thickness"]
+    assert (walls["value"], walls["source"]) == (1.2, "rule:WALLS-STANDARD")
 
 
 def test_speed_priority_prints_thick_layers_on_the_default_profile(select):
@@ -228,3 +232,39 @@ def test_requirements_that_tell_materials_apart_win_over_the_slicer_default(sele
     material = select(hot)["materials"]["0"]
     assert material["id"] != "generic_pla_175"
     assert material["why"].startswith("лучший из")
+
+
+def test_large_part_without_strength_demands_gets_sparse_infill(select):
+    large = card(
+        stl_report=report(size=(184.0, 218.0, 294.0)),
+        requirements=[requirement("material", "PLA")],
+    )
+    infill = select(large)["settings"]["infill_sparse_density"]
+    assert (infill["value"], infill["source"]) == (10, "rule:LARGE-PART-INFILL")
+
+
+def test_large_part_keeps_the_datasheet_infill_of_its_material(select):
+    large = card(
+        stl_report=report(size=(184.0, 218.0, 294.0)),
+        requirements=[requirement("material", "Enduse PA6")],
+    )
+    parameter_set = select(large)
+    infill = parameter_set["settings"]["infill_sparse_density"]
+    assert parameter_set["status"] == "proposed"
+    assert (infill["value"], infill["source"]) == (30, "rule:MATERIAL-INFILL-MIN")
+
+
+def test_decorative_part_needs_no_datasheet_infill(select):
+    figurine = card(
+        requirements=[
+            requirement("material", "Fiberpart PA12 G12"),
+            requirement("part_class", "decorative"),
+        ]
+    )
+    assert "infill_sparse_density" not in select(figurine)["settings"]
+
+
+def test_fine_quality_carries_the_top_skin_with_denser_infill(select):
+    fine = card(requirements=[requirement("print_quality", "fine")])
+    infill = select(fine)["settings"]["infill_sparse_density"]
+    assert (infill["value"], infill["source"]) == (35, "rule:QUALITY-FINE")

@@ -158,6 +158,7 @@ def _context(mode: Mode, nozzle: float, material: Candidate) -> AxisContext:
         material_speed=material.speed,
         speed_floor=0.5 * min(material.speed or default_speed, default_speed),
         temperature_max=max(mode.temperature_max, material.print_temperature),
+        infill_min=material.traits.infill_min_pct,
     )
 
 

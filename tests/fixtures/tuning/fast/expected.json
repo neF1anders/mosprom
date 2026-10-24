@@ -118,6 +118,12 @@
    "unit": "mm",
    "value": 0.9,
    "why": "сверху и снизу не меньше трёх сплошных слоёв"
+  },
+  "wall_thickness": {
+   "source": "rule:WALLS-STANDARD",
+   "unit": "mm",
+   "value": 1.2,
+   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
   }
  },
  "status": "proposed",
