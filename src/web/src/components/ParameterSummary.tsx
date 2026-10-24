@@ -32,8 +32,7 @@ export function ParameterSummary({ job }: { job: Job }) {
   ];
   if (set?.unsatisfied.length)
     rows.push(["Не выполнено", set.unsatisfied.map((item) => item.why)]);
-  if (set?.assumptions.length)
-    rows.push(["Допущения", set.assumptions.map((item) => item.text)]);
+  const assumptions = set?.assumptions.map((item) => item.text) || [];
   return (
     <div className={styles.cardSummary}>
       <p>Что подобрано</p>
@@ -48,6 +47,20 @@ export function ParameterSummary({ job }: { job: Job }) {
             </dd>
           </div>
         ))}
+        {!!assumptions.length && (
+          <div>
+            <dt>Допущения</dt>
+            <dd>
+              {/* Selection notes every requirement it could not use; folded, they stay readable. */}
+              <details>
+                <summary>Допущений {assumptions.length}</summary>
+                {assumptions.map((text) => (
+                  <span key={text}>{text}</span>
+                ))}
+              </details>
+            </dd>
+          </div>
+        )}
       </dl>
     </div>
   );
