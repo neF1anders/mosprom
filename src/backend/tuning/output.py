@@ -23,13 +23,12 @@ from ..domain.parameters import (
 from .material_choice import MaterialChoice
 from .mode import ModeChoice
 from .notes import ConstraintResult, SettingChoice, Unmet
-from .placement import ORIENTATION_CANDIDATE, Placement
+from .placement import Placement
 from .quality import QualityChoice
 
 STAGE1_BASIS = "карточка этапа 1"
 STAGE2_BASIS = "решение этапа 2"
 # Rotation and scale of the model as loaded.
-_IDENTITY = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 _UNSCALED = [1.0, 1.0, 1.0]
 
 
@@ -75,9 +74,11 @@ def render(selection: Selection) -> ParameterSet:
                 id="m1",
                 attachment_id=placement.attachment_id,
                 extruder=0,
-                orientation_candidate=ORIENTATION_CANDIDATE,
+                orientation_candidate=placement.candidate,
                 transform=Transform(
-                    rotation=_IDENTITY, position=list(placement.position), scale=_UNSCALED
+                    rotation=[list(row) for row in placement.rotation],
+                    position=list(placement.position),
+                    scale=_UNSCALED,
                 ),
                 why=placement.why,
                 source=f"assumption:{ids[placement.orientation_assumption]}",

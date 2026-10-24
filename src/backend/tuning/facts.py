@@ -11,6 +11,9 @@ from .intake import TuningInput
 from .materials import Candidate
 from .rules import FactValue
 
+MODE_FACT = "print.mode"
+OVERHANG_FACT = "geometry.overhang_area_fraction"
+
 
 def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValue]:
     facts: dict[str, FactValue] = {}
@@ -26,10 +29,27 @@ def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValu
         facts[f"req.{requirement.key}"] = requirement.value
         hard = facts.get(f"reqhard.{requirement.key}", False)
         facts[f"reqhard.{requirement.key}"] = bool(hard) or requirement.hard
+    geometry = request.geometry
+    facts["geometry.is_revolution"] = geometry.revolution
+    facts["geometry.bore_through"] = geometry.bore_through
+    facts["geometry.slenderness"] = round(geometry.slenderness, 3)
     measures = {
-        "geometry.overhang_area_fraction": request.geometry.overhang_fraction,
+        OVERHANG_FACT: geometry.overhang_fraction,
+        "geometry.length_to_diameter": geometry.length_to_diameter,
         "material.speed": material.speed,
         "material.cooling_pct": material.cooling_percent,
+        "material.warp": material.traits.warp,
     }
     facts.update({name: value for name, value in measures.items() if value is not None})
     return facts
+
+
+def with_mode(
+    facts: dict[str, FactValue], mode: str, overhang_fraction: float | None
+) -> dict[str, FactValue]:
+    """The facts once the mode is chosen: the mode, and the overhangs of the pose it prints in."""
+    found = {key: value for key, value in facts.items() if key != OVERHANG_FACT}
+    found[MODE_FACT] = mode
+    if overhang_fraction is not None:
+        found[OVERHANG_FACT] = overhang_fraction
+    return found

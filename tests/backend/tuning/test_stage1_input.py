@@ -318,7 +318,7 @@ def test_overhangs_of_the_report_switch_supports_on(select):
     texts = assumption_texts(parameter_set)
     assert not any(text.startswith("доли нависаний нет") for text in texts)
     assert (
-        "ориентация «как загружено» и положение в центре рабочей области стола, поворот пока "
+        "ориентация «как загружено» и положение в центре рабочей области стола, поворот в 3D "
         "не подбирается"
     ) in texts
 
@@ -332,13 +332,23 @@ def test_overhang_share_reaches_the_rules_as_a_fact(catalog, keys):
     )
 
 
-def test_overhangs_with_supports_forbidden_are_unmet_and_vote_for_5d_spiral(select):
+def test_overhangs_with_supports_forbidden_are_unmet_and_stay_in_3d(select):
+    # Not a body of revolution (a figurine): 5D Spiral would not help it.
     forbidden = card(
         stl_report=report(overhang_fraction=0.2), requirements=[requirement("no_supports", "да")]
     )
     parameter_set = select(forbidden)
     assert "support_enable" not in parameter_set["settings"]
     assert [item["requirement_id"] for item in parameter_set["unsatisfied"]] == ["no_supports"]
+    assert parameter_set["printing_mode"]["value"] == "classic"
+
+
+def test_overhangs_of_a_body_of_revolution_with_supports_forbidden_vote_for_5d_spiral(select):
+    forbidden = card(
+        stl_report=report(overhang_fraction=0.2, bore=8.0),
+        requirements=[requirement("no_supports", "да")],
+    )
+    parameter_set = select(forbidden)
     assert parameter_set["printing_mode"]["source"] == "rule:MODE-OVERHANG-5D"
 
 
@@ -429,13 +439,11 @@ def test_codes_no_step_reads_are_told_as_not_taken_into_account(select):
     )
 
 
-def test_part_class_describes_the_part_and_is_only_logged(select):
+def test_part_class_is_read_by_the_mode_rules(select):
     parameter_set = select(card(requirements=[requirement("part_class", "gear")]))
     assert not any("part_class" in text for text in assumption_texts(parameter_set))
-    assert (
-        "requirement part_class (part_class) is not used by parameter selection"
-        in (parameter_set["warnings"])
-    )
+    assert not any("part_class" in text for text in parameter_set["warnings"])
+    assert parameter_set["printing_mode"]["value"] == "classic"
 
 
 def test_material_properties_without_catalog_data_are_told_as_unchecked(select):
@@ -485,16 +493,16 @@ def test_contract_example_is_selected_with_overhangs_and_priority(select):
     parameter_set = select(TaskCard.model_validate(example))
     settings = parameter_set["settings"]
     assert parameter_set["status"] == "proposed"
-    assert settings["support_enable"] == {
-        "value": True,
-        "why": "доля нависаний выше порога, поддержки разрешены",
-        "source": "rule:SUPPORT-OVERHANG",
-    }
+    # Supports follow the overhangs of the upright pose, not of the file as loaded.
+    (model,) = parameter_set["models"]
+    assert model["orientation_candidate"] != "o1"
+    assert "support_enable" not in settings
     assert any(setting["source"] == "rule:PRIORITY-STRENGTH" for setting in settings.values())
     not_used = [text for text in assumption_texts(parameter_set) if "не учтено" in text]
+    # The wheel of the example is printed in 5D with its axis upright.
+    assert parameter_set["printing_mode"]["source"] == "rule:MODE-REVOLUTION-5D"
+    assert parameter_set["printing_mode"]["value"] == "cylindrical_full"
     assert not_used == [
-        "обязательное требование functional_surface_of_revolution (Цилиндрический протектор) "
-        "не учтено подбором параметров",
         "обязательное требование rotation_speed_max_rpm (Частота вращения) не учтено подбором "
         "параметров",
         "обязательное требование no_dust (Без микропыли) не учтено подбором параметров",
