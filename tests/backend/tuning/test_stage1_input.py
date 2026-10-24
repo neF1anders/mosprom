@@ -4,6 +4,7 @@ from decimal import Decimal
 import pytest
 
 from src.backend.domain.errors import AppError
+from src.backend.domain.requirement_keys import RequirementKey, RequirementKeys
 from src.backend.tuning.intake import Unreadable, read_flag, stricter_end
 from src.backend.tuning.select import select_parameters
 from tests.backend.tuning.cards import SHA, card, report, requirement
@@ -235,3 +236,44 @@ def test_ambiguous_values_are_rejected():
     with pytest.raises(Unreadable):
         read_flag("скорее да")
     assert read_flag(" Да ") is True and read_flag("не требуется") is False
+
+
+def test_unreadable_values_are_told_and_not_used(select):
+    unreadable = card(
+        requirements=[
+            requirement("quantity", "много"),
+            requirement("chemical_resistance", " ; "),
+            requirement("load_bearing", "переменная"),
+            requirement("hydrophobic", "скорее да", mandatory=False),
+        ]
+    )
+    parameter_set = select(unreadable)
+    warnings, texts = parameter_set["warnings"], assumption_texts(parameter_set)
+    assert "quantity quantity (quantity): expected a number or a range, got 'много'" in warnings
+    assert (
+        "обязательное требование chemical_resistance (chemical_resistance): expected a list, "
+        "got ' ; ' не учтено подбором параметров"
+    ) in texts
+    assert "load of load_bearing (load_bearing) not recognised: 'переменная'" in warnings
+    assert (
+        "requirement hydrophobic (hydrophobic): expected yes/no, got 'скорее да' is not used "
+        "by parameter selection"
+    ) in warnings
+
+
+def test_code_of_a_kind_selection_does_not_read_is_not_taken_into_account(catalog, keys):
+    finish = RequirementKey(key="surface_finish", kind="text", title="Чистота поверхности")
+    extended = RequirementKeys(keys=[*keys.keys, finish])
+    stated = card(requirements=[requirement("surface_finish", "Ra 3.2")])
+    parameter_set = select_parameters(stated, catalog, extended).published()
+    assert (
+        "обязательное требование surface_finish (surface_finish) не учтено подбором параметров"
+        in assumption_texts(parameter_set)
+    )
+
+
+def test_number_codes_of_the_shared_dictionary_have_units(keys):
+    card_fields = {"quantity", "load_bearing", "printing_mode", "material"}
+    for entry in keys.keys:
+        if entry.kind == "number" and entry.key not in card_fields:
+            assert entry.unit, entry.key
