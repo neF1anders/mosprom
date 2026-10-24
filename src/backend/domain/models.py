@@ -236,11 +236,31 @@ class Message(Value):
     revision: int
     role: Literal["user", "assistant"]
     # Answers are echoed into the chat but reach the agents through Job.answers, not as text.
-    # "gate" is the assistant's one request for details before the work starts; "offtopic"
-    # remains on messages of earlier versions, which the agents never read.
-    kind: Literal["chat", "answers", "gate", "offtopic"] = "chat"
+    # "gate" is the assistant's one request for details before the work starts. "offtopic"
+    # marks what the agents never read: a queued message that changed nothing, and messages
+    # of earlier versions; "steer" is the assistant's reply to such a message.
+    kind: Literal["chat", "answers", "gate", "offtopic", "steer"] = "chat"
     text: str
     created_at: datetime = Field(default_factory=now)
+
+
+class QueuedMessage(Value):
+    """A message typed while the job works; it waits for the end of the current step.
+
+    A delivery claims it under the job's lock and either moves it into the chat or answers
+    it; a claim older than its timeout belongs to a delivery that died with its worker.
+    """
+
+    id: str = Field(default_factory=identifier)
+    job_id: str
+    text: str
+    status: Literal["queued", "delivering"] = "queued"
+    claim: str | None = None
+    claimed_at: datetime | None = None
+    # Failed deliveries; after the last one only the user's own send delivers the message.
+    attempts: int = 0
+    created_at: datetime = Field(default_factory=now)
+    updated_at: datetime = Field(default_factory=now)
 
 
 class Attachment(Value):

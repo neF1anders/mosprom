@@ -3,7 +3,7 @@
 Every chat message reaches the gate first; it talks, asks for details once, or starts the work
 by calling its tool. The interpreter reads all sources while the code analyses the STL, then
 the checker edits the draft and asks its questions in one go. The answers return to the same
-checker dialog, so nothing before it runs again.
+checker dialog, so nothing before it runs again, and so does a correction queued meanwhile.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..domain.errors import AppError, OperationCancelled
 from ..domain.hashing import digest
@@ -31,6 +31,7 @@ from ..domain.models import (
 from ..domain.requirement_keys import RequirementKeys
 from ..domain.rules import RULES_VERSION, UNKNOWN_ANSWER, assess
 from ..domain.transitions import transition
+from ..pipeline.store import SafePoint, no_safe_point
 from ..ports.operations import Files
 from ..ports.persistence import UowFactory
 from .card import WorkingCard, fill, merged, stable_references, summary, to_question
@@ -52,6 +53,7 @@ OFF_TOPIC = (
     "Я помогаю подготовить задание на 3D печать. Приложите STL модель и ТЗ или опишите деталь"
 )
 FOLLOW_UP = "Ответы пользователя на твои вопросы и карточка после твоей правки, id прежние"
+CORRECTION = "Правка пользователя и текущая карточка, id прежние, новых вопросов не задавай"
 
 
 @dataclass(frozen=True)
@@ -61,16 +63,25 @@ class Stage1Settings:
 
 
 class Session(BaseModel):
-    """What the answer turn continues: the checker's first turn, its reply and the card."""
+    """What the answer turn continues: the checker's first turn, its reply and the card.
+
+    ``history`` holds the turns taken since, so a later correction goes on from the last.
+    """
 
     turn: list[dict[str, Any]]
     review: dict[str, Any]
     card: WorkingCard
     asked: list[str]
+    history: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def session_key(job_id: str, revision: int) -> str:
     return f"stage1:review:{job_id}:{revision}"
+
+
+def correction_key(job_id: str, revision: int) -> str:
+    """Every card can take a correction; the answers keep their own key and routing."""
+    return f"stage1:correction:{job_id}:{revision}"
 
 
 class Stage1:
@@ -81,16 +92,23 @@ class Stage1:
         runner: AgentRunner,
         settings: Stage1Settings,
         codes: RequirementKeys,
+        *,
+        safe_point: SafePoint = no_safe_point,
     ):
         self.store, self.files, self.runner, self.settings = RunStore(uow), files, runner, settings
+        self.safe_point = safe_point
         self.sources, self.keys, self.codes = Sources(self.store, files), codes, codes_block(codes)
         self.interpreter = AgentSpec(
             "interpreter", "Разбор задания", draft_with_codes(codes), READING, budget=9000
         )
         self.gate_prompt, self.start = split_tool(prompt("gate"))
 
-    async def run(self, job_id: str, revision: int, start: bool = False) -> None:
-        """``start`` resumes work the user stopped or that failed, without asking the gate."""
+    async def run(
+        self, job_id: str, revision: int, start: bool = False, correction: bool = False
+    ) -> None:
+        """``start`` resumes work the user stopped or that failed, without asking the gate;
+        ``correction`` takes in a queued message the agent «Корректировка» found to change
+        the task."""
         ctx = RunContext(
             job_id=job_id,
             revision=revision,
@@ -99,7 +117,9 @@ class Stage1:
             event=partial(self.store.event, job_id, revision),
         )
         try:
-            await asyncio.wait_for(self._guarded(ctx, start), self.settings.timeout_seconds)
+            await asyncio.wait_for(
+                self._guarded(ctx, start, correction), self.settings.timeout_seconds
+            )
         except OperationCancelled:
             await self.store.cancel(job_id)
         except TimeoutError:
@@ -118,9 +138,9 @@ class Stage1:
             )
             raise
 
-    async def _guarded(self, ctx: RunContext, start: bool) -> None:
+    async def _guarded(self, ctx: RunContext, start: bool, correction: bool) -> None:
         """A stop or a newer revision interrupts the run at once, even inside a model call."""
-        work = asyncio.ensure_future(self._run(ctx, start))
+        work = asyncio.ensure_future(self._run(ctx, start, correction))
         try:
             while not work.done():
                 await asyncio.wait({work}, timeout=CHECK_SECONDS)
@@ -132,7 +152,7 @@ class Stage1:
             raise
         work.result()
 
-    async def _run(self, ctx: RunContext, start: bool) -> None:
+    async def _run(self, ctx: RunContext, start: bool, correction: bool) -> None:
         job = await self.store.update(ctx.job_id, ctx.revision, _started)
         attachments = _active(job, await self.store.attachments(job.id))
         messages = await self.store.messages(job.id)
@@ -147,18 +167,29 @@ class Stage1:
             )
         ctx.sources.update(inputs.sources())
         content = ContentBuilder(self.files, inputs, ctx, await self.store.knowledge(), self.codes)
-        session = await self._session(job, attachments)
+        session = await self._session(job, attachments, correction)
+        # A correction is not left to the gate, which could answer and drop the card.
+        direct = start or (correction and _with_stl(attachments))
         if session is not None:
-            await self._answered(job, attachments, messages, inputs, session, content, ctx)
-        elif start or await self._gate(job, attachments, messages, inputs, ctx):
+            await self._answered(
+                job, attachments, messages, inputs, session, content, ctx, correction
+            )
+        elif direct or await self._gate(job, attachments, messages, inputs, ctx):
             await self._work(job, attachments, content, ctx)
+        await self.safe_point(ctx.job_id, ctx.revision)
 
-    async def _session(self, job: Job, attachments: list[Attachment]) -> Session | None:
-        """The checker waits for answers while its card asks and the files stay the same."""
+    async def _session(
+        self, job: Job, attachments: list[Attachment], correction: bool
+    ) -> Session | None:
+        """The checker's dialog goes on while the files stay the same: for the answers while
+        its card asks, for a correction whatever the card."""
         card = job.card
-        if card is None or not card.questions or _card_files(card) != {a.id for a in attachments}:
+        if card is None or _card_files(card) != {a.id for a in attachments}:
             return None
-        stored = await self.store.cached(session_key(job.id, card.revision))
+        if not (correction or card.questions):
+            return None
+        key = correction_key if correction else session_key
+        stored = await self.store.cached(key(job.id, card.revision))
         return Session.model_validate(stored) if stored is not None else None
 
     async def _gate(
@@ -224,16 +255,16 @@ class Stage1:
         review = await self.runner.run(CHECKER, turn, ctx)
         working.apply(review, self.keys)
         card.questions = merged([to_question(q) for q in review.questions], {})
+        session = Session(
+            turn=redact(turn, ctx.images),
+            review=review.model_dump(mode="json"),
+            card=working,
+            asked=[q.id for q in card.questions],
+        ).model_dump(mode="json")
         if card.questions:
-            session = Session(
-                turn=redact(turn, ctx.images),
-                review=review.model_dump(mode="json"),
-                card=working,
-                asked=[q.id for q in card.questions],
-            )
-            await self.store.cache(
-                session_key(job.id, ctx.revision), session.model_dump(mode="json")
-            )
+            await self.store.cache(session_key(job.id, ctx.revision), session)
+        # Any card can take a correction later, which goes on in this same dialog.
+        await self.store.cache(correction_key(job.id, ctx.revision), session)
         asked = len(card.questions)
         await ctx.event(
             "checking.completed",
@@ -251,11 +282,12 @@ class Stage1:
         session: Session,
         content: ContentBuilder,
         ctx: RunContext,
+        correction: bool = False,
     ) -> None:
         """The answers continue the checker's dialog; nothing before it runs again.
 
         A second round of questions is not asked: whatever the checker still wants to know
-        is passed on as unknown.
+        is passed on as unknown. A correction is one more turn of the same dialog.
         """
         assert job.card is not None
         previous = job.card
@@ -264,25 +296,38 @@ class Stage1:
         if previous.stl_analysis is not None:
             await ctx.event("stl.completed", "STL проанализирован", "completed")
         await ctx.event("interpretation.completed", "Задание разобрано", "completed")
-        await ctx.event("checking.started", "Учитываю ответы")
-        asked = [q for q in previous.questions if q.id in session.asked]
+        await ctx.event("checking.started", "Учитываю правку" if correction else "Учитываю ответы")
+        # A correction brings only what the user typed: the answers are in the dialog already.
+        asked = [] if correction else [q for q in previous.questions if q.id in session.asked]
         replies = _replies(asked, values(job), messages, inputs, previous.revision)
         ctx.sources.update({reply.id: reply for reply in replies})
+        intro = CORRECTION if correction else FOLLOW_UP
+        turn = {"role": "user", "content": follow_up(intro, replies, session.card.view())}
         dialog: list[dict[str, Any]] = [
             {"role": "user", "content": await content.restore(session.turn)},
             {"role": "assistant", "content": json.dumps(session.review, ensure_ascii=False)},
-            {"role": "user", "content": follow_up(FOLLOW_UP, replies, session.card.view())},
+            *session.history,
+            turn,
         ]
         review = await self.runner.converse(CHECKER, dialog, ctx)
         working = session.card
         working.apply(review, self.keys)
         working.unknowns += [q.title for q in review.questions]
+        # The new card can take a correction too, which goes on from the turn just taken.
+        answer = json.dumps(review.model_dump(mode="json"), ensure_ascii=False)
+        history = [*session.history, turn, {"role": "assistant", "content": answer}]
+        continued = session.model_copy(update={"card": working, "history": history})
+        await self.store.cache(
+            correction_key(job.id, ctx.revision), continued.model_dump(mode="json")
+        )
         card = previous.model_copy(deep=True, update={"revision": ctx.revision})
         # Answered or not, the questions no longer hold the card back.
+        kept = previous.questions if correction else asked
         card.questions = merged(
-            [q.model_copy(update={"blocking": False}) for q in asked], values(job)
+            [q.model_copy(update={"blocking": False}) for q in kept], values(job)
         )
-        await ctx.event("checking.completed", "Ответы учтены", "completed")
+        done = "Правка учтена" if correction else "Ответы учтены"
+        await ctx.event("checking.completed", done, "completed")
         await self._finish(card, working, attachments, ctx)
 
     async def _finish(
@@ -350,6 +395,10 @@ def _active(job: Job, attachments: list[Attachment]) -> list[Attachment]:
         for a in attachments
         if a.active and not a.draft and (a.kind != "stl" or a.id == job.active_stl)
     ]
+
+
+def _with_stl(attachments: list[Attachment]) -> bool:
+    return any(a.kind == "stl" for a in attachments)
 
 
 def _card_files(card: TaskCard | None) -> set[str]:

@@ -501,7 +501,11 @@ async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     await run(pg, job_id, script())
     assert calls == ["mm", "mm"]
-    assert await rows(pg, "SELECT key FROM operation_cache WHERE key NOT LIKE 'agent:%'") == []
+    # Agent results and the checker's dialogs are cached, the cut report is not.
+    cached = (
+        "SELECT key FROM operation_cache WHERE key NOT LIKE 'agent:%' AND key NOT LIKE 'stage1:%'"
+    )
+    assert await rows(pg, cached) == []
 
 
 async def test_a_failed_document_is_read_again_on_retry(pg, http, monkeypatch):

@@ -29,6 +29,8 @@ CODES = [
     ("dimensional_tol_mm", "mm", re.compile(r"[Дд]опуск\D*?(\d+(?:[.,]\d+)?)\s*мм")),
 ]
 OFF_TOPIC = "Я помогаю только с подготовкой задания на печать"
+STEER_SUMMARY = "Учитываю правку и пересчитываю то, что от неё зависит"
+STEER_REPLY = "Задание от этого не меняется, продолжаю работу"
 NO_MODEL = "Приложите модель STL, и я подберу параметры печати"
 GATE_ASK = "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
 UNKNOWN = "Не знаю"
@@ -47,6 +49,8 @@ async def complete(request: Request):
         await asyncio.sleep(2)
     if agent == "gate":
         return gate(payload)
+    if agent == "steer":
+        return steer(payload)
     # The gate replies in plain text, so a broken answer reaches the first JSON agent.
     if "TEST_PROVIDER_INVALID_JSON" in everything:
         return message("invalid")
@@ -100,6 +104,13 @@ def gate(payload: dict[str, Any]) -> dict:
     if not payload.get("tools"):
         return message(NO_MODEL)
     return tool_call("start_pipeline", {})
+
+
+def steer(payload: dict[str, Any]) -> dict:
+    """TEST_STEER_APPLY in a queued message makes it a correction; anything else is answered."""
+    if "TEST_STEER_APPLY" in text(payload["messages"][-1]):
+        return tool_call("apply_correction", {"summary": STEER_SUMMARY})
+    return message(STEER_REPLY)
 
 
 def interpret(messages: list[dict[str, Any]]) -> dict:

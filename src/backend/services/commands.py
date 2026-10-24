@@ -4,21 +4,24 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from ..domain.hashing import fingerprint
-from ..domain.models import Attachment, Event, Job, Status, now
+from ..domain.models import Attachment, Event, Job, Message, Status, now
 from ..domain.pipeline import restart
 from ..domain.transitions import transition
 from ..ports.persistence import UnitOfWork, UowFactory
 
 
-async def changed(uow: UnitOfWork, job: Job, message: str, start: bool = False) -> None:
+async def changed(
+    uow: UnitOfWork, job: Job, message: str, start: bool = False, correction: bool = False
+) -> None:
     """A new revision and its stage-one job commit together with the change itself.
 
     A finished project stays until stage one starts the work again, so a reply in the chat
     that starts nothing leaves it as it was; unfinished work starts over. ``start`` skips
-    the gate's decision.
+    the gate's decision; ``correction`` continues the checker's dialog with the new text.
     """
     job.updated_at = now()
     job.revision += 1
+    await _take_queue(uow, job)
     job.status = transition(job.status, Status.QUEUED)
     job.error = None
     job.files_changed = False
@@ -32,7 +35,7 @@ async def changed(uow: UnitOfWork, job: Job, message: str, start: bool = False) 
     await apply_stl(uow, job, attachments)
     await uow.jobs.save(job)
     await uow.queue.cancel_pending(job.id)
-    await uow.queue.stage1(job.id, job.revision, start)
+    await uow.queue.stage1(job.id, job.revision, start, correction)
     await uow.events.append(
         Event(
             job_id=job.id,
@@ -42,6 +45,25 @@ async def changed(uow: UnitOfWork, job: Job, message: str, start: bool = False) 
             message=message,
         )
     )
+
+
+async def _take_queue(uow: UnitOfWork, job: Job) -> None:
+    """Every new revision takes the messages still waiting, before whatever text started it.
+
+    Nothing is lost or left between revisions; a delivery that claimed them loses its claim.
+    """
+    waiting = await uow.queued.list(job.id)
+    for item in waiting:
+        await uow.messages.add(
+            Message(
+                job_id=job.id,
+                revision=job.revision,
+                role="user",
+                text=item.text,
+                created_at=item.created_at,
+            )
+        )
+    await uow.queued.remove([item.id for item in waiting])
 
 
 async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) -> None:
