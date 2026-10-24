@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     limits: InputLimits = InputLimits()
     database_url: str = "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom"
     data_dir: Path = Path("artifacts/stage1")
+    # The issued STE Slicer build and the printer whose parameters are selected.
+    build_dir: Path = Path("knowledge/ste_5.2.4")
+    printer: str = "hte530v5.2.4"
+    requirement_keys_path: Path = Path("knowledge/requirement_keys.json")
     qwen_base_url: str = "https://api.timeweb.ai/v1"
     qwen_model: str = "dashscope/qwen3.8-flash"
     qwen_api_key: str = ""

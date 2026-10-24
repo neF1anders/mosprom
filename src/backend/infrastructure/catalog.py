@@ -1,4 +1,5 @@
-"""Reads the issued STE Slicer build from disk into a ``Catalog``, once per process."""
+"""Reads the issued STE Slicer build and the shared requirement codes from disk, once per
+process."""
 
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 from ..domain.catalog import Catalog, MaterialProfile, QualityProfile
+from ..domain.requirement_keys import RequirementKeys
 
 _MATERIAL = {"m": "http://www.ultimaker.com/material"}
 _MATERIAL_SUFFIX = ".xml.fdm_material"
@@ -36,6 +38,10 @@ def load_catalog(root: Path, printer: str) -> Catalog:
         qualities=MappingProxyType(_qualities(root / "quality")),
         materials=MappingProxyType(_materials(root / "materials")),
     )
+
+
+def load_requirement_keys(path: Path) -> RequirementKeys:
+    return RequirementKeys.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 def _json(path: Path) -> dict[str, Any]:

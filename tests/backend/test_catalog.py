@@ -4,7 +4,8 @@ import pytest
 
 from src.backend.domain.catalog import PRINTING_MODES, Catalog
 from src.backend.domain.formulas import FormulaError, evaluate
-from src.backend.infrastructure.catalog import load_catalog
+from src.backend.domain.units import dimension
+from src.backend.infrastructure.catalog import load_catalog, load_requirement_keys
 
 pytestmark = pytest.mark.unit
 
@@ -111,3 +112,13 @@ def test_formulas_that_refer_to_each_other_are_an_error():
     )
     with pytest.raises(FormulaError):
         looped.values("classic").get("a")
+
+
+def test_shared_requirement_codes_load_with_units_stage_one_understands():
+    codes = load_requirement_keys(Path("knowledge/requirement_keys.json"))
+    assert len({entry.key for entry in codes.keys}) == len(codes.keys)
+    assert codes.get("service_temp_max_c").unit == "°C"
+    assert codes.get("printing_mode").options == list(PRINTING_MODES)
+    assert codes.get("temperature_max") is None
+    for entry in codes.keys:
+        assert entry.unit is None or dimension(entry.unit) is not None, entry.key
