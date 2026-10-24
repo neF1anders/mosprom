@@ -12,6 +12,8 @@ out = Path("tests/fixtures")
 out.mkdir(parents=True, exist_ok=True)
 box = trimesh.creation.box(extents=[10, 20, 30])
 box.export(out / "box.stl")
+# Ten by twenty by thirty metres: larger than every working area of the printer.
+trimesh.creation.box(extents=[10000, 20000, 30000]).export(out / "large.stl")
 trimesh.Trimesh(box.vertices, box.faces[:-1], process=False).export(out / "open.stl")
 trimesh.Trimesh(box.vertices, np.vstack([box.faces, box.faces[0]]), process=False).export(
     out / "duplicate.stl"
