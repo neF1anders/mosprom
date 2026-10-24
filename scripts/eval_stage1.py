@@ -25,8 +25,6 @@ from pathlib import Path
 from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sqlalchemy import text
-
 from src.backend.config import Settings
 from src.backend.container import Container
 from src.backend.domain.models import Job, Status
@@ -36,6 +34,7 @@ from src.backend.domain.rules import UNKNOWN_ANSWER
 REFERENCE = json.loads(Path("tests/eval/reference.json").read_text())
 DEFAULT_DATABASE = "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom_eval"
 DECLINE = "Подробностей нет, сделайте как считаете нужным"
+SLICER_START_SECONDS = 30
 # A code's unit is written the Latin way; the reference facts look for the Russian one too.
 ALIASES = {"mpa": "мпа", "mm": "мм", "g/cm3": "г/см3", "rpm": "об/мин"}
 
@@ -107,25 +106,9 @@ async def run_example(container: Container, folder: Path, full: bool) -> dict:
         await container.pipeline.run(job["id"], state.revision)
         async with container.uow() as uow:
             state = await uow.jobs.get(job["id"])
-    async with container.engine.connect() as connection:
-        usage = (
-            await connection.execute(
-                text(
-                    "SELECT count(*), coalesce(sum((response->'usage'->>'total_tokens')::int), 0) "
-                    "FROM agent_calls WHERE job_id = :job AND NOT cached"
-                ),
-                {"job": job["id"]},
-            )
-        ).one()
-        selected = (
-            await connection.execute(
-                text(
-                    "SELECT payload FROM stage_results WHERE job_id = :job AND stage = 'parameters' "
-                    "ORDER BY revision DESC, iteration DESC LIMIT 1"
-                ),
-                {"job": job["id"]},
-            )
-        ).scalar()
+    async with container.uow() as uow:
+        usage = await uow.traces.usage(job["id"])
+        selected = await uow.stage_results.latest(job["id"], state.work_revision, "parameters")
     return {
         "job": state.model_dump(mode="json"),
         "gate_asked": gate_asked,
@@ -189,7 +172,11 @@ async def main() -> None:
         slicer = subprocess.Popen(
             [sys.executable, "scripts/fake_ste_slicer.py", "--folder", str(folder)]
         )
+        deadline = time.monotonic() + SLICER_START_SECONDS
         while not (folder / "server.json").exists():
+            if slicer.poll() is not None or time.monotonic() > deadline:
+                slicer.kill()
+                raise SystemExit("The slicer stand-in did not start")
             await asyncio.sleep(0.2)
     container = Container(Settings(database_url=database, slicer_folder=folder))
     output = Path("artifacts/eval") / datetime.now().strftime("%Y%m%d-%H%M%S")

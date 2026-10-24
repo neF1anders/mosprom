@@ -94,12 +94,13 @@ class JobService:
     ) -> AsyncIterator[Event | None]:
         """Events after the cursor, then each new one as it commits; None is a heartbeat.
 
-        Without a cursor the stream starts at the current revision: older history is never
-        shown, so it is not replayed on every open.
+        Without a cursor the stream starts at the revision of the job's work: older history
+        is never shown, so it is not replayed on every open.
         """
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
-            cursor = after if after is not None else await uow.events.start(job_id, job.revision)
+            start = job.work_revision
+            cursor = after if after is not None else await uow.events.start(job_id, start)
         return self._stream(job_id, cursor)
 
     async def _stream(self, job_id: str, cursor: int) -> AsyncIterator[Event | None]:
@@ -129,10 +130,10 @@ class JobService:
         return job.card.model_dump(mode="json")
 
     async def current_parameters(self, user_id: str, job_id: str) -> dict[str, Any]:
-        """The latest parameter set of the current revision, as the check and slicer read it."""
+        """The latest parameter set of the job's work, as the check and the slicer read it."""
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
-            found = await uow.stage_results.latest(job.id, job.revision, "parameters")
+            found = await uow.stage_results.latest(job.id, job.work_revision, "parameters")
         if found is None:
             raise AppError("Параметры ещё не подобраны", "parameters_pending", 409)
         return found

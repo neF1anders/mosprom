@@ -8,8 +8,8 @@ from .infrastructure.queue import STAGE1_QUEUE, STAGE1_TASK, STAGE2_QUEUE, STAGE
 
 def register(container: Container) -> None:
     @container.queue.task(name=STAGE1_TASK, queue=STAGE1_QUEUE)
-    async def stage1(job_id: str, revision: int) -> None:
-        await container.stage1.run(job_id, revision)
+    async def stage1(job_id: str, revision: int, start: bool = False) -> None:
+        await container.stage1.run(job_id, revision, start)
 
     @container.queue.task(name=STAGE2_TASK, queue=STAGE2_QUEUE)
     async def parameters(job_id: str, revision: int) -> None:

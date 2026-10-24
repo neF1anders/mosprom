@@ -27,13 +27,13 @@ class ArtifactService:
         return await self.files.read(artifact_id)
 
     async def result(self, user_id: str, job_id: str, kind: ResultFile) -> tuple[bytes, str]:
-        """The G-code or the project of the current revision's last slicing."""
+        """The G-code or the project of the last slicing of the job's work."""
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
             report = None
             if job.result is not None and job.result.sliced:
                 step = Step("slicing", job.result.iteration)
-                report = await uow.stage_results.get(job.id, job.revision, step)
+                report = await uow.stage_results.get(job.id, job.work_revision, step)
         field, filename = RESULT_FILES[kind]
         if not report or not report.get(field):
             raise AppError("Проект ещё не создан", "result_pending", 409)

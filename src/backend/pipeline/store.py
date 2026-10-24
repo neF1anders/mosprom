@@ -63,7 +63,6 @@ class JobStore:
             if job.status != Status.STOPPING:
                 return
             job.status = transition(job.status, Status.STOPPED)
-            job.phase = None
             await uow.jobs.save(job)
             await uow.events.append(
                 Event(
@@ -85,7 +84,6 @@ class JobStore:
                 job.status = Status.STOPPED
             else:
                 job.status, job.error = transition(job.status, Status.FAILED), message
-            job.phase = None
             await uow.jobs.save(job)
             await uow.events.append(
                 Event(

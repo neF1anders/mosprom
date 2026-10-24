@@ -12,6 +12,22 @@ from ..domain.requirement_keys import RequirementKeys
 class Output(BaseModel):
     model_config = ConfigDict(extra="ignore", coerce_numbers_to_str=True)
 
+    @model_validator(mode="before")
+    @classmethod
+    def defaults_for_nulls(cls, data: Any) -> Any:
+        """A null in a field the model may leave out means its default, not a broken item.
+
+        Otherwise ``"conditions": null`` would drop the whole requirement it belongs to.
+        """
+        if not isinstance(data, dict):
+            return data
+        fields = cls.model_fields
+        return {
+            name: value
+            for name, value in data.items()
+            if value is not None or name not in fields or fields[name].is_required()
+        }
+
 
 class Citation(Output):
     source_id: str
@@ -26,7 +42,6 @@ class DraftRequirement(Output):
     unit: str | None = None
     conditions: str = ""
     mandatory: bool = True
-    provenance: str = "document"
     sources: list[Citation] = Field(default_factory=list)
 
 
@@ -42,7 +57,6 @@ class DraftQuestion(Output):
     options: list[str] = Field(default_factory=list)
     suggested: str | None = None
     basis: str | None = None
-    blocking: bool = True
 
 
 class Draft(Output):
@@ -57,9 +71,7 @@ class Draft(Output):
 
 def _lenient(data: Any) -> Any:
     """A bare value, a list or a yes/no boolean is still a usable code value."""
-    if not isinstance(data, dict):
-        return {"value": data}
-    data = dict(data)
+    data = dict(data) if isinstance(data, dict) else {"value": data}
     value = data.get("value")
     if isinstance(value, list):
         data["value"] = ", ".join(map(str, value))
