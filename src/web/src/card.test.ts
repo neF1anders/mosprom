@@ -180,3 +180,38 @@ describe("Russian plural forms", () => {
     ]);
   });
 });
+describe("what keeps the card from going on", () => {
+  it("shows the reason in the assumptions section", () => {
+    const blocked = card({
+      blocked_actions: {
+        select_parameters: ["Не прочитаны файлы corrupt.pdf"],
+      },
+    });
+    const [, , shape, section] = cardSections(job({ card: blocked }), []);
+    expect(section).toMatchObject({
+      state: "warn",
+      summary: "Не прочитаны файлы corrupt.pdf",
+    });
+    expect(shape.items[0]).toMatchObject({
+      text: "дублирующие грани",
+      tag: "дефект",
+    });
+  });
+  it("links a requirement to the page it was read from", () => {
+    const read = card();
+    read.requirements[0].sources = [
+      {
+        source_id: "spec:2",
+        quote: "",
+        page: 2,
+        method: "vision",
+        artifact_id: "page-2",
+      },
+    ];
+    const [, requirements] = cardSections(job({ card: read }), []);
+    expect(requirements.items[0]).toMatchObject({
+      meta: "прочитано по изображению",
+      page: "/api/v1/jobs/j/artifacts/page-2",
+    });
+  });
+});

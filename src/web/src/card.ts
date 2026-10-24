@@ -1,4 +1,4 @@
-import { modelSize, plural } from "./format";
+import { defectLabels, modelSize, plural } from "./format";
 import type { Card, Evidence, Geometry, Job, ProgressEvent } from "./types";
 import { answered, isRunning, UNKNOWN_ANSWER } from "./types";
 
@@ -8,6 +8,8 @@ export interface SectionItem {
   meta?: string;
   tag?: string;
   href?: string;
+  // The page of the document a value was read from.
+  page?: string;
 }
 export interface Section {
   key: string;
@@ -31,14 +33,6 @@ export function barOrder(sections: Section[]) {
     .map((section) => section.state)
     .sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
 }
-const defectLabels: Record<string, string> = {
-  boundary_edges: "открытая поверхность",
-  duplicate_faces: "дублирующие грани",
-  multiple_shells: "несколько оболочек",
-  nonmanifold_edges: "немногообразные рёбра",
-  inconsistent_winding: "несогласованные нормали",
-  topology_unchecked: "топология не проверена",
-};
 const methodLabels: Record<string, string> = {
   vision: "прочитано по изображению",
   user: "из ваших сообщений",
@@ -85,11 +79,18 @@ function requirements(job: Job | undefined, card: Card | null): Section {
   const count = list.length;
   const open = card.questions.filter((q) => !answered(q)).length;
   const named = `${count} ${plural(count, ["требование", "требования", "требований"])}`;
-  const items = list.map((r) => ({
-    text: `${r.label || r.key} ${r.value} ${r.unit || ""}`.trim(),
-    meta: sourceLabel(r.sources[0]),
-    tag: r.verified ? undefined : "уточнить",
-  }));
+  const items = list.map((r) => {
+    const page = r.sources.find((source) => source.artifact_id);
+    return {
+      text: `${r.label || r.key} ${r.value} ${r.unit || ""}`.trim(),
+      meta: sourceLabel(r.sources[0]),
+      tag: r.verified ? undefined : "уточнить",
+      page:
+        page && job
+          ? `/api/v1/jobs/${job.id}/artifacts/${encodeURIComponent(page.artifact_id!)}`
+          : undefined,
+    };
+  });
   // A new version of the task is checked again before stage two takes the card.
   const rechecking =
     isRunning(job) &&
@@ -128,12 +129,15 @@ function geometry(
   const size = modelSize(measured);
   if (!measured || !size) return empty(job, title, "geometry");
   const defects = measured.defects.map((d) => defectLabels[d] || d);
-  const items = (measured.limitations || []).map((text) => ({ text }));
+  const items: SectionItem[] = [
+    ...defects.map((text) => ({ text, tag: "дефект" })),
+    ...(measured.limitations || []).map((text) => ({ text })),
+  ];
   if (measured.report_id && job)
     items.push({
       text: "Отчёт анализа STL",
       href: `/api/v1/jobs/${job.id}/artifacts/${measured.report_id}.json`,
-    } as SectionItem);
+    });
   if (!defects.length)
     return { key: "geometry", title, state: "done", summary: size, items };
   // A defect is settled once a card holds it and asks nothing more about it.
@@ -163,6 +167,25 @@ function assumptions(job: Job | undefined, card: Card | null): Section {
   const count = card.assumptions.length;
   const unknown = card.unknowns.length;
   const named = `${count} ${plural(count, ["допущение", "допущения", "допущений"])}`;
+  // What keeps the card from going on, such as files that could not be read.
+  const blockers = [
+    ...new Set(
+      Object.entries(card.blocked_actions || {})
+        .filter(([action]) => action !== "prepare_gcode")
+        .flatMap(([, reasons]) => reasons),
+    ),
+  ];
+  if (blockers.length)
+    return {
+      key: "assumptions",
+      title,
+      state: "warn",
+      summary: blockers.join(", "),
+      items: [
+        ...blockers.map((text) => ({ text, tag: "мешает продолжить" })),
+        ...items,
+      ],
+    };
   if (unknown)
     return {
       key: "assumptions",

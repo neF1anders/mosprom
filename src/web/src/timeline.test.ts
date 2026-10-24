@@ -95,7 +95,7 @@ describe("the timeline follows the events the server sends", () => {
       output: [
         "габариты 84 × 62 × 40 мм",
         "объём 38,4 см3",
-        "дефекты duplicate faces",
+        "дефекты дублирующие грани",
       ],
     });
     expect(stage(stages, "parameters").state).toBe("wait");
