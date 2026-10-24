@@ -216,9 +216,10 @@ def _data(step: Step) -> dict[str, int]:
 
 
 def _selection_text(summary: ParametersSummary) -> str:
+    changed = _count(summary.changed_settings, ("настройка", "настройки", "настроек"))
     return (
         f"Режим {summary.printing_mode}, профиль {summary.quality_type}, "
-        f"материал {summary.material}, изменено настроек {summary.changed_settings}"
+        f"материал {summary.material}, изменено {changed}"
     )
 
 
@@ -227,7 +228,11 @@ def _check_text(result: CheckResult) -> str:
     warnings = sum(issue.level == "warning" for issue in result.issues)
     if not errors and not warnings:
         return "Замечаний нет"
-    return f"Ошибок {errors}, предупреждений {warnings}"
+    found = [
+        _count(errors, ("ошибка", "ошибки", "ошибок")),
+        _count(warnings, ("предупреждение", "предупреждения", "предупреждений")),
+    ]
+    return ", ".join(part for part in found if not part.startswith("0 "))
 
 
 def _outcome_text(summary: ParametersSummary, parameter_set: ParameterSet, check_ok: bool) -> str:
@@ -236,8 +241,14 @@ def _outcome_text(summary: ParametersSummary, parameter_set: ParameterSet, check
     if parameter_set.status == "infeasible":
         return f"Подобрать параметры под все требования не получилось. {details}"
     if parameter_set.unsatisfied:
-        unmet = len(parameter_set.unsatisfied)
-        return f"Параметры подобраны, но не выполнено требований {unmet}. {details}"
+        return f"Параметры подобраны, но выполнены не все требования. {details}"
     if not check_ok:
         return f"Параметры подобраны, но проверка оставила замечания. {details}"
     return f"Параметры подобраны и прошли проверку. {details}"
+
+
+def _count(number: int, forms: tuple[str, str, str]) -> str:
+    """A Russian count: 1 настройка, 2 настройки, 5 настроек."""
+    if 11 <= number % 100 <= 14 or number % 10 == 0 or number % 10 >= 5:
+        return f"{number} {forms[2]}"
+    return f"{number} {forms[0] if number % 10 == 1 else forms[1]}"
