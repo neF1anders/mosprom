@@ -69,12 +69,11 @@ class Decisions(object):
         forced = self.choices.forced.get(MATERIAL_KEY)
         card = self.card
         if forced is not None:
-            card = dict(card, material={"name": forced["value"], "requirement_id": None})
+            card = dict(card, material={"name": forced["value"], "source": "constraint:" + forced["constraint_id"]})
         allowed = {mid: m for mid, m in materials.items() if self.choices.permits(MATERIAL_KEY, mid)}
         choice, warnings = choose_material(card, allowed)
         self.warnings.extend(warnings)
         if forced is not None and choice.material.id == forced["value"]:
-            choice.block["source"] = "constraint:" + forced["constraint_id"]
             choice.block["why"] = "материал задан ограничением этапа 3; " + choice.block["why"]
         self.assumptions.extend(choice.assumptions)
         self.unsatisfied.extend(choice.unsatisfied)

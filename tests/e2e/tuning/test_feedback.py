@@ -65,6 +65,15 @@ def test_constraints_can_choose_mode_quality_and_material(select):
     assert applied(second) == {"C1": "applied", "C2": "applied", "C3": "applied"}
 
 
+def test_constraint_naming_a_catalog_material_selects_it(select):
+    code, second, err = select(handoff(), feedback(constraint("C1", "material", "eq", "enduse_pc")))
+    assert code == 0, err
+    material = second["materials"]["0"]
+    assert (material["id"], material["source"]) == ("enduse_pc", "constraint:C1")
+    assert material["why"].startswith("материал задан ограничением этапа 3; ")
+    assert applied(second) == {"C1": "applied"}
+
+
 def test_choice_the_part_cannot_take_is_reported_as_not_applied(select):
     review = feedback(
         constraint("C1", "printing_mode", "eq", "cylindrical"), constraint("C2", "material", "eq", "unobtainium")

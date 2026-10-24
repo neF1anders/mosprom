@@ -76,7 +76,7 @@ def _named(material, requirements, declared):
     ]
     block = {
         "id": material.id,
-        "source": "requirement:" + declared.get("requirement_id", "material"),
+        "source": declared.get("source") or "requirement:" + declared.get("requirement_id", "material"),
         "why": "материал указан в задании (%s); %s" % (declared["name"], _summary(evaluation)),
         "alternatives": [],
         "checks": evaluation["checks"],
