@@ -3,11 +3,11 @@
   "rules": [
     {"id": "LAYER-MAX-NOZZLE", "source": "D: fdmprinter layer_height maximum_value_warning = 0.8 * nozzle", "reason": "слой не толще 0,8 диаметра сопла",
      "when": {}, "then": [{"op": "limit", "param": "layer_height", "max": {"ref": "profile.nozzle_mm", "mul": 0.8}}]},
-    {"id": "LAYER-STANDARD", "source": "S: Stereotech reference projects for Hybrid 530 (wiki memo/examples_of_projects) print at 0.2 mm on the normal profile, 3 of 3; SeeMeCNC projects of the validation branch use 0.2 mm for ordinary quality, 31 of 31", "reason": "обычный слой 0,2 мм, как в типовых проектах Stereotech",
+    {"id": "LAYER-STANDARD", "source": "S: Stereotech reference projects for Hybrid 530 (wiki memo/examples_of_projects) print at 0.2 mm on the normal profile, 3 of 3; SeeMeCNC projects of the validation branch use 0.2 mm for ordinary quality, 24 of 25", "reason": "обычный слой 0,2 мм, как в типовых проектах Stereotech",
      "when": {}, "then": [{"op": "start", "param": "layer_height", "value": 0.2}]},
     {"id": "LAYER-MIN-010","source": "S 4.2: below 0.10 mm little gain at a large time cost", "reason": "слой тоньше 0,1 мм почти не улучшает качество, а время растёт",
      "when": {}, "then": [{"op": "limit", "param": "layer_height", "min": 0.1}]},
-    {"id": "WALLS-STANDARD", "source": "S: Stereotech reference projects for Hybrid 530 print 3-4 walls, 3 of 3; SeeMeCNC projects: 3 walls in 26 of 32; Cura Engineering intent: walls of 3 lines. The build's 0.8 mm gives 2", "reason": "три периметра, как в типовых проектах Stereotech",
+    {"id": "WALLS-STANDARD", "source": "S: Stereotech reference projects for Hybrid 530 print 3-4 walls, 3 of 3; SeeMeCNC projects: 3 walls in 27 of 32; Cura Engineering intent: walls of 3 lines. The build's 0.8 mm gives 2", "reason": "три периметра, как в типовых проектах Stereotech",
      "when": {}, "then": [{"op": "start", "param": "wall_line_count", "value": 3}]},
     {"id": "WALLS-MIN-2", "source": "S 4.2", "reason": "не меньше двух периметров",
      "when": {}, "then": [{"op": "limit", "param": "wall_line_count", "min": 2}]},
@@ -31,14 +31,14 @@
     {"id": "PRIORITY-SPEED", "source": "G; SeeMeCNC projects: 15-30 % infill for fast prints", "reason": "главный приоритет — скорость: реже заполнение",
      "when": {"fact": "pref.priority_first", "op": "==", "value": "speed"}, "then": [
        {"op": "shift", "param": "infill_density", "delta": -0.1}]},
-    {"id": "PRIORITY-SPEED-LAYER", "source": "SeeMeCNC projects: 0.3-0.35 mm for fast prints, 9 of 9; the card names no quality level", "reason": "главный приоритет — скорость, уровень качества не задан: толстый слой 0,3 мм",
+    {"id": "PRIORITY-SPEED-LAYER", "source": "SeeMeCNC projects: 0.3-0.35 mm for fast prints, 10 of 10; the card names no quality level", "reason": "главный приоритет — скорость, уровень качества не задан: толстый слой 0,3 мм",
      "when": {"all": [{"fact": "pref.priority_first", "op": "==", "value": "speed"}, {"not": {"fact": "req.print_quality", "op": "exists"}}]}, "then": [
        {"op": "shift", "param": "layer_height", "delta": -0.4}]},
     {"id": "PRIORITY-ACCURACY", "source": "G; Stereotech memo print-parameter: a thinner layer gives a more accurate surface", "reason": "главный приоритет — точность: тонкий слой 0,1 мм и медленнее печать",
      "when": {"fact": "pref.priority_first", "op": "==", "value": "accuracy"}, "then": [
        {"op": "shift", "param": "layer_height", "delta": 0.4},
        {"op": "shift", "param": "print_speed", "delta": 0.3}]},
-    {"id": "QUALITY-DRAFT", "source": "SeeMeCNC projects: 0.3-0.35 mm when appearance does not matter, 9 of 9", "reason": "черновое качество: толстый слой 0,3 мм",
+    {"id": "QUALITY-DRAFT", "source": "SeeMeCNC projects: 0.3-0.35 mm when appearance does not matter, 10 of 10", "reason": "черновое качество: толстый слой 0,3 мм",
      "when": {"fact": "req.print_quality", "op": "==", "value": "draft"}, "then": [
        {"op": "shift", "param": "layer_height", "delta": -0.4}]},
     {"id": "QUALITY-FINE", "source": "SeeMeCNC projects: 0.1 mm and 30-35 % infill for a smooth surface, 5 of 5; Stereotech memo print-parameter. G: denser infill carries the top skin without sagging", "reason": "высокое качество поверхности: тонкий слой 0,1 мм, заполнение плотнее держит верхние слои без провисания",
@@ -115,7 +115,7 @@
      "when": {"all": [{"fact": "req.functional_surface_of_revolution", "op": "==", "value": true}, {"fact": "geometry.is_revolution", "op": "==", "value": true}, {"not": {"fact": "req.flexible", "op": "==", "value": true}}, {"not": {"fact": "req.part_class", "op": "in", "value": ["gear", "cover_boot_seal", "decorative"]}}]},
      "then": [{"op": "mode_vote", "mode": "cylindrical_full", "weight": 5.0}]},
 
-    {"id": "ADHESION-CLASSIC-SKIRT", "source": "S: Stereotech reference project in 3D (TPU A90 coupling insert) uses a skirt; human settings of the SeeMeCNC projects: skirt 36 of 40, brim 0", "reason": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна",
+    {"id": "ADHESION-CLASSIC-SKIRT", "source": "S: Stereotech reference project in 3D (TPU A90 coupling insert) uses a skirt; human settings of the SeeMeCNC projects: skirt 38 of 40, brim 0", "reason": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна",
      "when": {"fact": "print.mode", "op": "==", "value": "classic"}, "then": [{"op": "set_discrete", "param": "adhesion_type", "value": "skirt"}]},
     {"id": "ADHESION-WARP-BRIM", "source": "G, unverified: materials prone to warping (traits.json warp = high: ABS, PA6, PC, PP) hold to the table better with a brim", "reason": "материал склонен к короблению: кайма (brim) удерживает края на столе",
      "when": {"all": [{"fact": "print.mode", "op": "==", "value": "classic"}, {"fact": "material.warp", "op": "==", "value": "high"}]}, "then": [{"op": "set_discrete", "param": "adhesion_type", "value": "brim"}]},
