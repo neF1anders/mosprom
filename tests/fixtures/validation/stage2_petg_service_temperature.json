@@ -1,0 +1,157 @@
+{
+  "case": "выход этапа 2 из плана",
+  "original": [],
+  "parameter_set": {
+    "contract": "stage2.parameter_set",
+    "version": "0.2",
+    "card_ref": {
+      "job_id": "0b6c1f0e-1111-4c4c-9999-000000000001",
+      "revision": 3
+    },
+    "iteration": 1,
+    "printer": "hte530v5.2.4",
+    "printing_mode": {
+      "value": "classic",
+      "why": "режим 3D (classic) по умолчанию: 5D не запрошен",
+      "source": "rule:MODE-DEFAULT-CLASSIC"
+    },
+    "quality": {
+      "quality_type": "normal",
+      "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм",
+      "source": "default"
+    },
+    "materials": {
+      "0": {
+        "id": "generic_petg_175",
+        "source": "requirement:material",
+        "why": "материал указан в задании (PETG); оценка 0.00; не выполнено: service_temperature (service_max_c=70)",
+        "alternatives": [],
+        "checks": [
+          {
+            "requirement_id": "service_temperature",
+            "key": "service_temp_max_c",
+            "hard": true,
+            "status": "fail",
+            "detail": "service_max_c=70"
+          }
+        ]
+      }
+    },
+    "settings": {
+      "infill_sparse_density": {
+        "value": 30.0,
+        "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв",
+        "source": "rule:PRIORITY-STRENGTH",
+        "unit": "%"
+      },
+      "material_print_temperature": {
+        "value": 220.0,
+        "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв",
+        "source": "rule:PRIORITY-STRENGTH",
+        "unit": "°C",
+        "scope": "extruder:0"
+      },
+      "top_bottom_thickness": {
+        "value": 1.1,
+        "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв",
+        "source": "rule:PRIORITY-STRENGTH",
+        "unit": "mm"
+      },
+      "wall_thickness": {
+        "value": 1.2,
+        "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв; периметров: 3",
+        "source": "rule:PRIORITY-STRENGTH",
+        "unit": "mm"
+      }
+    },
+    "models": [
+      {
+        "id": "m1",
+        "attachment_id": "att-1",
+        "extruder": 0,
+        "orientation_candidate": "o1",
+        "transform": {
+          "rotation": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "position": [
+            -9.5,
+            0.0,
+            15.0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "why": "модель стоит как в файле, в центре рабочей области стола режима 3D",
+        "source": "assumption:A7"
+      }
+    ],
+    "assumptions": [
+      {
+        "id": "A1",
+        "text": "обязательное требование temperature_max (Рабочая температура) не учтено подбором параметров",
+        "basis": "карточка этапа 1"
+      },
+      {
+        "id": "A2",
+        "text": "приоритеты strength выведены из текста пожеланий",
+        "basis": "карточка этапа 1"
+      },
+      {
+        "id": "A3",
+        "text": "поддержки запрещены по тексту пожеланий",
+        "basis": "карточка этапа 1"
+      },
+      {
+        "id": "A4",
+        "text": "Деталь работает в помещении",
+        "basis": "карточка этапа 1"
+      },
+      {
+        "id": "A5",
+        "text": "координаты модели в миллиметрах (подтверждено этапом 1)",
+        "basis": "карточка этапа 1"
+      },
+      {
+        "id": "A6",
+        "text": "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются",
+        "basis": "карточка этапа 1"
+      },
+      {
+        "id": "A7",
+        "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался",
+        "basis": "решение этапа 2"
+      }
+    ],
+    "status": "proposed",
+    "unsatisfied": [
+      {
+        "requirement_id": "service_temperature",
+        "why": "материал generic_petg_175 не выполняет: service_max_c=70"
+      }
+    ],
+    "warnings": [
+      "bare task card without idempotency_key",
+      "stl report: Self-intersections and intersections/nesting between shells are not checked.",
+      "stl report: STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+      "stl report: Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+    ]
+  }
+}

@@ -1,0 +1,121 @@
+from typing import get_args
+
+import pytest
+
+from src.backend.domain.catalog import PRINTING_MODES
+from src.backend.domain.parameters import ParameterSet, PrintingMode
+from src.backend.validation.checks import check_parameters
+
+from .cases import NAMES, load, parameter_set
+
+pytestmark = pytest.mark.unit
+
+# The original's selftest: each mutation of the contract example and the finding it expects.
+# Its other three cases are refused by the contract itself, test_parity covers them.
+SELFTEST = {
+    "selftest_filament_285": ("error", "wrong_filament", "materials[0]"),
+    "selftest_unknown_quality": ("error", "unknown_quality", "quality.quality_type"),
+    "selftest_layer_height_zero": ("error", "below_min", "settings.layer_height"),
+    "selftest_key_typo": ("error", "unknown_key", "settings.infil_sparse_density"),
+    "selftest_enum_out_of_list": ("error", "not_in_enum", "settings.infill_pattern"),
+    "selftest_int_for_bool": ("error", "wrong_type", "settings.support_enable"),
+    "selftest_support_angle_without_supports": (
+        "warning",
+        "inactive_in_mode",
+        "settings.support_angle",
+    ),
+    "selftest_bed_temperature_in_5d": (
+        "warning",
+        "inactive_in_mode",
+        "settings.material_bed_temperature",
+    ),
+    "selftest_unlinked_mode_key": ("warning", "unlinked_mode_key", "settings.cool_fan_enabled"),
+    "selftest_classic_key_in_cylindrical": (
+        "warning",
+        "mode_key_mismatch",
+        "settings.cool_fan_enabled_classic",
+    ),
+    "selftest_not_a_rotation": ("error", "bad_rotation", "models[0]"),
+    "selftest_model_outside_bed": ("error", "outside_bed", "models[0]"),
+}
+CLEAN = ["example_bracket_petg_classic", *(name for name in NAMES if name.startswith("stage2_"))]
+
+
+@pytest.mark.parametrize("name", SELFTEST)
+def test_selftest_case_is_found(name, catalog):
+    findings = check_parameters(parameter_set(name), catalog)
+    assert SELFTEST[name] in [(issue.level, issue.kind, issue.where) for issue in findings]
+
+
+@pytest.mark.parametrize("name", CLEAN)
+def test_selected_parameters_pass_without_errors_or_warnings(name, catalog):
+    assert check_parameters(parameter_set(name), catalog) == []
+
+
+def test_contract_allows_exactly_the_printing_modes_of_the_build():
+    assert get_args(PrintingMode.model_fields["value"].annotation) == PRINTING_MODES
+
+
+@pytest.mark.parametrize(
+    ("name", "kinds"),
+    [
+        ("extra_classic_key_in_cylindrical_full", []),
+        ("extra_cylindrical_key_in_classic", ["mode_key_mismatch"]),
+        ("extra_rectangular_bed_corner", []),
+        ("extra_elliptic_bed_corner", ["outside_bed"]),
+        ("extra_height_out_of_range", ["height_out_of_range"]),
+        ("extra_below_bed", ["height_out_of_range"]),
+        ("extra_rotation_not_3x3", ["bad_rotation"]),
+        ("extra_mirror_rotation", ["bad_rotation"]),
+        ("extra_bad_scale", ["bad_scale"]),
+        ("extra_position_two_numbers", ["bad_position"]),
+        ("extra_second_extruder_285", ["wrong_filament"]),
+        ("extra_unknown_material", ["unknown_material"]),
+        ("extra_no_materials_no_models", ["no_materials", "no_models"]),
+        ("extra_other_printer", ["wrong_printer"]),
+        ("extra_wrong_numbers", ["wrong_type", "wrong_type"]),
+        ("extra_formula_unknown", ["formula_unknown"]),
+        ("extra_recommended_bounds", ["below_recommended", "above_recommended"]),
+        ("extra_above_max", ["above_max"]),
+    ],
+)
+def test_each_rule_reports_its_kind(name, kinds, catalog):
+    assert [issue.kind for issue in check_parameters(parameter_set(name), catalog)] == kinds
+
+
+def test_findings_name_the_key_and_the_bound_feedback_needs(catalog):
+    layer, recommended = check_parameters(parameter_set("selftest_layer_height_zero"), catalog)
+    assert (layer.key, layer.bound, layer.message) == (
+        "layer_height",
+        0.001,
+        "0 меньше минимума 0,001",
+    )
+    assert (recommended.level, recommended.bound) == ("warning", 0.04)
+    (unlinked,) = check_parameters(parameter_set("selftest_unlinked_mode_key"), catalog)
+    assert (unlinked.where, unlinked.key, unlinked.bound) == (
+        "settings.cool_fan_enabled",
+        "cool_fan_enabled_classic",
+        False,
+    )
+    (material,) = check_parameters(parameter_set("extra_unknown_material"), catalog)
+    fitting = [key for key, profile in catalog.materials.items() if profile.diameter == 1.75]
+    assert (material.key, material.bound) == ("material", sorted(fitting))
+    (rotation,) = check_parameters(parameter_set("selftest_not_a_rotation"), catalog)
+    assert rotation.bound == "o1"
+
+
+def test_conditions_see_fdmprinter_defaults_not_its_formulas(catalog):
+    """``support_enable_cylindrical`` follows ``support_enable`` by an fdmprinter formula. The
+    check takes its default (off), so with supports on it still calls the setting inactive."""
+    (finding,) = check_parameters(parameter_set("extra_fdmprinter_formula_default"), catalog)
+    assert (finding.kind, finding.where) == (
+        "inactive_in_mode",
+        "settings.support_offset_cylindrical",
+    )
+
+
+def test_an_option_that_is_not_a_string_is_reported_not_raised(catalog):
+    changed = load("example_bracket_petg_classic")["parameter_set"]
+    changed["settings"]["infill_pattern"]["value"] = ["grid"]
+    (finding,) = check_parameters(ParameterSet.model_validate(changed), catalog)
+    assert finding.kind == "not_in_enum"

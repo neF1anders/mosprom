@@ -1,0 +1,113 @@
+{
+  "case": "выход этапа 2",
+  "original": [],
+  "parameter_set": {
+    "assumptions": [
+      {
+        "basis": "карточка этапа 1",
+        "id": "A1",
+        "text": "поддержки запрещены по тексту пожеланий"
+      },
+      {
+        "basis": "карточка этапа 1",
+        "id": "A2",
+        "text": "Деталь работает в помещении"
+      },
+      {
+        "basis": "карточка этапа 1",
+        "id": "A3",
+        "text": "координаты модели в миллиметрах (подтверждено этапом 1)"
+      },
+      {
+        "basis": "карточка этапа 1",
+        "id": "A4",
+        "text": "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются"
+      },
+      {
+        "basis": "решение этапа 2",
+        "id": "A5",
+        "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
+      },
+      {
+        "basis": "решение этапа 2",
+        "id": "A6",
+        "text": "диаметр основания 5D оставлен по умолчанию (6 мм): диаметр отверстия детали в отчёте STL не передан"
+      }
+    ],
+    "card_ref": {
+      "job_id": "0b6c1f0e-1111-4c4c-9999-000000000001",
+      "revision": 3
+    },
+    "contract": "stage2.parameter_set",
+    "iteration": 1,
+    "materials": {
+      "0": {
+        "alternatives": [],
+        "checks": [],
+        "id": "generic_pla_175",
+        "source": "requirement:material",
+        "why": "материал указан в задании (PLA); оценка 0.50"
+      }
+    },
+    "models": [
+      {
+        "attachment_id": "att-1",
+        "extruder": 0,
+        "id": "m1",
+        "orientation_candidate": "o1",
+        "source": "assumption:A5",
+        "transform": {
+          "position": [
+            0.0,
+            0.0,
+            15.0
+          ],
+          "rotation": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "why": "модель стоит как в файле, в центре рабочей области стола режима 5D Spiral"
+      }
+    ],
+    "printer": "hte530v5.2.4",
+    "printing_mode": {
+      "source": "requirement:printing_mode",
+      "value": "cylindrical",
+      "why": "режим печати задан в карточке задания"
+    },
+    "quality": {
+      "quality_type": "normal",
+      "source": "default",
+      "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+    },
+    "settings": {},
+    "status": "proposed",
+    "unsatisfied": [],
+    "version": "0.2",
+    "warnings": [
+      "bare task card without idempotency_key",
+      "stl report: Self-intersections and intersections/nesting between shells are not checked.",
+      "stl report: STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+      "stl report: Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+    ]
+  }
+}
