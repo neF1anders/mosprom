@@ -17,6 +17,7 @@ python3 scripts/bootstrap.py <user_id>
 src/
   plugin/       Плагин STE Slicer и интеграция с приложением
   web/          Веб-интерфейс чата
+  tuning/       Этап 2: подбор параметров печати (карточка этапа 1, правила, материалы, CLI `python -m tuning`)
 tests/
   e2e/          Сквозные проверки пользовательских сценариев
 docs/
@@ -27,6 +28,8 @@ CONTRIBUTING.md Правила работы с Git и кодом
 AGENTS.md.example Шаблон инструкций для агентов
 CLAUDE.md.example Шаблон локальных настроек участника
 ```
+
+Сквозные проверки запускаются одной командой: `uv run pytest tests/e2e` (Python ≥ 3.8; линтеры `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`; код `src/tuning/` совместим с Python 3.5). Подбор из консоли по карточке этапа 1: `uv run python -m tuning select --input handoff.json [--feedback feedback.json] --materials-dir <resources/materials>`; выход — `stage2.parameter_set` v0.1 этапа 3. Проверка выходов проверкой этапа 3: `VALIDATION_DIR=<validation> STE_RESOURCES_DIR=<validation>/resources/ste_5.2.4 uv run pytest tests/e2e`; контракты и решения — в `docs/tuning/`.
 
 Перед работой прочитайте [CONTRIBUTING.md](CONTRIBUTING.md). Реализованные возможности отслеживаем в [реестре фич](docs/FEATURES.md).
 
