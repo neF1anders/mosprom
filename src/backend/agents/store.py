@@ -2,42 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
-from ..domain.errors import OperationCancelled
 from ..domain.models import Attachment, Event, Job, Knowledge, Message, Status, TaskCard
 from ..domain.transitions import transition
-from ..ports.persistence import UowFactory
+from ..pipeline.store import JobStore, ensure_current
 from .runner import RunContext
 
-HALTED = {Status.STOPPING, Status.STOPPED}
 PAGE = 100
 
 
-def _ensure_current(revision: int, status: Status, expected: int) -> None:
-    """A newer revision or a stop ends the run at its next safe point."""
-    if revision != expected or status in HALTED:
-        raise OperationCancelled()
-
-
-class RunStore:
-    def __init__(self, uow: UowFactory):
-        self.uow = uow
-
-    async def update(self, ctx: RunContext, change: Callable[[Job], None]) -> Job:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            _ensure_current(job.revision, job.status, ctx.revision)
-            change(job)
-            await uow.jobs.save(job)
-            await uow.commit()
-        return job
-
-    async def check(self, job_id: str, revision: int) -> None:
-        async with self.uow() as uow:
-            head = await uow.jobs.head(job_id)
-        _ensure_current(head.revision, head.status, revision)
+class RunStore(JobStore):
+    """Stage one's reads and writes on top of the steps every stage shares."""
 
     async def job(self, job_id: str) -> Job:
         async with self.uow() as uow:
@@ -76,29 +52,13 @@ class RunStore:
             await uow.attachments.save(attachment)
             await uow.commit()
 
-    async def event(
-        self, job_id: str, revision: int, type: str, message: str, status: str = "running", **data
-    ) -> None:
-        async with self.uow() as uow:
-            await uow.events.append(
-                Event(
-                    job_id=job_id,
-                    revision=revision,
-                    type=type,
-                    status=status,
-                    message=message,
-                    data=data,
-                )
-            )
-            await uow.commit()
-
     async def finish(
         self, ctx: RunContext, card: TaskCard | None, text: str, offtopic: str | None = None
     ) -> None:
         """Publishes the card and the reply; a ready card goes on to stage two."""
         async with self.uow() as uow:
             job = await uow.jobs.get(ctx.job_id, lock=True)
-            _ensure_current(job.revision, job.status, ctx.revision)
+            ensure_current(job.revision, job.status, ctx.revision)
             # Files attached during the run are not in this card, so it is not handed over.
             if job.files_changed:
                 text = "Файлы изменились, отправьте задание, чтобы я их учёл"
@@ -122,49 +82,6 @@ class RunStore:
                     status=job.status,
                     message=text,
                     data={"readiness": card.readiness if card else "blocked"},
-                )
-            )
-            await uow.commit()
-
-    async def cancel(self, job_id: str) -> None:
-        """A stop requested during the run takes effect here; the event tells open chats."""
-        async with self.uow() as uow:
-            job = await uow.jobs.get(job_id, lock=True)
-            if job.status != Status.STOPPING:
-                return
-            job.status = transition(job.status, Status.STOPPED)
-            job.phase = None
-            await uow.jobs.save(job)
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="job.stopped",
-                    status=job.status,
-                    message="Остановлено",
-                )
-            )
-            await uow.commit()
-
-    async def fail(self, ctx: RunContext, message: str, code: str) -> None:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            if job.revision != ctx.revision:
-                return
-            if job.status in HALTED:
-                job.status = Status.STOPPED
-            else:
-                job.status, job.error = transition(job.status, Status.FAILED), message
-            job.phase = None
-            await uow.jobs.save(job)
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="operation.failed",
-                    status=job.status,
-                    message=message,
-                    data={"code": code},
                 )
             )
             await uow.commit()
