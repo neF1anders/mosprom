@@ -39,11 +39,14 @@ export async function task(page: Page, text: string, model = "box.stl") {
 // The pipeline ended: parameters are selected and checked, with or without remarks.
 export const PIPELINE_DONE =
   /Проект готов|Проект требует внимания|Проект не создан|Параметры требуют внимания/;
-// Nothing runs: the chat waits for the user, the run failed or the pipeline ended.
+// Nothing runs: the chat waits for the user, the run failed or the pipeline ended; a chat
+// the assistant only talked in still waits for materials.
 const SETTLED = new RegExp(
-  `Нужны уточнения|Параметры подобраны|Ошибка обработки|${PIPELINE_DONE.source}`,
+  `Ожидаю материалы|Нужны уточнения|Параметры подобраны|Ошибка обработки|${PIPELINE_DONE.source}`,
 );
 export async function settled(page: Page) {
+  // The row shows from the click until the assistant's reply is in the chat.
+  await expect(page.getByLabel("Ассистент отвечает")).toHaveCount(0);
   await expect(
     page.getByRole("status").filter({ hasText: SETTLED }),
   ).toBeVisible();

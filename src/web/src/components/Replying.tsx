@@ -15,7 +15,11 @@ export function Replying({
     .sort((a, b) => a.at - b.at)
     .at(-1)?.text;
   return (
-    <div className={styles.replying} role="status">
+    <div
+      className={styles.replying}
+      role="status"
+      aria-label="Ассистент отвечает"
+    >
       <Icon name="spinner-14" size={14} className={styles.spin} />
       <span key={phrase}>{phrase || "Думаю над ответом"}</span>
     </div>

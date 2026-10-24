@@ -254,3 +254,11 @@ async def test_a_new_project_while_questions_wait_needs_the_users_consent():
     assert (await agent.decide(situation(job, files=files), said)).action == "start"
     state = assistant_messages("система", situation(job))[-1]["content"]
     assert "как принять ответ" not in state
+
+
+def test_the_template_says_when_no_parameters_fit():
+    facts = {"outcome": "parameters_attention", "parameters": {"status": "infeasible"}}
+    assert template(facts).startswith("Подобрать параметры под все требования не получилось")
+    assert template({"outcome": "parameters_attention"}).startswith(
+        "Параметры подобраны, но требуют внимания"
+    )
