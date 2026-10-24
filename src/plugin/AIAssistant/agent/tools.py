@@ -600,6 +600,24 @@ def _start_slice():
     return "slicing started"
 
 
+def _stack_check_pending():
+    return bool(_app().getMachineErrorChecker().needToWaitForResult)
+
+
+def _wait_for_stack_check(timeout=60, quiet_polls=3):
+    """Wait until the slicer has finished checking the settings after the last change.
+    When the check ends the backend clears the G-code of a slicing in progress (needsSlicing ->
+    _clearLayerData), and the next message of the engine fails with KeyError: 0 and takes the slicer down."""
+    begin = time.time()
+    quiet = 0
+    while time.time() - begin < timeout:
+        quiet = 0 if run_on_main(_stack_check_pending) else quiet + 1
+        if quiet >= quiet_polls:
+            return
+        time.sleep(0.5)
+    raise ToolError("The slicer is still checking its settings. Try slicing again.")
+
+
 def _gcode():
     return getattr(_app().getController().getScene(), "gcode_dict", {}).get(0)
 
@@ -641,6 +659,7 @@ def get_slicing_status():
 @tool("Slice the scene with the current settings and wait for the result. Returns print time and material use. Takes up to a few minutes; 5D modes need an activated STE Slicer license.",
       on_main=False)
 def slice_model():
+    _wait_for_stack_check()
     run_on_main(_start_slice)
     begin = time.time()
     while time.time() - begin < 300:
