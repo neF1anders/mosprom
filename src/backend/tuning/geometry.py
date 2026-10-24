@@ -2,7 +2,7 @@
 
 Only the fields of ``src/mesh_analysis.py`` that parameter selection reads are parsed, with the
 optional sections of the stage-one contract: the overhang share (``overhangs``) and the bore of
-a body of revolution (``revolution.bore``). A report without the overhang share leaves the rules
+a body of revolution (``revolution``). A report without the overhang share leaves the rules
 that depend on overhangs silent; the user is told so through an assumption.
 """
 
@@ -34,26 +34,6 @@ class _Units(_Part):
 
 class _Measures(_Part):
     bounds: tuple[Point, Point] | None = None
-    volume: float | None = None
-    surface_area: float | None = None
-
-
-class _Component(_Part):
-    signed_volume: float | None = None
-
-
-class _Topology(_Part):
-    watertight: bool = False
-    winding_consistent: bool = False
-    components: list[_Component] = Field(default_factory=list)
-
-
-class _Validation(_Part):
-    defects: list[str] = Field(default_factory=list)
-
-
-class _Chords(_Part):
-    minimum_sampled: float | None = None
 
 
 class _Overhangs(_Part):
@@ -61,10 +41,12 @@ class _Overhangs(_Part):
 
 
 class _Bore(_Part):
+    through: bool = False
     diameter_mm: float | None = None
 
 
 class _Revolution(_Part):
+    is_revolution: bool = False
     bore: _Bore | None = None
 
 
@@ -72,9 +54,6 @@ class _Report(_Part):
     file: _File = _File()
     units: _Units = _Units()
     geometry: _Measures = _Measures()
-    topology: _Topology = _Topology()
-    validation: _Validation = _Validation()
-    normal_chords: _Chords = _Chords()
     warnings: list[str] = Field(default_factory=list)
     partial_errors: dict[str, str] = Field(default_factory=dict)
     overhangs: _Overhangs | None = None
@@ -83,18 +62,16 @@ class _Report(_Part):
 
 @dataclass(frozen=True)
 class Geometry:
-    """Bounding box size in millimetres and the measures rules can read as facts."""
+    """Bounding box size in millimetres and the measures selection reads."""
 
     size: Point
-    needs_repair: bool
-    volume: float | None = None
-    surface_area: float | None = None
-    # Shortest sampled inward chord: an estimate that can miss thin features.
-    min_wall_estimate: float | None = None
     # Share of the surface overhanging past 45 degrees, the model as loaded.
     overhang_fraction: float | None = None
-    # Smallest diameter of the coaxial bore.
+    # The coaxial bore: smallest diameter, whether it runs through and whether the part is a
+    # body of revolution around it.
     bore_diameter: float | None = None
+    bore_through: bool = False
+    revolution: bool = False
 
 
 @dataclass(frozen=True)
@@ -118,14 +95,14 @@ def read_geometry(analysis: StlAnalysis | None) -> GeometryReading:
     if report.geometry.bounds is None:
         raise AppError("В отчёте STL нет габаритов модели", "stl_report_bounds")
     low, high = report.geometry.bounds
+    revolution = report.revolution or _Revolution()
+    bore = revolution.bore or _Bore()
     geometry = Geometry(
         size=(_rounded(high[0] - low[0]), _rounded(high[1] - low[1]), _rounded(high[2] - low[2])),
-        needs_repair=_needs_repair(report),
-        volume=_optional(report.geometry.volume),
-        surface_area=_optional(report.geometry.surface_area),
-        min_wall_estimate=_optional(report.normal_chords.minimum_sampled),
         overhang_fraction=_overhang_fraction(report),
-        bore_diameter=_bore_diameter(report),
+        bore_diameter=_optional(bore.diameter_mm),
+        bore_through=bore.through,
+        revolution=revolution.is_revolution,
     )
     if geometry.overhang_fraction is None:
         assumptions.append(
@@ -154,21 +131,9 @@ def _unit_assumption(unit: str) -> str:
     raise AppError(f"Единицы координат STL {unit} не поддерживаются", "stl_report_units")
 
 
-def _needs_repair(report: _Report) -> bool:
-    topology = report.topology
-    negative = any((part.signed_volume or 0.0) < 0 for part in topology.components)
-    closed = topology.watertight and topology.winding_consistent
-    return not closed or negative or bool(report.validation.defects)
-
-
 def _overhang_fraction(report: _Report) -> float | None:
     """Not rounded: the rules compare it with a threshold of 0.05."""
     return None if report.overhangs is None else report.overhangs.area_fraction
-
-
-def _bore_diameter(report: _Report) -> float | None:
-    bore = None if report.revolution is None else report.revolution.bore
-    return None if bore is None else _optional(bore.diameter_mm)
 
 
 def _rounded(value: float) -> float:

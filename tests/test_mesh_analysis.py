@@ -1,5 +1,7 @@
 """Analytical fixtures verify geometry, defects and units independently of STL names."""
 
+import time
+
 import numpy as np
 import pytest
 import trimesh
@@ -187,6 +189,75 @@ def test_open_tube_is_still_a_revolution(tmp_path):
     assert "boundary_edges" in report["validation"]["defects"]
     assert report["revolution"]["is_revolution"]
     assert report["revolution"]["bore"]["diameter_mm"] == pytest.approx(10, abs=0.2)
+
+
+def test_bore_of_a_lopsided_tube_is_measured_around_its_axis(tmp_path):
+    # The lug pulls the surface centroid 3.4 mm off the axis, inside the 5 mm bore.
+    lug = trimesh.creation.box(extents=(20, 8, 10))
+    lug.apply_translation((20, 0, -15))
+    mesh = trimesh.util.concatenate([trimesh.creation.annulus(r_min=5, r_max=10, height=40), lug])
+    report = analyze_stl(save(tmp_path, mesh), units="mm", samples=0)
+    revolution = report["revolution"]
+    assert revolution["is_revolution"] and revolution["bore"]["through"]
+    assert revolution["axis_point"][:2] == pytest.approx([0, 0], abs=0.01)
+    assert revolution["bore"]["diameter_mm"] == pytest.approx(10, abs=0.2)
+
+
+def test_many_separate_shells_are_analysed_in_bounded_time(tmp_path):
+    cubes = []
+    for i in range(20):
+        for j in range(20):
+            cube = trimesh.creation.box(extents=(1, 1, 1))
+            cube.apply_translation((2 * i, 2 * j, 0))
+            cubes.append(cube)
+    path = save(tmp_path, trimesh.util.concatenate(cubes))
+    started = time.perf_counter()
+    report = analyze_stl(path, units="mm", samples=0)
+    # Every belt cuts 400 loops; comparing each with each took about a minute.
+    assert time.perf_counter() - started < 20
+    assert report["revolution"]["is_revolution"] is False
+
+
+def chamfered(offset):
+    """A bar whose underside edge is cut at exactly 45 degrees, from (y, z) = (0, 5) to (5, 0)."""
+    section = [(0, 5), (5, 0), (20, 0), (20, 10), (0, 10)]
+    n = len(section)
+    vertices = np.array([(x, y, z) for x in (0.0, 10.0) for y, z in section]) + offset
+    faces = [
+        face
+        for i in range(n)
+        for face in ((i, (i + 1) % n, n + (i + 1) % n), (i, n + (i + 1) % n, n + i))
+    ]
+    faces += [face for k in range(1, n - 1) for face in ((0, k + 1, k), (n, n + k, n + k + 1))]
+    mesh = trimesh.Trimesh(vertices, faces, process=False)
+    if mesh.volume < 0:
+        mesh.invert()
+    return mesh
+
+
+def test_a_45_degree_chamfer_is_not_an_overhang_wherever_the_part_sits(tmp_path):
+    rng = np.random.default_rng(2)
+    fractions = {
+        analyze_stl(save(tmp_path, chamfered(offset)), samples=0)["overhangs"]["area_fraction"]
+        for offset in [np.zeros(3), *rng.uniform(-900, 900, (20, 3))]
+    }
+    assert fractions == {0}
+
+
+def test_overhangs_reach_the_checkpoint_before_the_slow_sections(tmp_path, monkeypatch):
+    import src.mesh_analysis as analysis
+
+    checkpoints = []
+
+    def cut(mesh):
+        # What the parent keeps when the time limit kills the process here.
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(analysis, "revolution", cut)
+    with pytest.raises(KeyboardInterrupt):
+        analyze_stl(save(tmp_path, tube()), samples=0, checkpoint=checkpoints.append)
+    assert checkpoints[-1]["status"] == "partial"
+    assert checkpoints[-1]["overhangs"]["critical_angle_deg"] == 45
 
 
 def test_box_bottom_rests_on_the_bed(tmp_path):

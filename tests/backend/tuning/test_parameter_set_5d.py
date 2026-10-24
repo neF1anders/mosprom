@@ -86,6 +86,23 @@ def test_bore_narrower_than_the_build_allows_keeps_the_default_base(select):
     ) in texts
 
 
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("is_revolution", "деталь по отчёту STL не тело вращения"),
+        ("through", "отверстие детали 16.3 мм по отчёту STL не сквозное"),
+    ],
+)
+def test_only_a_through_bore_of_a_body_of_revolution_sets_the_base(select, field, reason):
+    stl_report = report(bore=16.3)
+    revolution = stl_report["revolution"]
+    (revolution if field == "is_revolution" else revolution["bore"])[field] = False
+    parameter_set = select(five_d("cylindrical", stl_report=stl_report))
+    assert "cylindrical_mode_base_diameter" not in parameter_set["settings"]
+    texts = [entry["text"] for entry in parameter_set["assumptions"]]
+    assert f"диаметр основания 5D оставлен по умолчанию (6 мм), {reason}" in texts
+
+
 def test_bore_does_not_set_a_base_in_3d(select):
     parameter_set = select(card(stl_report=report(bore=16.3)))
     assert parameter_set["printing_mode"]["value"] == "classic"
