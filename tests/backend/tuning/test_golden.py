@@ -1,5 +1,5 @@
-"""The ported selection reproduces the outputs of the original code, see
-``tests/fixtures/tuning/README.md``."""
+"""Snapshots of the selection: the outputs of the original code, changed only together with a
+change of the method, see ``tests/fixtures/tuning/README.md``."""
 
 import json
 from pathlib import Path

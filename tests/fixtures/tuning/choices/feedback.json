@@ -22,7 +22,7 @@
    "op": "ne",
    "reason": "synthetic",
    "severity": "error",
-   "value": "enduse_abs"
+   "value": "generic_pla_175"
   }
  ],
  "contract": "stage3.feedback",

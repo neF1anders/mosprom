@@ -1,7 +1,8 @@
 """Printing mode: weighted votes of the fired rules and of a check constraint.
 
-A mode the part does not fit as loaded, or one a constraint forbids, gets no votes; a request
-for it that outweighs the default is told to the user.
+A mode the part does not fit in the pose it takes there (as loaded in 3D, axis vertical in 5D),
+or one a constraint forbids, gets no votes; a request for it that outweighs the default is told
+to the user.
 """
 
 from __future__ import annotations
@@ -45,9 +46,10 @@ def choose_mode(
     facts: Mapping[str, FactValue],
     choices: Choices,
     request: ModeRequest | None,
-    size: Point,
+    sizes: Mapping[str, Point],
     modes: Mapping[str, Mode],
 ) -> ModeChoice:
+    """``sizes``: the part's size in the pose it takes in each mode."""
     votes = [
         Vote(vote_mode(action.mode, facts), action.weight, rule.id)
         for rule in fired
@@ -67,13 +69,13 @@ def choose_mode(
     weights: dict[str, float] = {}
     assumptions = []
     for vote in (vote for vote in votes if vote.mode in modes):
-        rejected = _rejection(vote.mode, choices, size, modes[vote.mode])
+        rejected = _rejection(vote.mode, choices, sizes[vote.mode], modes[vote.mode])
         if rejected is None:
             weights[vote.mode] = weights.get(vote.mode, 0.0) + vote.weight
         elif vote.weight > 1.0:
             assumptions.append(f"режим {vote.mode} не выбран: {rejected}")
     if not weights:
-        return _nowhere(size, modes, tuple(assumptions), warnings)
+        return _nowhere(sizes, modes, tuple(assumptions), warnings)
     winner = max(sorted(weights), key=lambda mode: weights[mode])
     top = max((vote for vote in votes if vote.mode == winner), key=lambda vote: vote.weight)
     why, source = _reason(top.rule_id, request)
@@ -110,12 +112,13 @@ def _reason(rule_id: str, request: ModeRequest | None) -> tuple[str, str]:
 
 
 def _nowhere(
-    size: Point,
+    sizes: Mapping[str, Point],
     modes: Mapping[str, Mode],
     assumptions: tuple[str, ...],
     warnings: tuple[str, ...],
 ) -> ModeChoice:
-    fitting = [name for name in sorted(modes) if fits(size, modes[name])]
+    fitting = [name for name in sorted(modes) if fits(sizes[name], modes[name])]
+    size = sizes[FALLBACK_MODE]
     where = f"помещаются в: {', '.join(fitting)}" if fitting else "не помещаются ни в один режим"
     why = (
         f"габариты {list(size)} мм при ориентации «как загружено» не помещаются в выбранный режим"

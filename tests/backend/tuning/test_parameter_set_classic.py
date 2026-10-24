@@ -91,10 +91,11 @@ def test_settings_carry_only_what_differs_from_profile_and_material(select):
     assert settings["infill_pattern"]["value"] == "gyroid"
     assert settings["material_print_temperature"]["scope"] == "extruder:0"
     # Values the slicer takes from the material file or the profile anyway are not sent.
+    layer = settings["layer_height"]
+    assert (layer["value"], layer["source"]) == (0.2, "rule:LAYER-STANDARD")
     for key in (
         "material_bed_temperature",
         "cool_fan_speed",
-        "layer_height",
         "support_enable",
         "adhesion_type",
     ):
@@ -104,30 +105,61 @@ def test_settings_carry_only_what_differs_from_profile_and_material(select):
     )
 
 
-def test_neutral_card_keeps_slicer_defaults(select):
+def test_neutral_card_keeps_slicer_defaults_with_the_standard_layer(select):
     parameter_set = select(card())
     assert parameter_set["quality"] == {
         "quality_type": "normal",
-        "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм",
+        "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой "
+        "0,2 мм, как в типовых проектах Stereotech",
         "source": "default",
     }
-    # enduse_abs wins the tie. Its file has no part cooling and recommends 50 mm/s against the
-    # slicer's 60, so exactly these two differences are sent.
-    assert parameter_set["materials"]["0"]["id"] == "enduse_abs"
+    # Nothing tells the materials apart: the slicer's own PLA, not the first id (enduse_abs).
+    material = parameter_set["materials"]["0"]
+    assert material["id"] == "generic_pla_175"
+    assert material["why"].startswith("требования задания не различают")
+    # PLA is cooled and has no speed of its own: only the layer, three walls and the skirt of
+    # 3D are sent.
     settings = parameter_set["settings"]
-    assert sorted(settings) == ["cool_fan_enabled_classic", "speed_print"]
-    assert settings["cool_fan_enabled_classic"]["value"] is False
-    assert (settings["speed_print"]["value"], settings["speed_print"]["source"]) == (
-        50,
-        "rule:SPEED-MATERIAL-MAX",
+    assert sorted(settings) == ["adhesion_type", "layer_height", "wall_thickness"]
+    walls = settings["wall_thickness"]
+    assert (walls["value"], walls["source"]) == (1.2, "rule:WALLS-STANDARD")
+
+
+def test_speed_priority_prints_thick_layers_on_the_default_profile(select):
+    parameter_set = select(card(preferences=["Нужно быстро"]))
+    assert parameter_set["quality"]["quality_type"] == "normal"
+    settings = parameter_set["settings"]
+    layer = settings["layer_height"]
+    assert (layer["value"], layer["source"]) == (0.3, "rule:PRIORITY-SPEED-LAYER")
+    # The profile no longer brings the 10 % infill of `fast` with it.
+    assert settings["infill_sparse_density"]["value"] == 15
+
+
+@pytest.mark.parametrize(
+    ("level", "layer", "source"),
+    [
+        ("draft", 0.3, "rule:QUALITY-DRAFT"),
+        ("standard", 0.2, "rule:LAYER-STANDARD"),
+        ("fine", None, None),
+    ],
+)
+def test_quality_level_code_sets_the_layer(select, level, layer, source):
+    settings = select(card(requirements=[requirement("print_quality", level)]))["settings"]
+    if layer is None:
+        # Fine is the 0.1 mm layer of the default profile itself.
+        assert "layer_height" not in settings
+        return
+    assert (settings["layer_height"]["value"], settings["layer_height"]["source"]) == (
+        layer,
+        source,
     )
 
 
-def test_speed_priority_moves_to_a_coarser_quality_profile(select):
-    parameter_set = select(card(preferences=["Нужно быстро"]))
-    assert parameter_set["quality"]["quality_type"] == "fast"
-    assert parameter_set["quality"]["source"] == "rule:PRIORITY-SPEED"
-    assert "layer_height" not in parameter_set["settings"]
+def test_quality_level_wins_over_the_speed_of_the_wishes(select):
+    standard = card(requirements=[requirement("print_quality", "standard")], preferences=["быстро"])
+    settings = select(standard)["settings"]
+    assert settings["layer_height"]["value"] == 0.2
+    assert settings["infill_sparse_density"]["value"] == 15
 
 
 def test_hard_tolerance_keeps_fine_layers_and_slows_down(select):
@@ -169,7 +201,7 @@ def test_a_batch_is_told_to_be_one_model_in_the_project(select):
     assert "партия 15 шт.: в проекте одна модель, копии в раскладку не добавлены" in texts
 
 
-def test_layer_is_sent_only_when_no_profile_fits_the_limits(select):
+def test_layer_between_profile_layers_is_sent_as_is(select):
     narrow = feedback(
         constraint("C1", "layer_height", "min", 0.12),
         constraint("C2", "layer_height", "max", 0.13),
@@ -177,8 +209,8 @@ def test_layer_is_sent_only_when_no_profile_fits_the_limits(select):
     parameter_set = select(card(), narrow)
     layer = parameter_set["settings"]["layer_height"]
     assert 0.12 <= layer["value"] <= 0.13 and layer["unit"] == "mm"
-    assert layer["why"].startswith("ни один профиль не укладывается в ограничения")
-    assert parameter_set["quality"]["quality_type"] in ("normal", "fast")
+    assert layer["source"].startswith("constraint:")
+    assert parameter_set["quality"]["quality_type"] == "normal"
 
 
 def test_coarse_profile_keeps_three_skin_layers(select):
@@ -190,6 +222,105 @@ def test_coarse_profile_keeps_three_skin_layers(select):
 
 def test_banned_default_profile_gives_the_nearest_one(select):
     quality = select(card(), feedback(constraint("C1", "quality_type", "ne", "normal")))["quality"]
-    assert quality["quality_type"] in ("high", "fast")
-    assert quality["why"].startswith("значение слайсера; ближайший профиль")
-    assert quality["source"] == "default"
+    # The 0.2 mm standard layer is the layer of `draft` itself, so no layer is sent.
+    assert quality["quality_type"] == "draft"
+    assert quality["why"].startswith("профиль Fine исключён этапом 3, ближайший — Draft")
+
+
+def test_requirements_that_tell_materials_apart_win_over_the_slicer_default(select):
+    hot = card(requirements=[requirement("service_temp_max_c", "100", "°C")])
+    material = select(hot)["materials"]["0"]
+    assert material["id"] != "generic_pla_175"
+    assert material["why"].startswith("лучший из")
+
+
+def test_large_part_without_strength_demands_gets_sparse_infill(select):
+    large = card(
+        stl_report=report(size=(184.0, 218.0, 294.0)),
+        requirements=[requirement("material", "PLA")],
+    )
+    infill = select(large)["settings"]["infill_sparse_density"]
+    assert (infill["value"], infill["source"]) == (10, "rule:LARGE-PART-INFILL")
+
+
+def test_large_part_keeps_the_datasheet_infill_of_its_material(select):
+    large = card(
+        stl_report=report(size=(184.0, 218.0, 294.0)),
+        requirements=[requirement("material", "Enduse PA6")],
+    )
+    parameter_set = select(large)
+    infill = parameter_set["settings"]["infill_sparse_density"]
+    assert parameter_set["status"] == "proposed"
+    assert (infill["value"], infill["source"]) == (30, "rule:MATERIAL-INFILL-MIN")
+
+
+def test_decorative_part_needs_no_datasheet_infill(select):
+    figurine = card(
+        requirements=[
+            requirement("material", "Fiberpart PA12 G12"),
+            requirement("part_class", "decorative"),
+        ]
+    )
+    assert "infill_sparse_density" not in select(figurine)["settings"]
+
+
+def test_fine_quality_carries_the_top_skin_with_denser_infill(select):
+    fine = card(requirements=[requirement("print_quality", "fine")])
+    infill = select(fine)["settings"]["infill_sparse_density"]
+    assert (infill["value"], infill["source"]) == (35, "rule:QUALITY-FINE")
+
+
+def test_quality_level_wins_over_the_accuracy_priority_for_the_layer(select):
+    standard = card(
+        requirements=[
+            requirement("print_quality", "standard"),
+            requirement("priority", "accuracy"),
+        ]
+    )
+    settings = select(standard)["settings"]
+    assert settings["layer_height"]["value"] == 0.2
+    assert settings["speed_print"]["source"] == "rule:PRIORITY-ACCURACY"
+
+
+@pytest.mark.parametrize(
+    ("named", "material"),
+    [
+        ("зелёный PLA", "generic_pla_175"),
+        ("PLA с добавлением поликарбоната", "generic_pla_175"),
+        ("пластик Enduse PETG", "enduse_petg"),
+    ],
+)
+def test_material_named_within_a_phrase_is_found_and_told(select, named, material):
+    # Validation 051 and 055: «green PLA» was not found and a strong part got ABS.
+    strong = card(
+        requirements=[
+            requirement("material", named),
+            requirement("service_temp_max_c", "100", "°C", mandatory=False),
+        ]
+    )
+    parameter_set = select(strong)
+    assert parameter_set["materials"]["0"]["id"] == material
+    assert parameter_set["materials"]["0"]["source"] == "requirement:material"
+    texts = [entry["text"] for entry in parameter_set["assumptions"]]
+    assert any(text.startswith(f"материал «{named}» понят как") for text in texts)
+
+
+def test_material_name_without_a_catalog_word_falls_back_to_the_ranking(select):
+    own = card(requirements=[requirement("material", "свой фирменный пластик")])
+    parameter_set = select(own)
+    assert parameter_set["materials"]["0"]["source"] == "rule:MATERIAL-RANK"
+    assert (
+        "material 'свой фирменный пластик' from the card is not in the catalog, ranking instead"
+        in parameter_set["warnings"]
+    )
+
+
+def test_accuracy_priority_slows_the_print_but_keeps_the_standard_layer(select):
+    # Calibration plates of the validation run: the human printed 0.2 mm in 11 of 14.
+    accurate = card(requirements=[requirement("priority", "accuracy")])
+    settings = select(accurate)["settings"]
+    assert (settings["layer_height"]["value"], settings["layer_height"]["source"]) == (
+        0.2,
+        "rule:LAYER-STANDARD",
+    )
+    assert settings["speed_print"]["source"] == "rule:PRIORITY-ACCURACY"

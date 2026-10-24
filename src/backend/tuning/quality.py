@@ -1,5 +1,11 @@
-"""Quality profile: the rules give a target layer, it snaps to the nearest profile whose layer
-is inside the hard limits. The layer is sent as a number only when no profile fits."""
+"""Quality profile and layer: the printer's default profile with the layer the rules ask for.
+
+Stereotech technologists save their projects with the default profile and the layer set on
+top of it (``quality_type = normal``, ``layer_height = 0.2``), so the profile stays the default
+and the layer is sent as a number when it differs from the profile's. The target layer snaps to
+the layers of the build's profiles inside the hard limits, so it is always a value the slicer
+offers; a check constraint on the profile chooses the profile instead.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,7 @@ from dataclasses import dataclass
 from .axes import Axis
 from .constraints import QUALITY_KEY, Choices
 from .notes import EPSILON, SettingChoice
-from .planning import Plan, resolve_t
+from .planning import AxisPlan, Plan, resolve_t
 from .printer import Mode, QualityOption
 from .rules import reason, source_of
 
@@ -18,7 +24,7 @@ class QualityChoice:
     profile: QualityOption
     why: str
     source: str
-    # The layer the print uses, and the explicit layer setting when no profile fits.
+    # The layer the print uses, and the explicit layer setting when the profile's differs.
     layer_height: float
     layer_setting: SettingChoice | None = None
 
@@ -36,45 +42,33 @@ def choose_quality(
         )
     entry = plan.axes[axis.id]
     t, rule_id = resolve_t(entry, axis.clamped_t_of(qualities[default].layer_height))
-    target = axis.v0 + t * (axis.v1 - axis.v0)
+    layer = _layer(entry, axis, t, mode)
     permitted = [name for name in sorted(qualities) if choices.permits(QUALITY_KEY, name)]
+    if default in permitted or not permitted:
+        profile = qualities[default]
+        why = f"профиль принтера по умолчанию: {profile.label}"
+        source = "default"
+    else:
+        name = min(permitted, key=lambda option: abs(qualities[option].layer_height - layer))
+        profile = qualities[name]
+        why = f"профиль {qualities[default].label} исключён этапом 3, ближайший — {profile.label}"
+        source = source_of(rule_id)
+    if abs(layer - profile.layer_height) < EPSILON:
+        return QualityChoice(profile, f"{why}, слой {layer:g} мм", source, layer)
+    setting = SettingChoice(layer, reason(rule_id), source_of(rule_id), "mm")
+    why = f"{why}, слой {layer:g} мм задан отдельно: {reason(rule_id)}"
+    return QualityChoice(profile, why, source, layer, setting)
+
+
+def _layer(entry: AxisPlan, axis: Axis, t: float, mode: Mode) -> float:
+    """The profile layer nearest to the target inside the limits, else the target itself."""
+    target = axis.v0 + t * (axis.v1 - axis.v0)
+    offered = sorted({option.layer_height for option in mode.qualities.values()})
     inside = [
-        name
-        for name in permitted
-        if entry.low - EPSILON <= axis.t_of(qualities[name].layer_height) <= entry.high + EPSILON
+        layer
+        for layer in offered
+        if entry.low - EPSILON <= axis.t_of(layer) <= entry.high + EPSILON
     ]
-    pool = inside or permitted or sorted(qualities)
-    name = min(
-        pool,
-        key=lambda option: (
-            abs(qualities[option].layer_height - target),
-            qualities[option].layer_height,
-        ),
-    )
-    profile = qualities[name]
     if not inside:
-        layer = axis.value_at(t, entry.low, entry.high)
-        why = f"ни один профиль не укладывается в ограничения: {reason(rule_id)}"
-        setting = SettingChoice(layer, why, source_of(rule_id), "mm")
-        return _nearest(profile, rule_id, layer, setting)
-    if name == default:
-        return _default(profile, rule_id)
-    return _nearest(profile, rule_id, profile.layer_height, None)
-
-
-def _default(profile: QualityOption, rule_id: str | None) -> QualityChoice:
-    why = f"профиль по умолчанию принтера: {profile.label}, слой {profile.layer_height:g} мм"
-    if rule_id is not None:
-        why += (
-            f"; правило «{reason(rule_id)}» профиль не изменило: слой упёрся в допустимые пределы"
-        )
-    return QualityChoice(profile, why, "default", profile.layer_height)
-
-
-def _nearest(
-    profile: QualityOption, rule_id: str | None, layer: float, setting: SettingChoice | None
-) -> QualityChoice:
-    why = (
-        f"{reason(rule_id)}; ближайший профиль — {profile.label}, слой {profile.layer_height:g} мм"
-    )
-    return QualityChoice(profile, why, source_of(rule_id), layer, setting)
+        return axis.value_at(t, entry.low, entry.high)
+    return min(inside, key=lambda layer: (abs(layer - target), layer))

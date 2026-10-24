@@ -24,12 +24,13 @@ from .constraints import (
     choices_from,
     is_choice,
 )
-from .facts import build_facts
+from .facts import build_facts, with_mode
 from .intake import CardRequirement, read_card
 from .material_choice import choose_material
 from .materials import Candidate, printable_materials
 from .mode import choose_mode
 from .notes import ConstraintResult, Unmet
+from .orientation import pose_for
 from .output import Selection, render
 from .placement import place_model
 from .planning import build_plan, find_conflicts, plan_unmet
@@ -57,14 +58,22 @@ def select_parameters(
     constraints = feedback.constraints if feedback is not None else []
     choices = choices_from(constraints)
     material_choice = choose_material(
-        request, printable_materials(catalog, printer.filament), choices
+        request, printable_materials(catalog, printer.filament), choices, printer.preferred_material
     )
     facts = build_facts(request, material_choice.material)
-    fired = fired_rules(facts)
+    poses = {name: pose_for(name, request.geometry) for name in printer.modes}
     mode_choice = choose_mode(
-        fired, facts, choices, request.mode, request.geometry.size, printer.modes
+        fired_rules(facts),
+        facts,
+        choices,
+        request.mode,
+        {name: pose.size for name, pose in poses.items()},
+        printer.modes,
     )
     mode = printer.modes[mode_choice.value]
+    # Rules about the mode (adhesion) and the overhangs of the pose it prints in fire once the
+    # mode is known; mode votes read neither, so the choice stands.
+    fired = fired_rules(with_mode(facts, mode.name, poses[mode.name].overhang_fraction))
     context = _context(mode, printer.nozzle, material_choice.material)
     axes = build_axes(context)
     constrained = apply_constraints(
@@ -79,7 +88,7 @@ def select_parameters(
     settings = choose_settings(
         plan, axes, mode, quality, material_choice.material, constrained.pass_through
     )
-    placement = place_model(request, mode, _excluded_orientations(feedback))
+    placement = place_model(request, mode, poses[mode.name], _excluded_orientations(feedback))
     choice_results, choice_unmet = _choice_results(
         constraints,
         {
@@ -149,6 +158,7 @@ def _context(mode: Mode, nozzle: float, material: Candidate) -> AxisContext:
         material_speed=material.speed,
         speed_floor=0.5 * min(material.speed or default_speed, default_speed),
         temperature_max=max(mode.temperature_max, material.print_temperature),
+        infill_min=material.traits.infill_min_pct,
     )
 
 
