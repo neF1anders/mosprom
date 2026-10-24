@@ -26,6 +26,8 @@ import { buildTimeline, summaries } from "./timeline";
 import { useNow } from "./hooks/useNow";
 import { TaskCard } from "./components/TaskCard";
 import { Icon } from "./components/Icon";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { useTheme } from "./hooks/useTheme";
 import styles from "./App.module.css";
 
 function unique<T, K>(items: T[], key: (item: T) => K) {
@@ -68,6 +70,8 @@ export function App() {
     closePanels,
   );
   const [error, setError] = useState("");
+  const { theme, toggle: toggleTheme } = useTheme();
+  const themeSwitch = <ThemeToggle theme={theme} onToggle={toggleTheme} />;
   const creating = useRef<Promise<string> | null>(null);
   const { threadRef, away, toBottom, onScroll, follow } = useFollow();
   const { events, thoughts, connected } = useJobEvents(
@@ -298,6 +302,7 @@ export function App() {
       <header className={styles.header}>
         <h1>StereotechAI Plugin</h1>
         <div className={styles.mobileTools}>
+          {themeSwitch}
           <button
             className={styles.icon}
             aria-label="Новое задание"
@@ -350,6 +355,7 @@ export function App() {
             onDelete={(id) => remove.mutate(id)}
             onMore={() => jobs.fetchNextPage()}
             onCollapse={() => setLeft(false)}
+            themeSwitch={themeSwitch}
           />
         </div>
         <button

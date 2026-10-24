@@ -2,6 +2,7 @@ import { chatDate } from "../chat";
 import type { Job } from "../types";
 import { jobStatus } from "../types";
 import { ChatItem } from "./ChatItem";
+import type { ReactNode } from "react";
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
@@ -18,6 +19,7 @@ export function ChatList({
   onDelete,
   onMore,
   onCollapse,
+  themeSwitch,
 }: {
   jobs: Job[];
   selected: string;
@@ -31,10 +33,14 @@ export function ChatList({
   onDelete: (id: string) => void;
   onMore: () => void;
   onCollapse: () => void;
+  themeSwitch?: ReactNode;
 }) {
   return (
     <aside className={styles.chats} aria-label="Чаты" inert={!open}>
-      <h1>StereotechAI Plugin</h1>
+      <div className={styles.brand}>
+        <h1>StereotechAI Plugin</h1>
+        {themeSwitch}
+      </div>
       <div className={styles.row}>
         <h2>Чаты</h2>
         <div className={styles.actions}>

@@ -32,8 +32,9 @@
   --on-status: #ffffff;
   --overlay: rgba(19, 20, 26, 0.12);
 }
+/* The system theme, unless the switch in the chats panel chose one. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0f1016;
     --surface: #1a1b23;
@@ -65,4 +66,36 @@
     --error: #c8372d;
     --overlay: rgba(0, 0, 0, 0.4);
   }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1016;
+  --surface: #1a1b23;
+  --raised: #262733;
+  --bubble: #262733;
+  --hover: #262733;
+  --agent-active: #2a2b38;
+  --code: #14151b;
+  --attachment: #262733;
+  --window: #1a1b23;
+  --badge: #262733;
+  --text: #f1f1f6;
+  --text-2: #9b9dae;
+  --text-3: #6b6d7e;
+  --path: #6b6d7e;
+  --placeholder: #6b6d7e;
+  --button-off: #3b3d4a;
+  --button-off-text: #8a8c9c;
+  --line: #2c2d38;
+  --rail: #2c2d38;
+  --guide: #4e5060;
+  --wait: #3b3d4a;
+  --checkbox: #2c2d38;
+  --handle-hover: #9b9dae;
+  --run: #8f86ff;
+  --run-tint: rgba(143, 134, 255, 0.16);
+  --done: #18874a;
+  --warn: #d07a12;
+  --error: #c8372d;
+  --overlay: rgba(0, 0, 0, 0.4);
 }
