@@ -268,3 +268,15 @@ def test_fine_quality_carries_the_top_skin_with_denser_infill(select):
     fine = card(requirements=[requirement("print_quality", "fine")])
     infill = select(fine)["settings"]["infill_sparse_density"]
     assert (infill["value"], infill["source"]) == (35, "rule:QUALITY-FINE")
+
+
+def test_quality_level_wins_over_the_accuracy_priority_for_the_layer(select):
+    standard = card(
+        requirements=[
+            requirement("print_quality", "standard"),
+            requirement("priority", "accuracy"),
+        ]
+    )
+    settings = select(standard)["settings"]
+    assert settings["layer_height"]["value"] == 0.2
+    assert settings["speed_print"]["source"] == "rule:PRIORITY-ACCURACY"
