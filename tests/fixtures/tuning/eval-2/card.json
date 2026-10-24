@@ -1,0 +1,1200 @@
+{
+ "allowed_actions": [],
+ "assumptions": [
+  {
+   "basis": "В ТЗ указано «до 18 кг» с возможными микроударами",
+   "consequence": "Если нагрузка постоянна 18 кг, запас по контактным напряжениям и ползучести должен быть выше",
+   "text": "Нагрузка 18 кг это максимальная радиальная нагрузка на одно колесо в эксплуатации, а не постоянная"
+  },
+  {
+   "basis": "ТЗ задает строгий режим +20±2°C в чистом цехе",
+   "consequence": "При локальном разогреве пятна контакта возможен отход от температурного предела и разупрочнение материала",
+   "text": "Температура эксплуатации не превышает +22°C, тепловая нагрузка от трения не нормируется отдельно"
+  },
+  {
+   "basis": "Прямое указание ТЗ: натяг без нагрева приведет к разрыву детали",
+   "consequence": "Если нагрев при сборке недопустим, потребуется иная схема крепления на валу",
+   "text": "Посадка на вал выполняется с нагревом детали (термоусадка), разрыв при натяге без нагрева исключает жёсткую прессовую посадку"
+  }
+ ],
+ "blocked_actions": {},
+ "files": [
+  {
+   "filename": "Колесо.jpg",
+   "id": "7d43c8e7-9f3e-46f1-983f-4e60dbb26751",
+   "kind": "jpg",
+   "sha256": "febabc6d10f96d59ef9db50f8c4a1038b2de2eb89f0f0075608047bb380842ed"
+  },
+  {
+   "filename": "Техническое задание для колеса конвейерной линии.docx",
+   "id": "7e7cf150-50b6-4cce-8212-e56dae8456d0",
+   "kind": "docx",
+   "sha256": "32727bab5d9ece28069684a20453bdb14bf508ad983053c5fea18934d78a213d"
+  },
+  {
+   "filename": "Колесо.STL",
+   "id": "9d4f0ab1-6d3d-48a9-bc1f-1b3efd9be08a",
+   "kind": "stl",
+   "sha256": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4"
+  }
+ ],
+ "geometry": {
+  "components": 1,
+  "defects": [],
+  "extents": [
+   58.99745184183121,
+   25.0,
+   58.994903802871704
+  ],
+  "limitations": [
+   "Self-intersections and intersections/nesting between shells are not checked.",
+   "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+   "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+  ],
+  "min_wall_sample": 5.0,
+  "preview_id": "daa0f82d36b3eb53ae8ac462a1fd29024ce6b0fc3ec58d2de881f71253c465c3.png",
+  "readable": true,
+  "report_id": "daa0f82d36b3eb53ae8ac462a1fd29024ce6b0fc3ec58d2de881f71253c465c3",
+  "sections": [
+   {
+    "axis": "X",
+    "closed_contour_count": 1,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 12
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 1,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 1,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 1,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   }
+  ],
+  "surface_area": 10148.806199185306,
+  "units": "mm",
+  "volume": 46704.105889584665,
+  "volume_basis": "closed_single_shell_positive_winding; conditional on no self-intersections",
+  "watertight": true
+ },
+ "job_id": "3b017deb-1e59-4e7c-b349-f3e565c423db",
+ "preferences": [
+  "Антистатические (ESD) свойства материала, указаны как желательные"
+ ],
+ "production_constraints": [
+  "Метод производства FDM/FFF, аддитивное производство (f2p1)",
+  "Принтер Stereotech Hybrid 530 согласно настройкам системы",
+  "Материал в задании не указан, выбор по критериям ТЗ"
+ ],
+ "purpose": "Ведущее колесо конвейерной линии, ролик привода, устанавливается на приводной вал ленточного конвейера финальной сортировки и упаковки бумаги в чистом цехе готовой продукции. Заменяет серийное литое полиуретановое колесо, разрушающееся из-за расслоения ступицы и протектора.",
+ "questions": [
+  {
+   "answer": "mm",
+   "basis": null,
+   "blocking": true,
+   "id": "units",
+   "impact": "Габариты в единицах файла 58.9975 × 25 × 58.9949, от масштаба зависят размеры и параметры печати",
+   "kind": "units",
+   "options": [
+    "mm",
+    "cm",
+    "m",
+    "inch"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "В каких единицах создан STL"
+  },
+  {
+   "answer": null,
+   "basis": "В asked без ответа",
+   "blocking": false,
+   "id": "field.post_processing",
+   "impact": "Без постобработки допуск ±0.1 мм достигается только компенсацией усадки и может потребовать подгонки посадки",
+   "kind": "clarify",
+   "options": [
+    "Постобработка допустима",
+    "Только печать без обработки",
+    "Допустима термоусадка при сборке без резания"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Допустима ли постобработка отверстия после печати, например зенковка или расточка до размера с допуском ±0.1 мм"
+  },
+  {
+   "answer": null,
+   "basis": "В asked без ответа, вопрос прочтения геометрии",
+   "blocking": false,
+   "id": "field.geometry_editable",
+   "impact": "Компенсация усадки FDM обычно требует изменения размера отверстия или припуска, при печати строго по модели допуск ±0.1 мм может быть недостижим",
+   "kind": "clarify",
+   "options": [
+    "Можно менять размер отверстия под усадку",
+    "Можно менять только размеры, профиль и фаски без изменений",
+    "Печатать строго по модели без изменений"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "Можно менять размер отверстия под усадку, профиль без изменений",
+   "title": "Можно ли изменять геометрию модели, в частности размер отверстия под компенсацию усадки"
+  },
+  {
+   "answer": null,
+   "basis": "В ТЗ задан только допуск отверстия и запрет холодного натяга, способ передачи момента не описан; на модели отверстие круглое гладкое",
+   "blocking": true,
+   "id": "field.loads",
+   "impact": "Определяет касательные и контактные напряжения в ступиции, риск среза по слоям FDM и разрыва ступицы при пуске и микроударах",
+   "kind": "clarify",
+   "options": [
+    "Прессовая или термусадочная посадка на гладкий вал, момент за счет натяга",
+    "Посадка с зазором и фиксация шпонкой или штифтом",
+    "Резьбовая или прижимная втулка, болтовое соединение",
+    "Колесо холостое, момент не передает"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Как колесо крепится на приводном валу и передает момент, шпонка, штифт, резьбовая втулка или натяг"
+  },
+  {
+   "answer": null,
+   "basis": "В ТЗ только допуск ±0.1 мм без номинала",
+   "blocking": false,
+   "id": "field.fits",
+   "impact": "Без номинала нельзя назначить компенсирующий усадку размер и проверить отсутствие люфта и натяга",
+   "kind": "clarify",
+   "options": [
+    "Заказчик укажет номинал и квалитет",
+    "Печатать по модели, номинал брать из STL"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Какой номинальный диаметр отверстия и посадочный диаметр вала с квалитетом"
+  },
+  {
+   "answer": null,
+   "basis": "В ТЗ перечислены только бумага, крафт, полиэтилен, IPA и перекись водорода, про смазочные материалы не сказано",
+   "blocking": false,
+   "id": "field.environment",
+   "impact": "Масла и консистентные смазки меняют допустимый выбор материала сильнее, чем IPA, и влияют на адгезию слоев и трение о бумагу",
+   "kind": "clarify",
+   "options": [
+    "Контакт со смазкой возможен",
+    "Контакт со смазкой исключен, узел сухой или закрытый"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "Контакт со смазкой исключен, узел закрытый",
+   "title": "Возможен ли контакт колеса со смазкой или маслом от подшипникового узла приводного вала"
+  },
+  {
+   "answer": null,
+   "basis": "Единицы STL подтверждены пользователем как mm, extents 58.99745184183121 x 25.0 x 58.994903802871704; в ТЗ одновременно 2.2 м/с и примерно 450 об/мин",
+   "blocking": false,
+   "id": "clarify.6e8b9230ad4a",
+   "impact": "От диаметра зависят пятно контакта, окружная скорость, износ и нагрев протектора при 24/7",
+   "kind": "clarify",
+   "options": [
+    "Диаметр 59 мм верен, скорость и оборты в ТЗ ориентировочные",
+    "Диаметр нужно увеличить под кинематику линии",
+    "Уточним по чертежу конвейера"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "Верен ли наружный диаметр 59 мм модели, при 450 об/мин и скорости ленты 2.2 м/с требуется диаметр около 93 мм"
+  }
+ ],
+ "readiness": "ready",
+ "requirements": [
+  {
+   "conditions": "постоянно",
+   "key": "environment_cleanroom",
+   "label": "Среда эксплуатации",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Среда эксплуатации: Чистый цех готовой продукции (ISO Class 8)",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Чистый цех готовой продукции, ISO Class 8",
+   "verified": true
+  },
+  {
+   "conditions": "Непрерывный режим, циклическая нагрузка протектора каждый оборот",
+   "key": "duty_cycle",
+   "label": "Режим работы",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Режим работы: Непрерывный, 24/7 (около 8000 моточасов до планового ТО).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "моточасов",
+   "value": "Непрерывный 24/7, около 8000 моточасов до планового ТО",
+   "verified": true
+  },
+  {
+   "conditions": "Номинальный режим",
+   "key": "line_speed",
+   "label": "Скорость линии",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Скорость линии: 2.2 м/с (примерно 450 об/мин).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "м/с",
+   "value": "2.2 (примерно 450 об/мин)",
+   "verified": true
+  },
+  {
+   "conditions": "Максимум, это масса а не сила, возможны микроудары при схождении пачек с соседних линий",
+   "key": "load_radial_max",
+   "label": "Радиальная нагрузка на колесо",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Радиальная нагрузка на одно колесо: до 18 кг (возможны микроудары при схождении пачек с соседних линий).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "кг",
+   "value": "до 18",
+   "verified": true
+  },
+  {
+   "conditions": "Пачки офисной и мелованной бумаги в полиэтиленовой и крафт-обертке, контакт обертки с протектором",
+   "key": "transport_mass",
+   "label": "Масса транспортируемой пачки",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Пачки офисной и мелованной бумаги в полиэтиленовой и крафт-обертке (масса одной пачки от 2 до 5 кг)",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "кг",
+   "value": "от 2 до 5",
+   "verified": true
+  },
+  {
+   "conditions": "Строго и постоянно при эксплуатации, пиковых и кратковременных воздействий ТЗ не предусматривает",
+   "key": "temperature_operating",
+   "label": "Температурный режим",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Температурный режим: Строго +20°C ± 2°C.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "°C",
+   "value": "+20 ± 2",
+   "verified": true
+  },
+  {
+   "conditions": "Постоянно, критично для бумаги, влияет на усадку и статику",
+   "key": "humidity",
+   "label": "Влажность",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Влажность: 45% ± 5% (критично для бумаги).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "%",
+   "value": "45 ± 5",
+   "verified": true
+  },
+  {
+   "conditions": "еженедельная санитарная обработка",
+   "key": "chemical_exposure",
+   "label": "Химическое воздействие",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Еженедельная санитарная обработка ветошью, смоченной в 70% изопропиловом спирте (IPA) или перекиси водорода.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "70% изопропиловый спирт (IPA) или перекись водорода, протирка ветошью",
+   "verified": true
+  },
+  {
+   "conditions": "еженедельная обработка 70% раствором",
+   "key": "chemical_resistance_ipa",
+   "label": "Стойкость материала к IPA",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Устойчивость к IPA (изопропиловому спирту).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Устойчивость к IPA (изопропиловому спирту)",
+   "verified": true
+  },
+  {
+   "conditions": "абразивный износ пластика недопустим",
+   "key": "no_dust",
+   "label": "Отсутствие микропыли",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Деталь не должна выделять микропыль (абразивный износ пластика недопустим)",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    },
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Отсутствие \"пыления\" (отслоения микро-чешуек пластика от слоев при трении).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Деталь не должна выделять микропыль, отслоение микро-чешуек пластика от слоев при трении недопустимо",
+   "verified": true
+  },
+  {
+   "conditions": "VOC могут осесть на бумаге и повлиять на её печать у клиента",
+   "key": "no_voc",
+   "label": "Отсутствие выделения VOC",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "не должна выделять летучие органические соединения (VOC), которые могут осесть на бумаге и повлиять на её дальнейшую печать в офисах клиентов",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Не должна выделять летучие органические соединения",
+   "verified": true
+  },
+  {
+   "conditions": "С учетом усадки FDM-пластиков, номинал отверстия в ТЗ не задан",
+   "key": "bore_tolerance",
+   "label": "Допуск отверстия под вал",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Требуется обеспечить точность отверстия (допуск ±0.1 мм) с учетом усадки FDM-пластиков.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "мм",
+   "value": "±0.1",
+   "verified": true
+  },
+  {
+   "conditions": "посадка отверстия на приводной вал",
+   "key": "shaft_fit",
+   "label": "Посадка на вал",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Люфт недопустим (возникнет биение), натяг без нагрева приведет к разрыву детали.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Люфт недопустим, натяг без нагрева приведет к разрыву детали",
+   "verified": true
+  },
+  {
+   "conditions": "",
+   "key": "tread_profile",
+   "label": "Профиль протектора",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Профиль протектора: Цилиндрический с фасками по краям.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Цилиндрический с фасками по краям",
+   "verified": true
+  },
+  {
+   "conditions": "во избежание проскальзывания ролика",
+   "key": "friction_coefficient",
+   "label": "Коэффициент трения по бумаге",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал должен обладать высоким коэффициентом трения по скольжению к бумаге и крафт-картону (во избежание проскальзывания ролика).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Высокий коэффициент трения по скольжению к бумаге и крафт-картону",
+   "verified": true
+  },
+  {
+   "conditions": "",
+   "key": "no_marking",
+   "label": "Отсутствие следов на бумаге",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал не должен оставлять черных или цветных следов (следов пластификаторов) на белой бумаге при трении.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Не должен оставлять черных или цветных следов (следов пластификаторов) на белой бумаге при трении",
+   "verified": true
+  },
+  {
+   "conditions": "пятно контакта при нагрузке 18 кг, непрерывная работа 24/7",
+   "key": "fatigue_compression",
+   "label": "Стойкость к циклическому сжатию",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Стойкость к циклическим нагрузкам на сжатие (пятно контакта при нагрузке 18 кг).",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Стойкость к циклическим нагрузкам на сжатие",
+   "verified": true
+  },
+  {
+   "conditions": "случайные удары, микроудары при схождении пачек",
+   "key": "impact_resistance",
+   "label": "Ударная вязкость",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Отсутствие хрупкого разрушения при случайных ударах.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Отсутствие хрупкого разрушения при случайных ударах",
+   "verified": true
+  },
+  {
+   "conditions": "чтобы не притягивать бумажную пыль к оси и не накапливать статику",
+   "key": "esd_antistatic",
+   "label": "Антистатические свойства",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Желательно, чтобы материал обладал антистатическими (ESD) свойствами, чтобы не притягивать бумажную пыль к оси и не накапливать статику.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Желательно наличие антистатических (ESD) свойств",
+   "verified": true
+  },
+  {
+   "conditions": "",
+   "key": "production_method",
+   "label": "Метод производства",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Метод производства: Аддитивное производство (FDM / FFF)",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Аддитивное производство (FDM / FFF)",
+   "verified": true
+  },
+  {
+   "conditions": "Ориентир для конструкции, критично для адгезии слоев FDM",
+   "key": "failure_mode_previous",
+   "label": "Причина отказа серийных колес",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Текущие серийные колеса из литого полиуретана выходят из строя из-за расслоения ступицы и протектора.",
+     "source_id": "7e7cf150-50b6-4cce-8212-e56dae8456d0:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "Серийные литые полиуретановые колеса выходят из строя из-за расслоения ступицы и протектора",
+   "verified": true
+  },
+  {
+   "conditions": "Подтверждено пользователем",
+   "key": "stl_units",
+   "label": "Единицы модели STL",
+   "mandatory": true,
+   "provenance": "user",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "user",
+     "page": null,
+     "quote": "В каких единицах создан STL mm",
+     "source_id": "answer:units"
+    }
+   ],
+   "superseded": [],
+   "unit": "mm",
+   "value": "mm",
+   "verified": true
+  }
+ ],
+ "revision": 2,
+ "schema_version": "2.0",
+ "stl_analysis": {
+  "attachment_id": "9d4f0ab1-6d3d-48a9-bc1f-1b3efd9be08a",
+  "report": {
+   "elapsed_seconds": 0.0477,
+   "file": {
+    "bytes": 121484,
+    "encoding": "binary",
+    "path": "artifacts/stage1/9d4f0ab1-6d3d-48a9-bc1f-1b3efd9be08a",
+    "sha256": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4",
+    "triangles": 2428
+   },
+   "geometry": {
+    "aabb_volume": 87013.7249005847,
+    "adjacent_face_angles_degrees": {
+     "count": 3642,
+     "max": 90.0,
+     "mean": 26.533297473824646,
+     "median": 2.089119214608478,
+     "min": 0.0,
+     "p05": 0.0,
+     "p95": 90.0
+    },
+    "bounds": [
+     [
+      0.0012740492820739746,
+      0.0,
+      0.0050961971282958984
+     ],
+     [
+      58.99872589111328,
+      25.0,
+      59.0
+     ]
+    ],
+    "bounds_center": [
+     29.499999970197678,
+     12.5,
+     29.502548098564148
+    ],
+    "center_of_mass": [
+     29.500000159998752,
+     11.794818663456454,
+     29.500000090615618
+    ],
+    "convex_hull_area": 8735.1909999386,
+    "convex_hull_volume": 58684.28434882379,
+    "edge_lengths": {
+     "count": 3642,
+     "max": 25.006521798238662,
+     "mean": 6.714181854823361,
+     "median": 3.2572122951300857,
+     "min": 0.5710734616826691,
+     "p05": 0.7138988488020039,
+     "p95": 17.269087398848693
+    },
+    "extents": [
+     58.99745184183121,
+     25.0,
+     58.994903802871704
+    ],
+    "inertia_unit_density": [
+     [
+      11257264.020151168,
+      -0.0010141301900148392,
+      0.0035797059535980225
+     ],
+     [
+      -0.0010141301900148392,
+      18435534.282811046,
+      0.024506675079464912
+     ],
+     [
+      0.0035797059535980225,
+      0.024506675079464912,
+      11257263.987913385
+     ]
+    ],
+    "surface_area": 10148.806199185306,
+    "surface_centroid": [
+     29.500000193759146,
+     12.753658694029093,
+     29.500000049271755
+    ],
+    "triangle_areas": {
+     "count": 2428,
+     "max": 9.323837521451424,
+     "mean": 4.1799037064189895,
+     "median": 2.741764156422558,
+     "min": 1.0708474122821736,
+     "p05": 1.0708521753386293,
+     "p95": 9.319422214119935
+    },
+    "triangle_min_angles_degrees": {
+     "count": 2428,
+     "max": 21.00081300154035,
+     "mean": 10.050308198332296,
+     "median": 9.080936526393327,
+     "min": 1.3085763925324803,
+     "p05": 1.3085873959755772,
+     "p95": 21.000741270742598
+    },
+    "vertex_pca": {
+     "axes_columns": [
+      [
+       0.0630995499181216,
+       -0.9980072378495712,
+       2.4966822156752464e-10
+      ],
+      [
+       -7.360191096615355e-10,
+       2.0363155177323522e-10,
+       1.0000000000000002
+      ],
+      [
+       0.9980072378495711,
+       0.06309954991812158,
+       7.217032611541382e-10
+      ]
+     ],
+     "eigenvalues": [
+      272.9981437356044,
+      272.99814313297674,
+      94.42460579903222
+     ],
+     "extents_in_pca_frame": [
+      58.99734090429079,
+      58.995847909660725,
+      25.000000028824612
+     ],
+     "method": "vertex_weighted; depends_on_tessellation; not_minimum_oriented_box"
+    },
+    "volume": 46704.105889584665,
+    "volume_basis": "closed_single_shell_positive_winding; conditional on no self-intersections",
+    "volume_to_convex_hull_ratio": 0.7958537180409657
+   },
+   "normal_chords": {
+    "distribution": {
+     "count": 57,
+     "max": 25.0,
+     "mean": 19.148545336019776,
+     "median": 22.0,
+     "min": 5.0,
+     "p05": 5.0,
+     "p95": 25.0
+    },
+    "limitations": "Not true minimum wall thickness; can miss small thin features. Concavities, cavities and grazing rays affect results.",
+    "method": "area_weighted_surface_inward_normal_first_exit",
+    "minimum_sampled": 5.0,
+    "missed_or_too_close": 71,
+    "requested_samples": 128,
+    "seed": 0,
+    "shortest_samples": [
+     {
+      "exit_point": [
+       15.419420047167202,
+       17.0,
+       5.978873378955048
+      ],
+      "face_index": 921,
+      "length": 5.0,
+      "surface_point": [
+       15.419420047167202,
+       22.0,
+       5.978873378955048
+      ]
+     },
+     {
+      "exit_point": [
+       42.751974137679206,
+       22.0,
+       53.78787275690876
+      ],
+      "face_index": 1594,
+      "length": 5.0,
+      "surface_point": [
+       42.751974137679206,
+       17.0,
+       53.78787275690876
+      ]
+     },
+     {
+      "exit_point": [
+       2.368636962591331,
+       22.0,
+       23.081443446845004
+      ],
+      "face_index": 1497,
+      "length": 5.0,
+      "surface_point": [
+       2.368636962591331,
+       17.0,
+       23.081443446845004
+      ]
+     },
+     {
+      "exit_point": [
+       2.3489054007957955,
+       22.0,
+       36.083473174271184
+      ],
+      "face_index": 1727,
+      "length": 5.0,
+      "surface_point": [
+       2.3489054007957955,
+       17.0,
+       36.083473174271184
+      ]
+     },
+     {
+      "exit_point": [
+       51.285851635798885,
+       22.0,
+       48.810105819975576
+      ],
+      "face_index": 1577,
+      "length": 5.0,
+      "surface_point": [
+       51.285851635798885,
+       17.0,
+       48.810105819975576
+      ]
+     },
+     {
+      "exit_point": [
+       26.36747963089171,
+       22.0,
+       2.407986974952434
+      ],
+      "face_index": 1489,
+      "length": 5.0,
+      "surface_point": [
+       26.36747963089171,
+       17.0,
+       2.407986974952434
+      ]
+     },
+     {
+      "exit_point": [
+       51.50267312178477,
+       17.0,
+       13.446235515876973
+      ],
+      "face_index": 932,
+      "length": 5.0,
+      "surface_point": [
+       51.50267312178477,
+       22.0,
+       13.446235515876973
+      ]
+     },
+     {
+      "exit_point": [
+       22.402545420277264,
+       17.0,
+       55.36746902001257
+      ],
+      "face_index": 953,
+      "length": 5.0,
+      "surface_point": [
+       22.402545420277264,
+       22.0,
+       55.36746902001257
+      ]
+     },
+     {
+      "exit_point": [
+       7.891971991466147,
+       17.0,
+       45.71887966877087
+      ],
+      "face_index": 966,
+      "length": 5.0,
+      "surface_point": [
+       7.891971991466147,
+       22.0,
+       45.71887966877087
+      ]
+     },
+     {
+      "exit_point": [
+       9.692652890450141,
+       22.0,
+       50.08153507915616
+      ],
+      "face_index": 1774,
+      "length": 5.0,
+      "surface_point": [
+       9.692652890450141,
+       17.0,
+       50.08153507915616
+      ]
+     }
+    ],
+    "status": "estimated"
+   },
+   "partial_errors": {},
+   "preprocessing": {
+    "area_degeneracy_threshold": 7.58609799853928e-11,
+    "exact_duplicate_vertices_welded": 6070,
+    "faces_removed": 0,
+    "repair_performed": false
+   },
+   "preview": "daa0f82d36b3eb53ae8ac462a1fd29024ce6b0fc3ec58d2de881f71253c465c3.png",
+   "schema_version": "1.0",
+   "sections": [
+    {
+     "axis": "X",
+     "closed_contour_count": 1,
+     "coordinate": 14.750637009739876,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 144.30251879863346
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 2,
+     "coordinate": 29.499999970197678,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 12,
+     "total_length": 184.3749708961135
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 1,
+     "coordinate": 44.24936293065548,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 144.30252190973425
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 6.25,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 215.17782372763648
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 12.5,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 215.17782372763648
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 18.75,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 235.5980982403088
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 1,
+     "coordinate": 14.753822147846222,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 144.30402655676713
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 2,
+     "coordinate": 29.502548098564148,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 184.3703336088128
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 1,
+     "coordinate": 44.251274049282074,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 144.30023477432457
+    }
+   ],
+   "software": {
+    "numpy": "2.3.4",
+    "trimesh": "5.1.1"
+   },
+   "status": "checks_passed",
+   "status_scope": "listed mesh checks only; self-intersections and printability are unverified",
+   "topology": {
+    "boundary_edge_examples": [],
+    "boundary_edges": 0,
+    "component_count": 1,
+    "components": [
+     {
+      "bounds": [
+       [
+        0.0012740492820739746,
+        0.0,
+        0.0050961971282958984
+       ],
+       [
+        58.99872589111328,
+        25.0,
+        59.0
+       ]
+      ],
+      "euler_number": 0,
+      "faces": 2428,
+      "genus": 1,
+      "signed_volume": 46704.105889584665,
+      "surface_area": 10148.806199185306,
+      "vertices": 1214,
+      "watertight": true,
+      "winding_consistent": true
+     }
+    ],
+    "euler_number": 0,
+    "nonmanifold_edge_examples": [],
+    "nonmanifold_edges": 0,
+    "unique_edges": 3642,
+    "vertices_after_exact_weld": 1214,
+    "watertight": true,
+    "winding_consistent": true
+   },
+   "units": {
+    "area_unit": "coordinate_unit^2",
+    "coordinate_unit": "mm",
+    "input_unit": "mm",
+    "scale_applied": 1,
+    "source": "caller_supplied",
+    "volume_unit": "coordinate_unit^3"
+   },
+   "validation": {
+    "defects": [],
+    "degenerate_faces": 0,
+    "duplicate_faces": 0,
+    "finite_coordinates": true,
+    "self_intersections": "not_checked",
+    "shell_intersections_and_nesting": "not_checked",
+    "vertex_manifoldness": "not_checked"
+   },
+   "warnings": [
+    "Self-intersections and intersections/nesting between shells are not checked.",
+    "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+    "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+   ]
+  },
+  "sha256": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4"
+ },
+ "unknowns": [
+  "Номинальный диаметр отверстия под вал и посадочный размер вала",
+  "Габариты колеса и толщина стенок, берутся из STL сервером",
+  "Количество деталей в заказе",
+  "Сроки изготовления",
+  "Допустимость механической обработки отверстия или другой постобработки после печати",
+  "Допустимый материал или группа материалов, в ТЗ заданы только критерии",
+  "Наличие и величина крутящего момента, передаваемого колесом, в ТЗ не указаны"
+ ],
+ "verdict": {
+  "passed": true,
+  "remarks": [
+   {
+    "requirement_key": "shaft_fit",
+    "severity": "minor",
+    "text": "Допущение о посадке с нагревом (термоусадка) выходит за рамки источника. В f2p1 сказано только, что натяг без нагрева приведет к разрыву детали, но способ сборки не задан. Карточка сама же правомерно спрашивает о способе крепления и передачи момента (blocking вопрос), поэтому это допущение лучше смягчить или снять, чтобы не задавать ложный сценарий до ответа заказчика."
+   },
+   {
+    "requirement_key": "esd_antistatic",
+    "severity": "minor",
+    "text": "Вопрос о нормировании антистатичности отнесен к полю post_processing, хотя по смыслу это требование к материалу и среде. На подбор это не влияет, но поле назначено неточно."
+   },
+   {
+    "requirement_key": "chemical_resistance_ipa",
+    "severity": "minor",
+    "text": "Требования chemical_exposure и chemical_resistance_ipa частично дублируют друг друга (обе ссылаются на f2p1 про IPA), при этом в conditions requirements chemical_resistance_ipa указано «еженедельная обработка 70% раствором», тогда как ТЗ задает 70% для IPA, а концентрацию перекиси не указывает. Дублирование без ошибки в значении, карточка корректно выносит концентрацию перекиси в вопрос."
+   },
+   {
+    "requirement_key": null,
+    "severity": "minor",
+    "text": "Вопрос о диаметре корректно отмечает несоответствие кинематики: при 2.2 м/с и 450 об/мин расчетный диаметр около 93 мм против 59 мм по STL extents (stl). Значение скорости линии записано верно как 2.2 м/с с пометкой «примерно 450 об/мин» из f2p1, смешения номинала и пика нет. Замечание лишь в том, что в requirement line_speed обе величины даны в одном value без явного указания, что 450 об/мин в ТЗ названы «примерно» как ориентир, это может быть прочитано как жесткое требование; существенного влияния не имеет."
+   }
+  ],
+  "reworked": false,
+  "score": 0.9
+ },
+ "versions": {
+  "analyzer": "1.2-partial",
+  "model": "dashscope/qwen3.8-flash",
+  "prompt.analyst_environment": "12b04fa4463a",
+  "prompt.analyst_geometry": "85b0c8a88f93",
+  "prompt.analyst_loads": "718df8c009f4",
+  "prompt.analyst_production": "f3db2426091a",
+  "prompt.consolidator": "7da17cfb1fce",
+  "prompt.discrepancies": "0fb0fdebc89e",
+  "prompt.gate": "22ac670f7df7",
+  "prompt.interpreter": "ab745d1ff6c2",
+  "prompt.judge": "3351a34759b1",
+  "prompt.second_reading": "03e3e41c53f6",
+  "prompt.triage": "ecfcb776e059",
+  "rules": "4"
+ }
+}

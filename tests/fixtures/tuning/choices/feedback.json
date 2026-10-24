@@ -1,0 +1,34 @@
+{
+ "constraints": [
+  {
+   "id": "C1",
+   "key": "printing_mode",
+   "op": "eq",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": "cylindrical"
+  },
+  {
+   "id": "C2",
+   "key": "quality_type",
+   "op": "eq",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": "draft"
+  },
+  {
+   "id": "C3",
+   "key": "material",
+   "op": "ne",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": "enduse_abs"
+  }
+ ],
+ "contract": "stage3.feedback",
+ "exclude": [],
+ "iteration": 1,
+ "result": "needs_changes",
+ "version": "0.1",
+ "warnings": []
+}

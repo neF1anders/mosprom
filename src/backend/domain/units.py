@@ -61,7 +61,9 @@ _LINEAR: dict[str, tuple[str, str]] = {
     "об/мин": ("rotation", "1"),
 }
 _TEMPERATURE = {"c", "°c", "с°", "°с", "k", "к", "f", "°f"}
-_NUMBER = re.compile(r"(?<![\w.,])-?\d+(?:[.,]\d+)?")
+# A number does not continue a word, a list or a dotted version ("v.2", "1.5.7"), but may
+# follow the two dots of a range ("-10..70").
+_NUMBER = re.compile(r"(?<![\w,])(?<![^.]\.)(?<!^\.)-?\d+(?:[.,]\d+)?")
 # A word right after a number, such as °C, кг/м³ or Н·м; only known units count.
 _UNIT = re.compile(r"(?<=\d)\s*(°?\s?[^\W\d_]+(?:[/·*⋅][^\W\d_]+)?[³3]?)")
 

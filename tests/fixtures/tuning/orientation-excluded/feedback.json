@@ -1,0 +1,15 @@
+{
+ "constraints": [],
+ "contract": "stage3.feedback",
+ "exclude": [
+  {
+   "candidate": "o1",
+   "reason": "поддержки в G-code",
+   "type": "orientation"
+  }
+ ],
+ "iteration": 1,
+ "result": "needs_changes",
+ "version": "0.1",
+ "warnings": []
+}

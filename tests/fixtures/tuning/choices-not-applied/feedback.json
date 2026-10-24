@@ -1,0 +1,26 @@
+{
+ "constraints": [
+  {
+   "id": "C1",
+   "key": "printing_mode",
+   "op": "eq",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": "cylindrical"
+  },
+  {
+   "id": "C2",
+   "key": "material",
+   "op": "eq",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": "unobtainium"
+  }
+ ],
+ "contract": "stage3.feedback",
+ "exclude": [],
+ "iteration": 1,
+ "result": "needs_changes",
+ "version": "0.1",
+ "warnings": []
+}

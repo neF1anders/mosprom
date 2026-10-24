@@ -1,0 +1,191 @@
+{
+ "assumptions": [
+  {
+   "basis": "карточка этапа 1",
+   "id": "A1",
+   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A2",
+   "text": "обязательное требование operating_environment (Среда эксплуатации) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A3",
+   "text": "обязательное требование temperature_range (Рабочий диапазон температур) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A4",
+   "text": "обязательное требование surface_quality (Качество поверхности) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A5",
+   "text": "обязательное требование material_toughness (Вязкость материала) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A6",
+   "text": "обязательное требование uv_stability (УФ-стабильность) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A7",
+   "text": "обязательное требование cleaning_dry (Уход сухая протирка) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A8",
+   "text": "обязательное требование model_units (Единицы модели STL) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A9",
+   "text": "приоритеты cost выведены из текста пожеланий"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A10",
+   "text": "Фигурка цельная, без сборки и вставных элементов, если иное не потребуется для скрытия следов поддержек."
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A11",
+   "text": "Тонкие выступающие элементы это уши, руки и желудь, они должны сохранять форму и не обламываться при касании и протирке."
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A12",
+   "text": "координаты модели в миллиметрах (подтверждено этапом 1)"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A13",
+   "text": "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A14",
+   "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A15",
+   "text": "партия 15 шт.: в проекте одна модель, копии в раскладку не добавлены"
+  }
+ ],
+ "card_ref": {
+  "job_id": "caedf818-9d6c-43d0-adc8-628577cbe28d",
+  "revision": 2
+ },
+ "contract": "stage2.parameter_set",
+ "idempotency_key": "caedf818-9d6c-43d0-adc8-628577cbe28d:2",
+ "iteration": 1,
+ "materials": {
+  "0": {
+   "alternatives": [
+    {
+     "id": "enduse_pa6",
+     "why": "оценка 0.50"
+    },
+    {
+     "id": "enduse_pc",
+     "why": "оценка 0.50"
+    }
+   ],
+   "checks": [],
+   "id": "enduse_abs",
+   "source": "rule:MATERIAL-RANK",
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50"
+  }
+ },
+ "models": [
+  {
+   "attachment_id": "c099591a-2da9-494d-ae6d-fb30a695121b",
+   "extruder": 0,
+   "id": "m1",
+   "orientation_candidate": "o1",
+   "source": "assumption:A14",
+   "transform": {
+    "position": [
+     -9.5,
+     0.0,
+     74.99
+    ],
+    "rotation": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
+  }
+ ],
+ "printer": "hte530v5.2.4",
+ "printing_mode": {
+  "source": "rule:MODE-DEFAULT-CLASSIC",
+  "value": "classic",
+  "why": "режим 3D (classic) по умолчанию: 5D не запрошен"
+ },
+ "quality": {
+  "quality_type": "normal",
+  "source": "default",
+  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+ },
+ "settings": {
+  "cool_fan_enabled_classic": {
+   "scope": "extruder:0",
+   "source": "rule:FAN-OFF-NO-COOLING",
+   "value": false,
+   "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "infill_sparse_density": {
+   "source": "rule:PRIORITY-COST",
+   "unit": "%",
+   "value": 15.0,
+   "why": "главный приоритет — стоимость: меньше заполнения"
+  },
+  "speed_print": {
+   "source": "rule:SPEED-MATERIAL-MAX",
+   "unit": "mm/s",
+   "value": 50.0,
+   "why": "скорость печати не выше рекомендованной в файле материала"
+  }
+ },
+ "status": "proposed",
+ "unsatisfied": [],
+ "version": "0.1",
+ "warnings": [
+  "requirement cleaning_chemicals (Допустимая химия при уходе) is not used by parameter selection",
+  "requirement solar_exposure (Прямые солнечные лучи) is not used by parameter selection",
+  "stage 1 unknown: Толщина тончайших элементов модели, уши, лапы и желудь, минимальная стенка 5.343 mm это оценка по лучам, а не минимум",
+  "stage 1 unknown: Требуется ли сплошная печать или допустимо облегчение, заполнение или полая модель",
+  "stage 1 unknown: Влажность помещения и допустимость контакта с водой при уходе",
+  "stage 1 unknown: Наличие случайных ударов и падений при обращении",
+  "stage 1 unknown: Материал и цвет фигурки ТЗ не заданы",
+  "stage 1 unknown: Требования к точности, допускам и базе установки не заданы",
+  "stage 1 unknown: Срок службы и частота протирки не указаны",
+  "stl report: Self-intersections and intersections/nesting between shells are not checked.",
+  "stl report: STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+  "stl report: Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+ ]
+}

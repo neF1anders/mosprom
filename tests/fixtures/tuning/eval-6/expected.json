@@ -1,0 +1,206 @@
+{
+ "assumptions": [
+  {
+   "basis": "карточка этапа 1",
+   "id": "A1",
+   "text": "обязательное требование part_name (Наименование детали) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A2",
+   "text": "обязательное требование rotation_speed_nominal (Скорость вращения) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A3",
+   "text": "обязательное требование tip_speed (Окружная скорость на концах лопастей) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A4",
+   "text": "обязательное требование temperature_range (Рабочий диапазон температур) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A5",
+   "text": "обязательное требование temperature_surface_steady (Температура на поверхности крыльчатки) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A6",
+   "text": "обязательное требование heat_resistance_no_softening (Теплостойкость без размягчения) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A7",
+   "text": "обязательное требование environment_medium (Среда эксплуатации) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A8",
+   "text": "обязательное требование chemical_resistance_oil (Маслостойкость) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A9",
+   "text": "обязательное требование chemical_resistance_ozone (Озоностойкость) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A10",
+   "text": "обязательное требование density_max (Максимальная плотность материала) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A11",
+   "text": "обязательное требование hub_clip_fatigue (Работа цанговой клипсы ступицы) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A12",
+   "text": "обязательное требование impact_resistance_no_fragments (Безопасность при разрушении) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A13",
+   "text": "обязательное требование fit_on_shaft (Посадка на вал) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A14",
+   "text": "обязательное требование stl_units (Единицы модели STL) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A15",
+   "text": "Расход воздуха и давление не нормируются, форма лопастей воспроизводится по модели STL без аэродинамической доводки"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A16",
+   "text": "Состав масляного тумана принимается как в ТЗ, эмульсия СОЖ без агрессивных промывок растворителем"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A17",
+   "text": "координаты модели в миллиметрах (подтверждено этапом 1)"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A18",
+   "text": "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A19",
+   "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
+  }
+ ],
+ "card_ref": {
+  "job_id": "a9c4998f-3113-4019-8253-46e9a2660c04",
+  "revision": 2
+ },
+ "contract": "stage2.parameter_set",
+ "idempotency_key": "a9c4998f-3113-4019-8253-46e9a2660c04:2",
+ "iteration": 1,
+ "materials": {
+  "0": {
+   "alternatives": [
+    {
+     "id": "enduse_pa6",
+     "why": "оценка 0.50"
+    },
+    {
+     "id": "enduse_pc",
+     "why": "оценка 0.50"
+    }
+   ],
+   "checks": [],
+   "id": "enduse_abs",
+   "source": "rule:MATERIAL-RANK",
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50"
+  }
+ },
+ "models": [
+  {
+   "attachment_id": "bb1864b3-7dd3-47a1-a275-8e1f23ae7a9b",
+   "extruder": 0,
+   "id": "m1",
+   "orientation_candidate": "o1",
+   "source": "assumption:A19",
+   "transform": {
+    "position": [
+     -9.5,
+     0.0,
+     84.5
+    ],
+    "rotation": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
+  }
+ ],
+ "printer": "hte530v5.2.4",
+ "printing_mode": {
+  "source": "rule:MODE-DEFAULT-CLASSIC",
+  "value": "classic",
+  "why": "режим 3D (classic) по умолчанию: 5D не запрошен"
+ },
+ "quality": {
+  "quality_type": "normal",
+  "source": "default",
+  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+ },
+ "settings": {
+  "cool_fan_enabled_classic": {
+   "scope": "extruder:0",
+   "source": "rule:FAN-OFF-NO-COOLING",
+   "value": false,
+   "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "speed_print": {
+   "source": "rule:SPEED-MATERIAL-MAX",
+   "unit": "mm/s",
+   "value": 50.0,
+   "why": "скорость печати не выше рекомендованной в файле материала"
+  }
+ },
+ "status": "proposed",
+ "unsatisfied": [],
+ "version": "0.1",
+ "warnings": [
+  "requirement noise_low (Аэродинамический шум) is not used by parameter selection",
+  "requirement balance_low_inertia (Баланс и момент инерции) is not used by parameter selection",
+  "stage 1 unknown: Требуемые допуски и посадочные размеры отверстия под вал и цанговой клипсы",
+  "stage 1 unknown: Материал или его марка, указанная или запрещённая заказчиком",
+  "stage 1 unknown: Количество деталей и требуемые сроки",
+  "stage 1 unknown: Направление вращения и рабочая сторона лопастей",
+  "stage 1 unknown: Требуется ли балансировка готовой детали и допустимая остаточная дисбалансная нагрузка",
+  "stage 1 unknown: Наличие и величина крутящего момента, передаваемого через ступицу",
+  "stage 1 unknown: Допустимость постобработки, влияющей на теплостойкость и герметичность",
+  "stl report: Self-intersections and intersections/nesting between shells are not checked.",
+  "stl report: STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+  "stl report: Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability.",
+  "stl report: Multiple connected shells: separate parts, nested cavities or overlaps require further analysis; combined physical volume withheld."
+ ]
+}

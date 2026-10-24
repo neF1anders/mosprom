@@ -1,0 +1,1015 @@
+{
+ "allowed_actions": [
+  "select_parameters"
+ ],
+ "assumptions": [
+  {
+   "basis": "пыльник является цельным эластичным чехлом по форме модели на f2p1, ТЗ требует абсолютной герметичности узла",
+   "consequence": "если допустима склейка или покрытие, выбор режима и постобработки может измениться",
+   "text": "Деталь печатается целиком за один установ, без сборных стыков, герметичность обеспечивается самой печатью"
+  },
+  {
+   "basis": "ТЗ задаёт только условия эксплуатации и свойства материала, изменений геометрии не требует",
+   "consequence": "при несовпадении посадочных диаметров узел не будет герметичен",
+   "text": "Модель STL уже соответствует посадочным размерам вала и корпуса ШРУСа, геометрия не правится"
+  },
+  {
+   "basis": "в f1p1 задан только запрет жёстких материалов и порог 35 градусов, численных значений усилия или момента нет",
+   "consequence": "проверить жёсткость расчётом нечем, контроль косвенный по материалу и толщине гофры",
+   "text": "Численного порога момента сопротивления изгибу нет, ориентиром служит эластичность штатного неопренового пыльника"
+  },
+  {
+   "basis": "в документах нагрузки на буртики не заданы, на f2p1 видны два буртика под крепёж",
+   "consequence": "требуемая толщина и заполнение буртиков могут оказаться недостаточными",
+   "text": "Через посадочные буртики передаётся только обжатие хомутами по штатным посадочным диаметрам, без дополнительного натяга"
+  }
+ ],
+ "blocked_actions": {},
+ "files": [
+  {
+   "filename": "Техническое задание для пыльника шруса.docx",
+   "id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579",
+   "kind": "docx",
+   "sha256": "588ceb9e8fb9830e66b131aca9e3947a9187cea28c1d07372374a73b05e9a15d"
+  },
+  {
+   "filename": "Пыльник шруса.jpg",
+   "id": "e42e3dc7-1855-41e0-b245-bace6ad25395",
+   "kind": "jpg",
+   "sha256": "f620469e27ddfa9a960441cd144d052006d9552725fe4efadbc27f1fcadea984"
+  },
+  {
+   "filename": "Пыльник шруса.STL",
+   "id": "f0286760-eca4-4af9-8b61-6254627c2220",
+   "kind": "stl",
+   "sha256": "70663df1130d2d969063537c506b9ca767e36f3949bfe5c7d5dc0217d58ca467"
+  }
+ ],
+ "geometry": {
+  "components": 1,
+  "defects": [],
+  "extents": [
+   111.0,
+   102.98782062530518,
+   102.98433420062065
+  ],
+  "limitations": [
+   "Self-intersections and intersections/nesting between shells are not checked.",
+   "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+   "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+  ],
+  "min_wall_sample": 1.3331412805650547,
+  "preview_id": "15359fd75d32a7c58ca452d25e3a637a61ce22b94cb75591d2a534db7fe2de89.png",
+  "readable": true,
+  "report_id": "15359fd75d32a7c58ca452d25e3a637a61ce22b94cb75591d2a534db7fe2de89",
+  "sections": [
+   {
+    "axis": "X",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "X",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 1454
+   },
+   {
+    "axis": "Y",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.25,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.5,
+    "open_entity_count": 0
+   },
+   {
+    "axis": "Z",
+    "closed_contour_count": 2,
+    "fraction_of_bounds": 0.75,
+    "open_entity_count": 0
+   }
+  ],
+  "surface_area": 69073.73996738213,
+  "units": "mm",
+  "volume": 71422.00051447847,
+  "volume_basis": "closed_single_shell_positive_winding; conditional on no self-intersections",
+  "watertight": true
+ },
+ "job_id": "f1f1969d-6e55-4b87-9f2b-8643b5a4bdb9",
+ "preferences": [],
+ "production_constraints": [
+  "Метод производства по ТЗ: аддитивное производство FDM / FFF (f1p1).",
+  "Деталь заменяет оригинальный пыльник из хлоропренового каучука (неопрена), оригинальные запчасти сняты с производства (f1p1)."
+ ],
+ "purpose": "Эластичный защитный чехол (пыльник) наружного ШРУСа высокопроходимого экспедиционного автомобиля. Работает в ходовой части, защищает шарнир от воды, грязи и реагентов и удерживает смазку внутри узла при постоянных изгибах и осевых перемещениях подвески.",
+ "questions": [
+  {
+   "answer": "mm",
+   "basis": null,
+   "blocking": true,
+   "id": "units",
+   "impact": "Габариты в единицах файла 111 × 102.988 × 102.984, от масштаба зависят размеры и параметры печати",
+   "kind": "units",
+   "options": [
+    "mm",
+    "cm",
+    "m",
+    "inch"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": null,
+   "title": "В каких единицах создан STL"
+  },
+  {
+   "answer": null,
+   "basis": "f1p1 требует абсолютно герметичный узел при методе FDM / FFF, про обработку в ТЗ ничего не сказано",
+   "blocking": false,
+   "id": "field.post_processing",
+   "impact": "Влияет на выбор режима печати, плотности заполнения и материала, поскольку герметичность межслоевых швов в FDM критична для этой детали",
+   "kind": "clarify",
+   "options": [
+    "только печать без обработки",
+    "допустима постобработка, не снижающая эластичность"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "допустима постобработка, не снижающая эластичность",
+   "title": "Допустима ли постобработка напечатанного пыльника, например химическое сглаживание, пропитка или эластичное покрытие, для обеспечения абсолютной герметичности"
+  },
+  {
+   "answer": null,
+   "basis": "f1p1 задаёт ход 30 мм и угол 42 градуса, выборочная оценка минимальной толщины стенки модели 1.333 мм",
+   "blocking": false,
+   "id": "field.geometry_editable",
+   "impact": "От этого зависит, обеспечит ли деталь изгиб на 42 градуса и осевой ход 30 мм без избыточного сопротивления",
+   "kind": "clarify",
+   "options": [
+    "печатать строго по STL без изменений",
+    "допускается утоньшение стенок гофр",
+    "допускается любая правка геометрии ради кинематики"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "печатать строго по STL без изменений",
+   "title": "Можно ли править геометрию модели, в частности толщину стенок гофр, или печатать строго по приложенному STL"
+  },
+  {
+   "answer": null,
+   "basis": "в f1p1 нет ни одного размера детали, при этом требуется абсолютная герметичность узла",
+   "blocking": false,
+   "id": "field.fits",
+   "impact": "Без контроля посадок пыльник не сядет герметично и требование абсолютной герметичности выполнено не будет",
+   "kind": "clarify",
+   "options": [
+    "размеры STL считать истинными, допуски общие для FDM",
+    "есть чертёж или обмер оригинала",
+    "посадки подгоняются по месту при сборке"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "размеры STL считать истинными, допуски общие для FDM",
+   "title": "Есть ли чертёж или обмер оригинала для сверки посадочных диаметров под вал и кулак, и с какими допусками они должны быть"
+  },
+  {
+   "answer": null,
+   "basis": "в f1p1 рабочий диапазон указан от 0°C до +75°C, при этом деталь ставится на ходовую часть высокопроходимого экспедиционного автомобиля",
+   "blocking": false,
+   "id": "field.temperature",
+   "impact": "Нижняя граница диапазона определяет выбор эластомера и его поведение на изгиб, при минусовых температурах материал дубеет",
+   "kind": "clarify",
+   "options": [
+    "достаточно 0°C как в ТЗ",
+    "нужен захват до -20°C",
+    "нужен захват до -40°C"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "достаточно 0°C как в ТЗ",
+   "title": "Нужна ли работоспособность пыльника при отрицательных температурах"
+  },
+  {
+   "answer": null,
+   "basis": "в f1p1 указаны вода, реагенты и абразив, но мойка высоким давлением и ультрафиолет не упомянуты",
+   "blocking": false,
+   "id": "field.environment",
+   "impact": "Добавляет требования к стойкости поверхности и УФ, что влияет на выбор материала и способ достижения герметичности",
+   "kind": "clarify",
+   "options": [
+    "мойка высоким давлением и УФ на улице ожидаются",
+    "только брызги воды и дождь, УФ не критичен"
+   ],
+   "requirement_key": null,
+   "sources": [],
+   "suggested": "мойка высоким давлением и УФ на улице ожидаются",
+   "title": "Подвергается ли деталь мойке высоким давлением и постоянному прямому солнцу"
+  }
+ ],
+ "readiness": "ready",
+ "requirements": [
+  {
+   "conditions": "полный угол поворота колеса, жёсткие материалы недопустимы, при углах свыше 35 градусов возникает избыточное сопротивление, перегрев ШРУСа и вибрации",
+   "key": "bend_angle_max",
+   "label": "Максимальный угол изгиба",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Угол поворота колеса (изгиб пыльника): до 42 градусов.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    },
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Применение жестких материалов не допускается: при углах поворота колеса свыше 35 градусов они создаётся избыточное сопротивление, что приводит к перегреву ШРУСа и вибрациям на руле.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "градусов",
+   "value": "до 42",
+   "verified": true
+  },
+  {
+   "conditions": "растяжение и сжатие пыльника при работе подвески",
+   "key": "axial_stroke",
+   "label": "Осевой ход подвески",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Осевой ход подвески (растяжение/сжатие пыльника): ± 30 мм.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "мм",
+   "value": "± 30",
+   "verified": true
+  },
+  {
+   "conditions": "постоянные циклические деформации при вращении колеса",
+   "key": "deformation_frequency",
+   "label": "Частота деформаций",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Частота деформаций: Постоянная, при вращении колеса до 1000 об/мин.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "об/мин",
+   "value": "до 1000",
+   "verified": true
+  },
+  {
+   "conditions": "рабочий режим, нагрев от тормозных механизмов и трения в ШРУСе при длительном буксовании",
+   "key": "temperature_range",
+   "label": "Рабочий диапазон температур",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Рабочий диапазон: от 0°C до +75°C (нагрев от тормозных механизмов и трения в ШРУСе при длительном буксовании).",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": "°C",
+   "value": "от 0°C до +75°C",
+   "verified": true
+  },
+  {
+   "conditions": "постоянный контакт изнутри узла",
+   "key": "medium_internal",
+   "label": "Внутренняя среда",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Внутри: Высокотемпературная смазка на основе дисульфида молибдена и литиевого комплекса (MoS2 Li-Complex).",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "высокотемпературная смазка на основе дисульфида молибдена и литиевого комплекса",
+   "verified": true
+  },
+  {
+   "conditions": "ходовая часть, агрессивная солевая среда, абразив и удары",
+   "key": "medium_external",
+   "label": "Внешняя среда",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Снаружи: Дорожные реагенты (хлорид натрия, хлорид кальция), тормозная пыль, брызги бензина/дизеля, удары мелких камней и крошки.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "дорожные реагенты (хлорид натрия, хлорид кальция), тормозная пыль, брызги бензина и дизеля, удары мелких камней и крошки",
+   "verified": true
+  },
+  {
+   "conditions": "удержание смазки внутри узла и недопущение воды и абразива",
+   "key": "tightness",
+   "label": "Герметичность",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Герметичность: Узел должен быть абсолютно герметичен.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "абсолютно герметичен",
+   "verified": true
+  },
+  {
+   "conditions": "диапазон 0°C...+75°C, постоянные изгибы и осевые перемещения",
+   "key": "material_elasticity",
+   "label": "Эластичность материала",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал должен сохранять эластичность при всём диапазоне рабочих температур.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    },
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал должен быть достаточно гибким и прочным.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "материал должен сохранять эластичность во всём рабочем диапазоне температур и быть достаточно гибким и прочным",
+   "verified": true
+  },
+  {
+   "conditions": "контакт со смазкой MoS2 Li-Complex, брызги бензина и дизеля, солевые реагенты",
+   "key": "material_chemical_resistance",
+   "label": "Масло и бензостойкость",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Материал должен быть масло и бензостойким.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "масло и бензостойкий материал",
+   "verified": true
+  },
+  {
+   "conditions": "метод задан техническим заданием",
+   "key": "production_method",
+   "label": "Метод производства",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Метод производства: Аддитивное производство (FDM / FFF)",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "аддитивное производство FDM / FFF",
+   "verified": true
+  },
+  {
+   "conditions": "при углах поворота свыше 35 градусов жёсткий материал даёт избыточное сопротивление, перегрев ШРУСа и вибрации",
+   "key": "no_rigid_material",
+   "label": "Запрет жёстких материалов",
+   "mandatory": true,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Применение жестких материалов не допускается",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "применение жёстких материалов не допускается",
+   "verified": true
+  },
+  {
+   "conditions": "подтверждено пользователем, габариты модели 111.0 x 102.99 x 102.98 в этих единицах",
+   "key": "stl_units",
+   "label": "Единицы модели STL",
+   "mandatory": true,
+   "provenance": "user",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "user",
+     "page": null,
+     "quote": "В каких единицах создан STL mm",
+     "source_id": "answer:units"
+    }
+   ],
+   "superseded": [],
+   "unit": "мм",
+   "value": "миллиметры",
+   "verified": true
+  },
+  {
+   "conditions": "постоянное воздействие реагентов и циклических деформаций, замена штатного пыльника из хлоропренового каучука",
+   "key": "material_wear_resistance",
+   "label": "Стойкость к солям и истиранию",
+   "mandatory": false,
+   "provenance": "document",
+   "sources": [
+    {
+     "artifact_id": null,
+     "method": "text",
+     "page": 1,
+     "quote": "Штатные резиновые пыльники (из хлоропренового каучука / неопрена) изнашиваются под воздействием агрессивных солевых растворов и деформирующей нагрузке.",
+     "source_id": "1bc4d9e9-bc6e-44e2-b223-7bb458013579:1"
+    }
+   ],
+   "superseded": [],
+   "unit": null,
+   "value": "материал должен выдерживать агрессивные солевые растворы и деформирующую нагрузку, от которых изнашиваются штатные неопреновые пыльники",
+   "verified": true
+  }
+ ],
+ "revision": 2,
+ "schema_version": "2.0",
+ "stl_analysis": {
+  "attachment_id": "f0286760-eca4-4af9-8b61-6254627c2220",
+  "report": {
+   "elapsed_seconds": 3.047,
+   "file": {
+    "bytes": 16926384,
+    "encoding": "binary",
+    "path": "artifacts/stage1/f0286760-eca4-4af9-8b61-6254627c2220",
+    "sha256": "70663df1130d2d969063537c506b9ca767e36f3949bfe5c7d5dc0217d58ca467",
+    "triangles": 338526
+   },
+   "geometry": {
+    "aabb_volume": 1177280.66730357,
+    "adjacent_face_angles_degrees": {
+     "count": 507789,
+     "max": 90.0,
+     "mean": 1.7808398942454655,
+     "median": 1.8251688637590042,
+     "min": 0.0,
+     "p05": 0.00032316589946590116,
+     "p95": 2.49164732071371
+    },
+    "bounds": [
+     [
+      0.0,
+      0.0017881393432617188,
+      4.842877388000488e-05
+     ],
+     [
+      111.0,
+      102.98960876464844,
+      102.98438262939453
+     ]
+    ],
+    "bounds_center": [
+     55.5,
+     51.49569845199585,
+     51.492215529084206
+    ],
+    "center_of_mass": [
+     47.48336591238875,
+     51.49566068792251,
+     51.495789183229824
+    ],
+    "convex_hull_area": 36819.15805637299,
+    "convex_hull_volume": 584453.2079392184,
+    "edge_lengths": {
+     "count": 507789,
+     "max": 12.80536438658962,
+     "mean": 1.121481993638933,
+     "median": 1.28976162724885,
+     "min": 0.021806431979459282,
+     "p05": 0.04268219919494839,
+     "p95": 1.6849123496564338
+    },
+    "extents": [
+     111.0,
+     102.98782062530518,
+     102.98433420062065
+    ],
+    "inertia_unit_density": [
+     [
+      106921868.53786647,
+      -72.7085273861885,
+      -1.29064479470253
+     ],
+     [
+      -72.7085273861885,
+      108274732.11140102,
+      -79.84001380205154
+     ],
+     [
+      -1.29064479470253,
+      -79.84001380205154,
+      108275333.92120779
+     ]
+    ],
+    "surface_area": 69073.73996738213,
+    "surface_centroid": [
+     45.8136841383109,
+     51.495697543446234,
+     51.495694942389726
+    ],
+    "triangle_areas": {
+     "count": 338526,
+     "max": 9.826534590577934,
+     "mean": 0.20404264360014338,
+     "median": 0.046817473799404735,
+     "min": 0.001458223361479916,
+     "p05": 0.012040034895947755,
+     "p95": 0.1329345290133812
+    },
+    "triangle_min_angles_degrees": {
+     "count": 338526,
+     "max": 59.4063121240032,
+     "mean": 3.9439192452016827,
+     "median": 2.4868467207123213,
+     "min": 0.25422099404428933,
+     "p05": 0.8150767493425295,
+     "p95": 10.27359098569188
+    },
+    "vertex_pca": {
+     "axes_columns": [
+      [
+       -0.9999999964774053,
+       2.926113270281852e-09,
+       8.393562696177021e-05
+      ],
+      [
+       2.9418988463106917e-09,
+       0.9999999999999823,
+       1.8806752556871612e-07
+      ],
+      [
+       -8.393562696121844e-05,
+       1.8806777157556553e-07,
+       -0.9999999964773878
+      ]
+     ],
+     "eigenvalues": [
+      759.236720636313,
+      736.0548622888956,
+      735.8657066736365
+     ],
+     "extents_in_pca_frame": [
+      111.00526656962384,
+      102.98782062530336,
+      102.98433399713426
+     ],
+     "method": "vertex_weighted; depends_on_tessellation; not_minimum_oriented_box"
+    },
+    "volume": 71422.00051447847,
+    "volume_basis": "closed_single_shell_positive_winding; conditional on no self-intersections",
+    "volume_to_convex_hull_ratio": 0.12220311146261373
+   },
+   "normal_chords": {
+    "distribution": {
+     "count": 128,
+     "max": 15.395095245628589,
+     "mean": 2.673754659664334,
+     "median": 2.00475985315462,
+     "min": 1.3331412805650547,
+     "p05": 1.4996438284737663,
+     "p95": 7.61201933028725
+    },
+    "limitations": "Not true minimum wall thickness; can miss small thin features. Concavities, cavities and grazing rays affect results.",
+    "method": "area_weighted_surface_inward_normal_first_exit",
+    "minimum_sampled": 1.3331412805650547,
+    "missed_or_too_close": 0,
+    "requested_samples": 128,
+    "seed": 0,
+    "shortest_samples": [
+     {
+      "exit_point": [
+       1.6720992826364331,
+       76.62336839649905,
+       88.8140836380135
+      ],
+      "face_index": 65774,
+      "length": 1.3331412805650547,
+      "surface_point": [
+       1.4406550186568812,
+       75.89396019467792,
+       87.72245050287438
+      ]
+     },
+     {
+      "exit_point": [
+       1.643904654414098,
+       64.36352582225275,
+       9.789766343709944
+      ],
+      "face_index": 733,
+      "length": 1.3487259735521113,
+      "surface_point": [
+       1.643904654414098,
+       64.74093804640646,
+       8.494922042338754
+      ]
+     },
+     {
+      "exit_point": [
+       3.6770331950109405,
+       79.36961268961515,
+       84.88873952291135
+      ],
+      "face_index": 833,
+      "length": 1.4996392088463801,
+      "surface_point": [
+       3.6770331950109405,
+       80.30826935237441,
+       86.0582870534406
+      ]
+     },
+     {
+      "exit_point": [
+       3.538802470653549,
+       9.791321560390765,
+       63.829545799242524
+      ],
+      "face_index": 635,
+      "length": 1.499641990286353,
+      "surface_point": [
+       3.538802470653549,
+       8.351590344934783,
+       64.24918865486103
+      ]
+     },
+     {
+      "exit_point": [
+       2.6343726549188737,
+       16.35315314375807,
+       77.11532635531056
+      ],
+      "face_index": 619,
+      "length": 1.4996420613193877,
+      "surface_point": [
+       2.6343726549188737,
+       15.143776122086203,
+       78.00208084869097
+      ]
+     },
+     {
+      "exit_point": [
+       4.146588816701841,
+       75.75597873232293,
+       87.59005060911942
+      ],
+      "face_index": 837,
+      "length": 1.4996421214602624,
+      "surface_point": [
+       4.146588816701841,
+       76.58913451729403,
+       88.83695795548763
+      ]
+     },
+     {
+      "exit_point": [
+       5.137576364794159,
+       50.65538767029397,
+       96.47736080204201
+      ],
+      "face_index": 15218,
+      "length": 1.499643455869283,
+      "surface_point": [
+       5.137576364794159,
+       50.68810411170218,
+       94.978074261986
+      ]
+     },
+     {
+      "exit_point": [
+       3.605820896895107,
+       7.649646766466546,
+       41.399270155727486
+      ],
+      "face_index": 15270,
+      "length": 1.4996445204535207,
+      "surface_point": [
+       3.605820896895107,
+       9.106314717063754,
+       41.7557139373105
+      ]
+     },
+     {
+      "exit_point": [
+       13.944002250761883,
+       2.917326904786304,
+       52.28757750800732
+      ],
+      "face_index": 12446,
+      "length": 1.9960762607845988,
+      "surface_point": [
+       14.924277551074686,
+       4.65531797617926,
+       52.2349675258477
+      ]
+     },
+     {
+      "exit_point": [
+       32.41838583687835,
+       10.29596334751509,
+       67.98233523384768
+      ],
+      "face_index": 11353,
+      "length": 1.997077586100277,
+      "surface_point": [
+       33.910874367325064,
+       11.525767716553899,
+       67.48395978774086
+      ]
+     }
+    ],
+    "status": "estimated"
+   },
+   "partial_errors": {},
+   "preprocessing": {
+    "area_degeneracy_threshold": 3.353326428789515e-10,
+    "exact_duplicate_vertices_welded": 846315,
+    "faces_removed": 0,
+    "repair_performed": false
+   },
+   "preview": "15359fd75d32a7c58ca452d25e3a637a61ce22b94cb75591d2a534db7fe2de89.png",
+   "schema_version": "1.0",
+   "sections": [
+    {
+     "axis": "X",
+     "closed_contour_count": 2,
+     "coordinate": 27.75,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 493.53069519330137
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 2,
+     "coordinate": 55.5,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 468.8644569611166
+    },
+    {
+     "axis": "X",
+     "closed_contour_count": 2,
+     "coordinate": 83.25,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 360.3010814850753
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 25.748743295669556,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 662.3178712852031
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 51.49569845199585,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 1454,
+     "total_length": 639.0067928319372
+    },
+    {
+     "axis": "Y",
+     "closed_contour_count": 2,
+     "coordinate": 77.24265360832214,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 662.3178619444874
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 2,
+     "coordinate": 25.746131978929043,
+     "fraction_of_bounds": 0.25,
+     "open_entity_count": 0,
+     "total_length": 662.2785030044106
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 2,
+     "coordinate": 51.492215529084206,
+     "fraction_of_bounds": 0.5,
+     "open_entity_count": 0,
+     "total_length": 638.9896420442245
+    },
+    {
+     "axis": "Z",
+     "closed_contour_count": 2,
+     "coordinate": 77.23829907923937,
+     "fraction_of_bounds": 0.75,
+     "open_entity_count": 0,
+     "total_length": 662.260605128805
+    }
+   ],
+   "software": {
+    "numpy": "2.3.4",
+    "trimesh": "5.1.1"
+   },
+   "status": "checks_passed",
+   "status_scope": "listed mesh checks only; self-intersections and printability are unverified",
+   "topology": {
+    "boundary_edge_examples": [],
+    "boundary_edges": 0,
+    "component_count": 1,
+    "components": [
+     {
+      "bounds": [
+       [
+        0.0,
+        0.0017881393432617188,
+        4.842877388000488e-05
+       ],
+       [
+        111.0,
+        102.98960876464844,
+        102.98438262939453
+       ]
+      ],
+      "euler_number": 0,
+      "faces": 338526,
+      "genus": 1,
+      "signed_volume": 71422.00051447842,
+      "surface_area": 69073.73996738213,
+      "vertices": 169263,
+      "watertight": true,
+      "winding_consistent": true
+     }
+    ],
+    "euler_number": 0,
+    "nonmanifold_edge_examples": [],
+    "nonmanifold_edges": 0,
+    "unique_edges": 507789,
+    "vertices_after_exact_weld": 169263,
+    "watertight": true,
+    "winding_consistent": true
+   },
+   "units": {
+    "area_unit": "coordinate_unit^2",
+    "coordinate_unit": "mm",
+    "input_unit": "mm",
+    "scale_applied": 1,
+    "source": "caller_supplied",
+    "volume_unit": "coordinate_unit^3"
+   },
+   "validation": {
+    "defects": [],
+    "degenerate_faces": 0,
+    "duplicate_faces": 0,
+    "finite_coordinates": true,
+    "self_intersections": "not_checked",
+    "shell_intersections_and_nesting": "not_checked",
+    "vertex_manifoldness": "not_checked"
+   },
+   "warnings": [
+    "Self-intersections and intersections/nesting between shells are not checked.",
+    "STL does not encode authoritative units; the supplied unit is an explicit caller assumption.",
+    "Geometry does not establish material, load capacity, tolerances, manufacturing accuracy or printability."
+   ]
+  },
+  "sha256": "70663df1130d2d969063537c506b9ca767e36f3949bfe5c7d5dc0217d58ca467"
+ },
+ "unknowns": [
+  "Указанный или предпочтительный эластомерный материал и твёрдость по Шору",
+  "Требуемая точность и допуски посадочных диаметров под хомуты",
+  "Количество деталей и сроки",
+  "Допустимость постобработки (сглаживание, пропитка, покрытие) для достижения герметичности",
+  "Допустимость правки геометрии, в частности толщины стенок гофр",
+  "Наличие и величина давления или разрежения внутри узла при нагреве и деформациях",
+  "Нужна ли работоспособность при отрицательных температурах сверх диапазона 0°C...+75°C",
+  "Воздействие мойки высоким давлением и прямого солнца",
+  "Требуемый ресурс детали в циклах деформации или километрах пробега"
+ ],
+ "verdict": {
+  "passed": true,
+  "remarks": [
+   {
+    "requirement_key": null,
+    "severity": "minor",
+    "text": "В предположении про буртики вводится крепёж хомутами, которого нет ни в f1p1, ни в подписи к f2p1. Формулировку лучше дать как допущение без указания способа крепления, например через посадочные буртики передаётся только радиальное обжатие, источник способа крепежа неизвестен"
+   },
+   {
+    "requirement_key": "axial_stroke",
+    "severity": "minor",
+    "text": "В basis вопроса о геометрии ход подвески указан как 30 мм, тогда как в f1p1 дословно ± 30 мм, то есть полный диапазон 60 мм. Для оценки изгиба гофр это существенная разница в трактовке"
+   },
+   {
+    "requirement_key": "temperature_range",
+    "severity": "minor",
+    "text": "Вопрос об отрицательных температурах частично дублирует источник, в f1p1 рабочий диапазон прямо задан от 0°C до +75°C. Корректнее вести его как уточнение к эксплуатации экспедиционного автомобиля на морозе, а не как сомнение в заданном диапазоне, влияние на подбор материала при этом верное"
+   },
+   {
+    "requirement_key": "material_wear_resistance",
+    "severity": "minor",
+    "text": "Требование по солевой и абразивной стойкости помечено как необязательное, хотя в f1p1 именно износ от солевых растворов и деформирующей нагрузки назван причиной замены, а внешняя среда с реагентами задана как условие. Обязательность можно повысить, значения и цитаты при этом верные"
+   }
+  ],
+  "reworked": false,
+  "score": 0.9
+ },
+ "versions": {
+  "analyzer": "1.2-partial",
+  "model": "dashscope/qwen3.8-flash",
+  "prompt.analyst_environment": "12b04fa4463a",
+  "prompt.analyst_geometry": "85b0c8a88f93",
+  "prompt.analyst_loads": "718df8c009f4",
+  "prompt.analyst_production": "f3db2426091a",
+  "prompt.consolidator": "7da17cfb1fce",
+  "prompt.discrepancies": "0fb0fdebc89e",
+  "prompt.gate": "22ac670f7df7",
+  "prompt.interpreter": "ab745d1ff6c2",
+  "prompt.judge": "3351a34759b1",
+  "prompt.second_reading": "03e3e41c53f6",
+  "prompt.triage": "ecfcb776e059",
+  "rules": "4"
+ }
+}

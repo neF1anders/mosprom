@@ -4,6 +4,8 @@
 
 Локальный веб-чат первого этапа реализован в `src/backend` и `src/web`: агенты интерпретируют задание и собирают единую карточку для второго этапа. Запуск, агенты, гардрейлы и ограничения описаны в [руководстве реализации](docs/STAGE1_IMPLEMENTATION.md), контракт карточки 2.0 — в [TASK_CARD.md](docs/TASK_CARD.md).
 
+Ядро второго этапа, подбор параметров печати по готовой карточке, лежит в `src/backend/tuning`. Как выбирается каждый параметр, описано в [методике](docs/tuning/METHODOLOGY.md), принятые решения — в [DECISIONS.md](docs/tuning/DECISIONS.md).
+
 ```bash
 python3 scripts/bootstrap.py
 # Заполните QWEN_API_KEY в .env

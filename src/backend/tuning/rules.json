@@ -1,0 +1,89 @@
+{
+  "note": "Rules are data. `when` is a condition over facts, `then` a list of actions. `reason` is shown to the user (Russian). Knowledge labels in `source`: D = slicer definitions/code, S = task spec, G = general practice (unverified), H = hypothesis.",
+  "rules": [
+    {"id": "LAYER-MAX-NOZZLE", "source": "D: fdmprinter layer_height maximum_value_warning = 0.8 * nozzle", "reason": "слой не толще 0,8 диаметра сопла",
+     "when": {}, "then": [{"op": "limit", "param": "layer_height", "max": {"ref": "profile.nozzle_mm", "mul": 0.8}}]},
+    {"id": "LAYER-MIN-010", "source": "S 4.2: below 0.10 mm little gain at a large time cost", "reason": "слой тоньше 0,1 мм почти не улучшает качество, а время растёт",
+     "when": {}, "then": [{"op": "limit", "param": "layer_height", "min": 0.1}]},
+    {"id": "WALLS-MIN-2", "source": "S 4.2", "reason": "не меньше двух периметров",
+     "when": {}, "then": [{"op": "limit", "param": "wall_line_count", "min": 2}]},
+    {"id": "SKIN-MIN-3-LAYERS", "source": "S 4.2", "reason": "сверху и снизу не меньше трёх сплошных слоёв",
+     "when": {}, "then": [{"op": "min_layers", "param": "skin_thickness", "min": 3}]},
+    {"id": "TEMP-MACHINE-MAX", "source": "D: fdmprinter material_print_temperature maximum_value_warning = 285", "reason": "температура сопла не выше предела принтера (285 °C), если сам материал не требует больше",
+     "when": {}, "then": [{"op": "limit", "param": "print_temperature", "max": {"ref": "limits.temperature_max_c"}}]},
+    {"id": "TEMP-MATERIAL-WINDOW", "source": "S 4.2; window = material file value +-10 degC (DECISIONS)", "reason": "температура сопла в окне ±10 °C от значения файла материала",
+     "when": {}, "then": [
+       {"op": "limit", "param": "print_temperature", "min": {"ref": "material.print_temperature", "add": -10}},
+       {"op": "limit", "param": "print_temperature", "max": {"ref": "material.print_temperature", "add": 10}}]},
+    {"id": "SPEED-MATERIAL-MAX", "source": "D: `speed print` of the material file (the slicer does not apply it, XmlMaterialProfile has no mapping)", "reason": "скорость печати не выше рекомендованной в файле материала",
+     "when": {"fact": "material.speed", "op": "exists"}, "then": [{"op": "limit", "param": "print_speed", "max": {"ref": "material.speed"}}]},
+
+    {"id": "PRIORITY-STRENGTH", "source": "S 4.2: perimeters give more strength than infill", "reason": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв",
+     "when": {"fact": "pref.priority_first", "op": "==", "value": "strength"}, "then": [
+       {"op": "shift", "param": "wall_line_count", "delta": 0.25},
+       {"op": "shift", "param": "skin_thickness", "delta": 0.25},
+       {"op": "shift", "param": "infill_density", "delta": 0.2},
+       {"op": "shift", "param": "print_temperature", "delta": 0.25}]},
+    {"id": "PRIORITY-SPEED", "source": "G", "reason": "главный приоритет — скорость: толще слой, меньше периметров и заполнения",
+     "when": {"fact": "pref.priority_first", "op": "==", "value": "speed"}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": -0.25},
+       {"op": "shift", "param": "infill_density", "delta": -0.1}]},
+    {"id": "PRIORITY-ACCURACY", "source": "G", "reason": "главный приоритет — точность: тоньше слой и медленнее печать",
+     "when": {"fact": "pref.priority_first", "op": "==", "value": "accuracy"}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": 0.25},
+       {"op": "shift", "param": "print_speed", "delta": 0.3}]},
+    {"id": "PRIORITY-COST", "source": "G", "reason": "главный приоритет — стоимость: меньше заполнения",
+     "when": {"fact": "pref.priority_first", "op": "==", "value": "cost"}, "then": [
+       {"op": "shift", "param": "infill_density", "delta": -0.1}]},
+    {"id": "LOAD-WALLS", "source": "S 4.2", "reason": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения",
+     "when": {"fact": "part.load", "op": "in", "value": ["cyclic", "impact"]}, "then": [
+       {"op": "shift", "param": "wall_line_count", "delta": 0.25},
+       {"op": "shift", "param": "skin_thickness", "delta": 0.1}]},
+    {"id": "TOL-HARD-FINE-LAYER", "source": "G", "reason": "жёсткий допуск 0,15 мм и точнее: слой не толще 0,15 мм и печать медленнее",
+     "when": {"all": [{"fact": "req.dimensional_tol_mm", "op": "<=", "value": 0.15}, {"fact": "reqhard.dimensional_tol_mm", "op": "==", "value": true}]}, "then": [
+       {"op": "limit", "param": "layer_height", "max": 0.15},
+       {"op": "bound", "param": "print_speed", "min_t": 0.4}]},
+    {"id": "TOL-SOFT-FINE-LAYER", "source": "G", "reason": "пожелание по точности размеров: тоньше слой",
+     "when": {"all": [{"fact": "req.dimensional_tol_mm", "op": "exists"}, {"fact": "reqhard.dimensional_tol_mm", "op": "==", "value": false}]}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": 0.2}]},
+    {"id": "STIFF-HARD", "source": "S 4.2", "reason": "обязательная высокая жёсткость: не меньше 4 периметров и 30 % заполнения",
+     "when": {"all": [{"fact": "req.high_stiffness", "op": "==", "value": true}, {"fact": "reqhard.high_stiffness", "op": "==", "value": true}]}, "then": [
+       {"op": "limit", "param": "wall_line_count", "min": 4},
+       {"op": "limit", "param": "infill_density", "min": 30}]},
+    {"id": "STIFF-SOFT", "source": "S 4.2", "reason": "пожелание жёсткости: больше периметров и плотнее заполнение",
+     "when": {"all": [{"fact": "req.high_stiffness", "op": "==", "value": true}, {"fact": "reqhard.high_stiffness", "op": "==", "value": false}]}, "then": [
+       {"op": "shift", "param": "wall_line_count", "delta": 0.25},
+       {"op": "shift", "param": "infill_density", "delta": 0.1}]},
+    {"id": "NO-LAYERS-HARD", "source": "G", "reason": "обязательно без видимых слоёв: самый тонкий допустимый слой",
+     "when": {"all": [{"fact": "req.no_visible_layers", "op": "==", "value": true}, {"fact": "reqhard.no_visible_layers", "op": "==", "value": true}]}, "then": [
+       {"op": "limit", "param": "layer_height", "max": 0.1}]},
+    {"id": "NO-LAYERS-SOFT", "source": "G", "reason": "пожелание гладкой поверхности: тоньше слой",
+     "when": {"all": [{"fact": "req.no_visible_layers", "op": "==", "value": true}, {"fact": "reqhard.no_visible_layers", "op": "==", "value": false}]}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": 0.3}]},
+    {"id": "FLEX-SOFT-STRUCTURE", "source": "G, unverified", "reason": "гибкая деталь: умеренные заполнение и периметры сохраняют гибкость, медленная печать надёжнее подаёт эластомер",
+     "when": {"fact": "req.flexible", "op": "==", "value": true}, "then": [
+       {"op": "limit", "param": "infill_density", "max": 35},
+       {"op": "limit", "param": "wall_line_count", "max": 4},
+       {"op": "bound", "param": "print_speed", "min_t": 0.5}]},
+
+    {"id": "SUPPORT-OVERHANG", "source": "S 4.2: overhangs above ~45 deg need supports (orientation first, then supports)", "reason": "доля нависаний выше порога, поддержки разрешены",
+     "when": {"all": [{"fact": "geometry.overhang_area_fraction", "op": ">", "value": 0.05}, {"fact": "pref.supports_allowed", "op": "==", "value": true}, {"not": {"fact": "reqhard.no_supports", "op": "==", "value": true}}]},
+     "then": [{"op": "set_discrete", "param": "support_enable", "value": true}]},
+    {"id": "SUPPORT-FORBIDDEN-OVERHANG", "source": "S 4.2", "reason": "поддержки запрещены, а у модели есть нависания",
+     "when": {"all": [{"fact": "geometry.overhang_area_fraction", "op": ">", "value": 0.05}, {"fact": "reqhard.no_supports", "op": "==", "value": true}]},
+     "then": [{"op": "unsatisfied", "requirement_key": "no_supports", "why": "у модели есть нависания, поддержки запрещены: нужен подбор ориентации"}]},
+    {"id": "INFILL-GYROID", "source": "G, unverified", "reason": "ударная или циклическая нагрузка либо гибкая деталь: изотропное заполнение gyroid",
+     "when": {"any": [{"fact": "part.load", "op": "in", "value": ["cyclic", "impact"]}, {"fact": "req.flexible", "op": "==", "value": true}]},
+     "then": [{"op": "set_discrete", "param": "infill_pattern", "value": "gyroid"}]},
+    {"id": "FAN-OFF-NO-COOLING", "source": "D: `print cooling` = 0 in the material file; Stereotech test G-codes print such materials with the fan off", "reason": "в файле материала обдув 0 %: обдув выключен",
+     "when": {"fact": "material.cooling_pct", "op": "==", "value": 0}, "then": [{"op": "set_discrete", "param": "cool_fan_enabled", "value": false}]},
+
+    {"id": "MODE-DEFAULT-CLASSIC", "source": "S 4.3", "reason": "режим 3D (classic) по умолчанию: 5D не запрошен",
+     "when": {}, "then": [{"op": "mode_vote", "mode": "classic", "weight": 1.0}]},
+    {"id": "MODE-OVERHANG-5D", "source": "H: 5D Spiral may avoid supports on overhangs (not confirmed)", "reason": "поддержки запрещены, а нависания есть: 5D Spiral может обойтись без поддержек (гипотеза)",
+     "when": {"all": [{"fact": "geometry.overhang_area_fraction", "op": ">", "value": 0.05}, {"fact": "reqhard.no_supports", "op": "==", "value": true}]},
+     "then": [{"op": "mode_vote", "mode": "cylindrical", "weight": 2.0}]},
+    {"id": "MODE-CARD-HINT", "source": "card", "reason": "режим печати задан в карточке задания",
+     "when": {"fact": "pref.printing_mode", "op": "exists"}, "then": [{"op": "mode_vote", "mode": {"ref": "pref.printing_mode"}, "weight": 10.0}]}
+  ]
+}

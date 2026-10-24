@@ -18,3 +18,13 @@ playwright-report/
 test-results/
 .mypy_cache/
 .ruff_cache/
+*.py[cod]
+*.egg-info/
+
+# Case materials and working data (never committed, see CONTRIBUTING)
+/.scratch/
+*.zip
+
+# Slicing results
+*.gcode
+*.3mf
