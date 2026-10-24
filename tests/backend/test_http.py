@@ -20,6 +20,7 @@ pytestmark = pytest.mark.unit
         "/api/v1/jobs/fake/card",
         "/api/v1/jobs/fake/events",
         "/api/v1/jobs/fake/artifacts/fake",
+        "/api/v1/model",
     ],
 )
 async def test_protected_routes_need_session(path, tmp_path):

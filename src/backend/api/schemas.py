@@ -32,3 +32,12 @@ class Answers(Command):
 
 class Launch(BaseModel):
     token: str = Field(min_length=1, max_length=1000)
+
+
+class ModelEntry(BaseModel):
+    """Checked by the settings themselves, so a wrong entry is explained like other errors."""
+
+    base_url: str = Field(default="", max_length=2000)
+    model: str = Field(default="", max_length=200)
+    # Empty or missing keeps the saved key.
+    api_key: str | None = Field(default=None, max_length=4000)

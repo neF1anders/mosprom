@@ -73,11 +73,12 @@ class AgentRunner:
         model: ModelClient,
         tools: ToolBox,
         uow: UowFactory,
-        version: str = "",
+        model_name: Callable[[], str] = lambda: "",
         clock: Clock = time.monotonic,
         narrate: Narrate | None = None,
     ):
-        self.model, self.tools, self.uow, self.version = model, tools, uow, version
+        # Read per call: a model saved in the chat neither reuses nor overwrites another's cache.
+        self.model, self.tools, self.uow, self.model_name = model, tools, uow, model_name
         # The chat gets a Russian phrase about the reasoning; the agents never see it.
         self.clock, self.narrate = clock, narrate
 
@@ -137,7 +138,7 @@ class AgentRunner:
                 spec.tools,
                 spec.thinking,
                 spec.budget,
-                self.version,
+                self.model_name(),
                 redact(turns, ctx.images),
             ],
             ensure_ascii=False,

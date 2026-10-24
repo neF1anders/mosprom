@@ -56,7 +56,6 @@ FOLLOW_UP = "Ответы пользователя на твои вопросы 
 
 @dataclass(frozen=True)
 class Stage1Settings:
-    model: str
     timeout_seconds: float = 900
     job_images: int = 150
 
@@ -293,7 +292,7 @@ class Stage1:
         card.versions.update(
             {f"prompt.{name}": digest(prompt(name)) for name in PROMPTS},
             requirement_keys=self.keys.version,
-            model=self.settings.model,
+            model=self.runner.model_name(),
         )
         stable_references(card, ctx)
         await self.store.finish(ctx, assess(card, failed(attachments)), summary(card))
