@@ -175,7 +175,15 @@ export function App() {
     mutationFn: async ({ text, queue }: { text: string; queue: boolean }) => {
       const id = await ensureJob();
       // Files alone go as a message too: the assistant decides what they are for.
-      return command(`/jobs/${id}/${queue ? "queue" : "messages"}`, { text });
+      const result = await command(
+        `/jobs/${id}/${queue ? "queue" : "messages"}`,
+        {
+          text,
+        },
+      );
+      // The chat shows the message before the send ends, so the reply row never blinks out.
+      await client.refetchQueries({ queryKey: ["job", id], exact: true });
+      return result;
     },
     onSuccess: () => {
       // Rejected files never reached the server, so they are not part of the sent message.
@@ -338,7 +346,10 @@ export function App() {
     messages,
     stages ? current[0]?.created_at : undefined,
   );
-  const replying = answering(events, messages, running);
+  // A message on its way to the assistant already waits for its reply.
+  const replying =
+    answering(events, messages, running) ||
+    (send.isPending && !send.variables?.queue);
   const agents = (stages || []).flatMap((stage) => stage.agents);
   const working = agents.filter(
     (agent) => agent.state === "run" && !agent.code,

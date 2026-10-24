@@ -15,6 +15,8 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from src.backend.agents.assistant import template
+
 app = FastAPI()
 SOURCE = re.compile(r'<source id="([^"]+)"[^>]*>\n?(.*?)\n?</source>', re.S)
 KEYS = re.compile(r"<requirement_keys>\n(.*?)\n</requirement_keys>", re.S)
@@ -32,7 +34,7 @@ OFF_TOPIC = "Я помогаю только с подготовкой задан
 STEER_SUMMARY = "Учитываю правку и пересчитываю то, что от неё зависит"
 STEER_REPLY = "Задание от этого не меняется, продолжаю работу"
 NO_MODEL = "Приложите модель STL, и я подберу параметры печати"
-REPORT = "### Итог\nПроект готов, параметры подобраны"
+
 ANALYSIS = "Так решила программа подбора по требованиям карточки"
 GATE_ASK = "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
 UNKNOWN = "Не знаю"
@@ -51,8 +53,12 @@ async def complete(request: Request):
         await asyncio.sleep(2)
     if agent == "assistant":
         return assistant(payload)
-    if agent in ("report", "analyst"):
-        return message(REPORT if agent == "report" else ANALYSIS)
+    if agent == "report":
+        # The report the code would write without a model, from the same facts.
+        facts = json.loads(text(messages[-1]).split("<facts>", 1)[1].split("</facts>", 1)[0])
+        return message(template(facts))
+    if agent == "analyst":
+        return message(ANALYSIS)
     # The assistant replies in plain text, so a broken answer reaches the first JSON agent.
     if "TEST_PROVIDER_INVALID_JSON" in everything:
         return message("invalid")
@@ -113,6 +119,9 @@ def assistant(payload: dict[str, Any]) -> dict:
         return message(STEER_REPLY)
     if "(модель STL)" in latest:
         return tool_call("start_project", {"title": "Деталь", "notes": ""})
+    # With a project, whatever else the user writes about it changes it.
+    if '"текущий проект": {' in latest:
+        return tool_call("update_project", {"summary": STEER_SUMMARY})
     return message(NO_MODEL)
 
 

@@ -89,7 +89,8 @@ for (const name of [
     await panel
       .getByRole("button", { name: /Обязательные требования/ })
       .click();
-    const items = panel.locator("li");
+    // The items of a section are listed inside its step.
+    const items = panel.locator("li li");
     await expect(items.filter({ hasText: /25/ }).first()).toBeVisible();
     await expect(items.filter({ hasText: /75/ }).first()).toBeVisible();
     // A value named by a requirement code reaches the card under that code.

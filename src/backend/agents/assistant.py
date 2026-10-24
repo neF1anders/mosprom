@@ -222,9 +222,7 @@ async def _nothing() -> None:
     return None
 
 
-def refusal(
-    name: str, situation: Situation, arguments: dict[str, Any] | None = None
-) -> str | None:
+def refusal(name: str, situation: Situation, arguments: dict[str, Any] | None = None) -> str | None:
     """Why the code does not take the call, said to the agent; None when it does."""
     job = situation.job
     waiting = job.status == Status.WAITING and job.card is not None
@@ -341,12 +339,19 @@ def template(facts: dict[str, Any]) -> str:
     return chat_text("\n".join(lines))
 
 
+HEADLINES = {
+    "ready": "Проект готов, параметры и G-code прошли проверку",
+    "not_sliced": "Параметры подобраны, но проект не создан",
+    "parameters_attention": "Параметры подобраны, но требуют внимания",
+    "attention": "Проект создан, но кое-что требует внимания",
+}
+
+
 def _headline(facts: dict[str, Any]) -> str:
-    if facts.get("outcome") == "ready":
-        return "Проект готов, параметры и G-code прошли проверку"
-    if facts.get("outcome") == "not_sliced":
-        return "Параметры подобраны, но проект не создан"
-    return "Проект создан, но кое-что требует внимания"
+    """The outcome first; a selection that found nothing says so, whatever was sliced."""
+    if (facts.get("parameters") or {}).get("status") == "infeasible":
+        return "Подобрать параметры под все требования не получилось"
+    return HEADLINES.get(str(facts.get("outcome")), "Работа завершена")
 
 
 def _parameter_lines(parameters: dict[str, Any]) -> list[str]:
