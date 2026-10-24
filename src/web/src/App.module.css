@@ -230,9 +230,20 @@
 }
 
 /* Chats panel, Figma node 132:111. */
-.chats > h1 {
-  padding-left: 12px;
+/* The title and the theme switch, in one column with the panel icons below. */
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 23px;
+  padding: 0 8px 0 12px;
   margin-bottom: 21px;
+}
+.brand .icon,
+.brand .icon:hover {
+  min-width: 20px;
+  width: 20px;
+  height: 20px;
 }
 .chats > .row {
   height: 23px;
@@ -869,13 +880,14 @@
 .projectFiles > .row {
   height: 24px;
 }
+/* The copy button follows the path and never sits under the panel's collapse button. */
 .path {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
   gap: 6px;
   height: 25px;
-  padding: 0 8px;
+  margin-top: 4px;
+  padding: 0 36px 0 8px;
   color: var(--path);
   font-size: 12px;
   line-height: 15px;
@@ -1803,7 +1815,7 @@ button.agentDone:hover {
     border: 0;
     border-radius: 16px;
   }
-  .chats > h1 {
+  .brand {
     display: none;
   }
   .handle {

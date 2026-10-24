@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { extension } from "../chat";
 import type { Attachment, Job } from "../types";
 import { Icon } from "./Icon";
@@ -175,6 +175,12 @@ export function ProjectFiles({
   onRemove: (id: string) => void;
 }) {
   const [chosen, setChosen] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
   const root = tree(job, attachments);
   return (
     <section className={styles.projectFiles} aria-label="Файлы проекта">
@@ -193,10 +199,14 @@ export function ProjectFiles({
           <span title={folder}>{folder}</span>
           <button
             className={styles.icon}
-            aria-label="Скопировать путь"
-            onClick={() => void navigator.clipboard?.writeText(folder)}
+            aria-label={copied ? "Путь скопирован" : "Скопировать путь"}
+            onClick={() =>
+              void navigator.clipboard
+                ?.writeText(folder)
+                .then(() => setCopied(true))
+            }
           >
-            <Icon name="copy" size={14} />
+            <Icon name={copied ? "check" : "copy"} size={14} />
           </button>
         </div>
       )}
