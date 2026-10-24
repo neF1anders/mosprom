@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { answer, open, send, settled, upload } from "./helpers";
+import { answer, open, pipelineDone, send, settled, upload } from "./helpers";
 test.beforeEach(async ({ page }) => open(page));
 
 test("T12 reconnect catches up and reopens same task", async ({
@@ -93,9 +93,7 @@ test("T13 downloaded card embeds the full STL report of the active file", async 
   await upload(page, "box.stl");
   await settled(page);
   await answer(page, "mm");
-  await expect(
-    page.getByRole("status").filter({ hasText: "Первый этап завершён" }),
-  ).toBeVisible();
+  await pipelineDone(page);
   const href = await page
     .getByRole("link", { name: "Скачать карточку JSON" })
     .getAttribute("href");

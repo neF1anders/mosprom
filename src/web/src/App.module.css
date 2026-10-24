@@ -1249,6 +1249,10 @@
   line-height: 18px;
   overflow-wrap: anywhere;
 }
+/* One selected setting, requirement or assumption per line. */
+.cardSummary dd > span {
+  display: block;
+}
 .chats nav {
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;

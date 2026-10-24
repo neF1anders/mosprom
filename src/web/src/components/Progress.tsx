@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { Job, ProgressEvent } from "../types";
 import { isRunning } from "../types";
 import { CardSummary } from "./CardSummary";
+import { ParameterSummary } from "./ParameterSummary";
 import styles from "../App.module.css";
 
 type State = "wait" | "run" | "done" | "warn";
@@ -11,12 +12,12 @@ const icons: Record<State, string> = {
   done: "done",
   warn: "error",
 };
-const labels = [
-  "Подбор параметров",
-  "Валидация",
-  "Слайсинг",
-  "Подготовка результата",
+// Stages after the interpretation; each one follows the events of its prefix.
+const stages = [
+  { title: "Подбор параметров", prefix: "parameters.", pass: "Заход" },
+  { title: "Валидация", prefix: "validation.", pass: "Проверка" },
 ];
+const later = ["Слайсинг", "Подготовка результата"];
 function TimelineRow({
   title,
   state,
@@ -100,7 +101,7 @@ export function Progress({
   compact?: boolean;
 }) {
   const operations = events.filter((e) =>
-    steps.some((step) => e.type.startsWith(step.prefix)),
+    [...steps, ...stages].some((step) => e.type.startsWith(step.prefix)),
   );
   if (!operations.length || compact) return null;
   const finished = events.some((e) => e.type === "stage1.completed");
@@ -132,14 +133,84 @@ export function Progress({
             </div>
           )}
         </TimelineRow>
-        {labels.map((title, index) => (
+        {stages.map((stage) => (
+          <StageRow
+            key={stage.title}
+            {...stage}
+            events={events}
+            job={job}
+            ended={ended}
+          />
+        ))}
+        {later.map((title) => (
           <TimelineRow key={title} title={title} state="wait">
-            {index === 0 && job?.next_stage === "queued"
-              ? "Задание передано, ждёт подбора параметров"
-              : "Этап ещё не начат"}
+            Этап ещё не начат
           </TimelineRow>
         ))}
       </div>
     </section>
   );
+}
+
+// A stage after the interpretation: one substep per pass, its result once the job is done.
+function StageRow({
+  title,
+  prefix,
+  pass,
+  events,
+  job,
+  ended,
+}: {
+  title: string;
+  prefix: string;
+  pass: string;
+  events: ProgressEvent[];
+  job?: Job;
+  ended?: State;
+}) {
+  const passes = events.filter((e) => e.type.startsWith(prefix));
+  const found = stateFor(passes, prefix);
+  const state = found === "run" && ended ? ended : found;
+  if (!passes.length)
+    return (
+      <TimelineRow title={title} state="wait">
+        {prefix === "parameters." && job?.stage === "parameters"
+          ? "Задание передано, ждёт подбора параметров"
+          : "Этап ещё не начат"}
+      </TimelineRow>
+    );
+  const finished = job?.stage === "done" && prefix === "parameters.";
+  const summary = finished ? job?.parameters : null;
+  const unmet = !!summary?.unsatisfied || summary?.status === "infeasible";
+  return (
+    <TimelineRow
+      title={title}
+      state={unmet && state === "done" ? "warn" : state}
+      expanded={state !== "done" || finished}
+    >
+      {finished && job ? (
+        <ParameterSummary job={job} />
+      ) : (
+        <div className={styles.substeps}>
+          {iterations(passes).map((iteration) => {
+            const own = passes.filter((e) => e.data.iteration === iteration);
+            const step = stateFor(own, prefix);
+            return (
+              <TimelineRow
+                key={iteration}
+                title={`${pass} ${iteration}`}
+                state={step === "run" && ended ? ended : step}
+                small
+              >
+                {latest(own, prefix + "completed")?.message}
+              </TimelineRow>
+            );
+          })}
+        </div>
+      )}
+    </TimelineRow>
+  );
+}
+function iterations(events: ProgressEvent[]) {
+  return [...new Set(events.map((e) => Number(e.data.iteration)))];
 }

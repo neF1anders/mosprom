@@ -3,6 +3,7 @@ import type {
   Attachment,
   Card,
   Job,
+  ParameterSet,
   ProgressEvent,
   Question,
   Snapshot,
@@ -13,6 +14,7 @@ export const designStates = [
   "questions",
   "conflict",
   "done",
+  "selected",
   "files",
   "defect",
   "error",
@@ -128,19 +130,39 @@ export async function designFixture(page: Page, state: DesignState) {
       state === "start"
         ? "draft"
         : state === "done"
-          ? "completed"
-          : state === "error"
-            ? "failed"
-            : waiting
-              ? "waiting_user"
-              : "running",
+          ? "queued"
+          : state === "selected"
+            ? "completed"
+            : state === "error"
+              ? "failed"
+              : waiting
+                ? "waiting_user"
+                : "running",
     card: state === "start" ? null : card,
     error:
       state === "error"
         ? "Модель не отвечает; анализ не завершён, результаты сохранены"
         : null,
     files_changed: false,
-    next_stage: state === "done" ? "queued" : "not_ready",
+    stage:
+      state === "selected"
+        ? "done"
+        : state === "done"
+          ? "parameters"
+          : "understanding",
+    parameters:
+      state === "selected"
+        ? {
+            iteration: 1,
+            printing_mode: "3D",
+            quality_type: "Fine",
+            material: "PETG",
+            changed_settings: 2,
+            unsatisfied: 1,
+            status: "proposed",
+            check: "attention",
+          }
+        : null,
     created_at: "2026-10-23T12:00:00Z",
     updated_at: "2026-10-23T12:00:00Z",
   };
@@ -179,13 +201,56 @@ export async function designFixture(page: Page, state: DesignState) {
                 : "Сверяю размеры из ТЗ с измерениями STL, расхождения передам вам на подтверждение",
           },
         ];
-  if (waiting || state === "done")
+  if (waiting || state === "done" || state === "selected")
     events.push({
       ...base,
       event_id: 4,
       type: "stage1.completed",
       message: "Карточка подготовлена",
     });
+  if (state === "selected")
+    events.push(
+      {
+        ...base,
+        event_id: 5,
+        type: "parameters.completed",
+        message: "Режим 3D, профиль Fine, материал PETG, изменено 2 настройки",
+        data: { iteration: 1 },
+      },
+      {
+        ...base,
+        event_id: 6,
+        type: "validation.completed",
+        message: "Замечаний нет",
+        data: { iteration: 1 },
+      },
+    );
+  const parameters: ParameterSet = {
+    iteration: 1,
+    settings: {
+      wall_thickness: {
+        value: 1.6,
+        unit: "мм",
+        why: "Корпус под нагрузкой, четыре стенки",
+        source: "rule:WALL-LOAD",
+      },
+      infill_sparse_density: {
+        value: 30,
+        unit: "%",
+        why: "Прочность важнее времени печати",
+        source: "rule:PRIORITY-STRENGTH",
+      },
+    },
+    unsatisfied: [
+      {
+        requirement_id: "service_temp_max_c",
+        why: "PETG держит до 70 °C, а нужно 80 °C",
+      },
+    ],
+    assumptions: [
+      { id: "A1", text: "Модель стоит как в файле", basis: "Этап 2" },
+    ],
+  };
   const attachments: Attachment[] =
     state === "start" ||
     state === "done" ||
@@ -235,6 +300,8 @@ export async function designFixture(page: Page, state: DesignState) {
     conflict:
       "Размер детали в ТЗ и модели не совпадает, подтвердите, какое значение верно",
     done: "Вот как я понял задачу, если всё верно, я перейду к подбору параметров",
+    selected:
+      "Параметры подобраны, но выполнены не все требования. Режим 3D, профиль Fine, материал PETG, изменено 2 настройки",
     files: "Проверяю файлы перед анализом",
     defect:
       "В korpus.stl нашлись дублирующиеся грани, из-за них площадь и объём модели точно не посчитать, габариты и масштаб в порядке",
@@ -296,20 +363,26 @@ export async function designFixture(page: Page, state: DesignState) {
       ? { authenticated: true }
       : path.endsWith("/capabilities")
         ? { model_configured: true }
-        : path.endsWith("/jobs")
-          ? [
-              job,
-              ...(state === "start"
-                ? ["Корпус подшипника", "Кронштейн датчика", "Крышка редуктора"]
-                : ["Кронштейн датчика", "Крышка редуктора"]
-              ).map((title, i, all) => ({
-                ...job,
-                id: String(i),
-                title,
-                updated_at: `2026-10-${all.length === 3 ? [22, 21, 18][i] : [21, 18][i]}T12:00:00Z`,
-              })),
-            ]
-          : snapshot;
+        : path.endsWith("/parameters")
+          ? parameters
+          : path.endsWith("/jobs")
+            ? [
+                job,
+                ...(state === "start"
+                  ? [
+                      "Корпус подшипника",
+                      "Кронштейн датчика",
+                      "Крышка редуктора",
+                    ]
+                  : ["Кронштейн датчика", "Крышка редуктора"]
+                ).map((title, i, all) => ({
+                  ...job,
+                  id: String(i),
+                  title,
+                  updated_at: `2026-10-${all.length === 3 ? [22, 21, 18][i] : [21, 18][i]}T12:00:00Z`,
+                })),
+              ]
+            : snapshot;
     return route.fulfill({ json: data });
   });
   return snapshot;

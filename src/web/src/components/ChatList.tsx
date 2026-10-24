@@ -1,6 +1,6 @@
 import { chatDate } from "../chat";
 import type { Job } from "../types";
-import { statusLabel } from "../types";
+import { jobStatus } from "../types";
 import { ChatItem } from "./ChatItem";
 import styles from "../App.module.css";
 
@@ -59,7 +59,7 @@ export function ChatList({
             key={item.id}
             item={item}
             active={item.id === selected}
-            label={`${item.title} ${statusLabel[item.status]}`}
+            label={`${item.title} ${jobStatus(item)}`}
             date={chatDate(item.updated_at, item.id === selected)}
             onOpen={() => onOpen(item.id)}
             onRename={(title) => onRename(item.id, title)}

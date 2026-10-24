@@ -1,9 +1,12 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import {
   answer,
   answered,
   attach,
   open,
+  PIPELINE_DONE,
+  pipelineDone,
   send,
   settled,
   upload,
@@ -233,32 +236,59 @@ test("T14 keyboard send and panels", async ({ page }) => {
     page.getByRole("complementary", { name: "Карточка задания" }),
   ).toBeVisible();
 });
-test("T13 ready card is handed to parameter selection", async ({ page }) => {
+test("T13 a ready card goes through parameter selection and its check", async ({
+  page,
+}) => {
   await send(page, "Шестерня привода");
   await upload(page, "box.stl");
   await settled(page);
   await answer(page, "mm");
-  await expect(
-    page.getByRole("status").filter({ hasText: "Первый этап завершён" }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Карточка передана на подбор параметров").first(),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Задание передано, ждёт подбора параметров"),
-  ).toBeAttached();
+  await pipelineDone(page);
+  const timeline = page.getByRole("region", { name: "Ход работы" });
+  for (const title of ["Подбор параметров", "Валидация"])
+    await expect(
+      timeline.locator("details").filter({
+        has: page.getByText(title, { exact: true }),
+      }),
+    ).toHaveAttribute("data-state", /done|warn/);
+  await expect(timeline.getByText("Что подобрано")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Скачать карточку JSON" }),
   ).toBeVisible();
+});
+test("T16 the parameter set downloads as the server keeps it", async ({
+  page,
+}) => {
+  await send(page, "Кронштейн датчика");
+  await upload(page, "box.stl");
+  await settled(page);
+  await answer(page, "mm");
+  await pipelineDone(page);
+  const link = page.getByRole("link", { name: "Скачать параметры JSON" });
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    link.click(),
+  ]);
+  const saved = JSON.parse(
+    await readFile((await download.path()) as string, "utf-8"),
+  );
+  const job = new URL(page.url()).searchParams.get("job");
+  const served = await (
+    await page.request.get(`/api/v1/jobs/${job}/parameters`)
+  ).json();
+  expect(saved).toEqual(served);
+  expect([saved.contract, saved.version]).toEqual([
+    "stage2.parameter_set",
+    "0.2",
+  ]);
+  expect(saved.printer).toBe("hte530v5.2.4");
 });
 test("T17 an edit after a ready card is processed", async ({ page }) => {
   await send(page, "Шестерня привода");
   await upload(page, "box.stl");
   await settled(page);
   await answer(page, "mm");
-  const done = page
-    .getByRole("status")
-    .filter({ hasText: "Первый этап завершён" });
+  const done = page.getByRole("status").filter({ hasText: PIPELINE_DONE });
   await expect(done).toBeVisible();
   const job = new URL(page.url()).searchParams.get("job");
   const snapshot = async () =>
