@@ -354,3 +354,22 @@ async def test_the_real_selection_and_check_complete_a_ready_card(pg, http):
     temperature = next(c for c in served.materials["0"].checks if c.key == "service_temp_max_c")
     assert temperature.status in ("ok", "unknown")
     assert done.parameters.check in ("ok", "attention")
+
+
+async def test_an_infeasible_selection_ends_the_pipeline_without_a_check(pg, http):
+    job_id = await ready_job(http, pg)
+    steps = Steps()
+
+    def too_big(card, feedback):
+        why = "габариты не помещаются ни в один режим"
+        unmet = [{"requirement_id": "GEOMETRY", "why": why}]
+        return proposal(card, feedback, status="infeasible", unsatisfied=unmet)
+
+    await pipeline(pg, steps, select=too_big).run(job_id, 1)
+    done = await job(pg, job_id)
+    assert (done.status, done.parameters.check) == (Status.COMPLETED, "attention")
+    assert steps.checked == [] and await results(pg, job_id) == [(1, "parameters", 1)]
+    messages = await rows(
+        pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
+    )
+    assert messages[-1]["payload"]["text"].startswith("Подобрать параметры под все требования")

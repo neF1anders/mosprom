@@ -143,6 +143,13 @@ for (const option of ["mm", "cm", "m", "inch", "Не знаю"]) {
     await settled(page);
     if (option === "Не знаю")
       await expect(page.getByText("Раньше вы ответили Не знаю")).toBeVisible();
+    // In metres or inches the box is larger than every working area of the printer.
+    if (option === "m" || option === "inch")
+      await expect(
+        page
+          .getByRole("status")
+          .filter({ hasText: "Параметры требуют внимания" }),
+      ).toBeVisible();
   });
 }
 for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {

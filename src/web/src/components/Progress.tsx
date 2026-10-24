@@ -174,9 +174,7 @@ function StageRow({
   if (!passes.length)
     return (
       <TimelineRow title={title} state="wait">
-        {prefix === "parameters." && job?.stage === "parameters"
-          ? "Задание передано, ждёт подбора параметров"
-          : "Этап ещё не начат"}
+        {waitingText(prefix, job)}
       </TimelineRow>
     );
   const finished = job?.stage === "done" && prefix === "parameters.";
@@ -213,4 +211,12 @@ function StageRow({
 }
 function iterations(events: ProgressEvent[]) {
   return [...new Set(events.map((e) => Number(e.data.iteration)))];
+}
+function waitingText(prefix: string, job?: Job) {
+  if (prefix === "parameters." && job?.stage === "parameters")
+    return "Задание передано, ждёт подбора параметров";
+  // An infeasible selection is not checked: nothing in it can be printed as it is.
+  if (job?.stage === "done")
+    return "Не проводилась, параметры подобрать не удалось";
+  return "Этап ещё не начат";
 }

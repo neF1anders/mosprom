@@ -18,7 +18,7 @@ from ..domain.catalog import Catalog
 from ..domain.errors import AppError, OperationCancelled
 from ..domain.models import Event, Job, Message, ParametersSummary, Status, TaskCard
 from ..domain.parameters import CheckResult, Feedback, ParameterSet
-from ..domain.pipeline import FIRST_STEP, Step, next_step
+from ..domain.pipeline import FIRST_STEP, Step, Verdict, next_step
 from ..domain.transitions import transition
 from ..ports.persistence import UnitOfWork, UowFactory
 from .store import JobStore, ensure_current
@@ -71,7 +71,7 @@ class ParameterPipeline:
             await self.store.check(job_id, revision)
             if step.stage == "parameters":
                 parameter_set = await self._select(job, step, card, feedback)
-                step = next_step(step)
+                step = next_step(step, _verdict(parameter_set))
             else:
                 assert parameter_set is not None
                 feedback = await self._check(job, step, parameter_set)
@@ -90,7 +90,8 @@ class ParameterPipeline:
         else:
             parameter_set = ParameterSet.model_validate(stored)
         summary = summarize(parameter_set, self.catalog)
-        await self.store.selected(job, step, parameter_set, summary)
+        last = next_step(step, _verdict(parameter_set)) is None
+        await self.store.selected(job, step, parameter_set, summary, last)
         return parameter_set
 
     async def _check(self, job: Job, step: Step, parameter_set: ParameterSet) -> Feedback:
@@ -114,14 +115,21 @@ class ParameterStore(JobStore):
             return await uow.stage_results.get(job_id, revision, step)
 
     async def selected(
-        self, job: Job, step: Step, parameter_set: ParameterSet, summary: ParametersSummary
+        self,
+        job: Job,
+        step: Step,
+        parameter_set: ParameterSet,
+        summary: ParametersSummary,
+        last: bool,
     ) -> None:
         async with self.uow() as uow:
             current = await _locked(uow, job)
             await uow.stage_results.add(job.id, job.revision, step, parameter_set.published())
             current.stage, current.parameters = "validation", summary
-            await uow.jobs.save(current)
             await _event(uow, current, "parameters.completed", _selection_text(summary), step)
+            if last:
+                await _complete(uow, current, summary, parameter_set, check_ok=False)
+            await uow.jobs.save(current)
             await uow.commit()
 
     async def checked(
@@ -157,6 +165,10 @@ def summarize(parameter_set: ParameterSet, catalog: Catalog) -> ParametersSummar
         unsatisfied=len(parameter_set.unsatisfied),
         status=parameter_set.status,
     )
+
+
+def _verdict(parameter_set: ParameterSet) -> Verdict | None:
+    return "infeasible" if parameter_set.status == "infeasible" else None
 
 
 def _started(job: Job) -> None:
