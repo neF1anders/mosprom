@@ -28,7 +28,7 @@ class LocalFiles:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def path(self, key: str) -> Path:
-        if not re.fullmatch(r"[a-zA-Z0-9_-]+(?:\.(?:png|json))?", key):
+        if not re.fullmatch(r"[a-zA-Z0-9_-]+(?:\.(?:png|json|gcode|3mf))?", key):
             raise NotFound()
         return self.root / key
 

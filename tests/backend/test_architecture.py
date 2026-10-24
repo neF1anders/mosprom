@@ -58,6 +58,7 @@ def test_runtime_dependencies_cover_lazy_production_imports():
         ("infrastructure", ("api.routes", "services", "agents")),
         ("validation", STAGE_CORE),
         ("tuning", STAGE_CORE),
+        ("slicing", STAGE_CORE),
     ],
 )
 def test_A01_import_boundaries(folder, forbidden):

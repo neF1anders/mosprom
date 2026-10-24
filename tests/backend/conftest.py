@@ -28,6 +28,8 @@ async def pg(tmp_path):
             database_url=TEST_DATABASE,
             session_secret="test-secret-" * 4,
             data_dir=tmp_path,
+            # No slicer runs here unless a test starts the stand-in in this folder.
+            slicer_folder=tmp_path / "slicer",
             qwen_api_key="test",
             app_origin="http://localhost:8000",
         )

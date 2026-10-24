@@ -236,7 +236,7 @@ test("T14 keyboard send and panels", async ({ page }) => {
     page.getByRole("complementary", { name: "Карточка задания" }),
   ).toBeVisible();
 });
-test("T13 a ready card goes through parameter selection and its check", async ({
+test("T13 a ready card goes through every stage to a project", async ({
   page,
 }) => {
   await send(page, "Шестерня привода");
@@ -245,13 +245,24 @@ test("T13 a ready card goes through parameter selection and its check", async ({
   await answer(page, "mm");
   await pipelineDone(page);
   const timeline = page.getByRole("region", { name: "Ход работы" });
-  for (const title of ["Подбор параметров", "Валидация"])
+  const stages = [
+    "Подбор параметров",
+    "Валидация",
+    "Слайсинг",
+    "Подготовка результата",
+  ];
+  for (const title of stages)
     await expect(
       timeline.locator("details").filter({
         has: page.getByText(title, { exact: true }),
       }),
     ).toHaveAttribute("data-state", /done|warn/);
   await expect(timeline.getByText("Что подобрано")).toBeVisible();
+  // The test stack slices with the stand-in of the plugin.
+  await expect(timeline.getByText("Что получилось")).toBeVisible();
+  const job = new URL(page.url()).searchParams.get("job");
+  const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
+  expect(project.status()).toBe(200);
   await expect(
     page.getByRole("link", { name: "Скачать карточку JSON" }),
   ).toBeVisible();
@@ -268,7 +279,7 @@ test("T18 a model larger than the printer asks for attention", async ({
     page.getByRole("status").filter({ hasText: "Параметры требуют внимания" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Не проводилась, параметры подобрать не удалось"),
+    page.getByText("Не проводилась, параметры подобрать не удалось").first(),
   ).toBeAttached();
   await expect(
     page

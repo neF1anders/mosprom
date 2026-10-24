@@ -1,7 +1,8 @@
-"""Parameter selection and its check after a ready card, against PostgreSQL.
+"""Selection, its check, slicing and the G-code check after a ready card, against PostgreSQL.
 
-Selection and the check are stand-ins here: the pipeline's own job is the order of the
-steps, the revision guard, stop, retries and what the chat sees.
+The steps are stand-ins here: the pipeline's own job is the order of the steps, the
+revision guard, stop, retries and what the chat sees. The last tests run the real steps
+with the stand-in of the STE Slicer plugin.
 """
 
 import asyncio
@@ -12,11 +13,13 @@ from pathlib import Path
 import pytest
 from sqlalchemy import text
 
+from scripts.fake_ste_slicer import FakeSlicer
 from src.backend.agents.runner import RunContext
 from src.backend.agents.store import RunStore
 from src.backend.domain.errors import AppError
 from src.backend.domain.models import Requirement, Status, StlAnalysis, TaskCard
-from src.backend.domain.parameters import CheckResult, Feedback, Issue, ParameterSet
+from src.backend.domain.parameters import CheckResult, Exclusion, Feedback, Issue, ParameterSet
+from src.backend.domain.slicing import GcodeCheck, GcodeFinding, SliceReport
 from src.backend.infrastructure.catalog import load_catalog
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
 from src.mesh_analysis import analyze_stl
@@ -31,7 +34,7 @@ def rid() -> str:
 
 
 def proposal(card: TaskCard, feedback: Feedback | None, **changes) -> ParameterSet:
-    iteration = 1 if feedback is None else 2
+    iteration = 1 if feedback is None else feedback.iteration + 1
     return ParameterSet.model_validate(
         {
             "card_ref": {"job_id": card.job_id, "revision": card.revision},
@@ -81,13 +84,27 @@ def verdict(parameter_set: ParameterSet, ok: bool) -> CheckResult:
     return CheckResult(issues=[issue], feedback=feedback)
 
 
-class Steps:
-    """Records what the pipeline asked for; the check passes from pass ``passing_from`` on."""
+def gcode_verdict(iteration: int, ok: bool) -> GcodeCheck:
+    if ok:
+        return GcodeCheck(
+            result="ok", findings=[], feedback=Feedback(iteration=iteration, result="ok")
+        )
+    finding = GcodeFinding(id="G1", kind="content", level="error", message="модель за столом")
+    exclude = [Exclusion(type="orientation", candidate="o1", reason="модель за столом")]
+    feedback = Feedback(iteration=iteration, result="needs_changes", exclude=exclude)
+    return GcodeCheck(result="needs_changes", findings=[finding], feedback=feedback)
 
-    def __init__(self, passing_from: int = 1):
-        self.passing_from = passing_from
+
+class Steps:
+    """Records what the pipeline asked for; the check passes from pass ``passing_from`` on
+    and the G-code check from pass ``gcode_from`` on."""
+
+    def __init__(self, passing_from: int = 1, gcode_from: int = 1, slicer: str = "sliced"):
+        self.passing_from, self.gcode_from, self.slicer = passing_from, gcode_from, slicer
         self.selected: list[Feedback | None] = []
         self.checked: list[int] = []
+        self.sliced: list[tuple[str, int, dict]] = []
+        self.gcode: list[str] = []
 
     def select(self, card: TaskCard, feedback: Feedback | None) -> ParameterSet:
         self.selected.append(feedback)
@@ -97,10 +114,35 @@ class Steps:
         self.checked.append(parameter_set.iteration)
         return verdict(parameter_set, parameter_set.iteration >= self.passing_from)
 
+    async def slice(self, run: str, parameter_set: ParameterSet, models: dict) -> SliceReport:
+        self.sliced.append((run, parameter_set.iteration, models))
+        if self.slicer != "sliced":
+            message = "STE Slicer с плагином AI Assistant не запущен"
+            return SliceReport(status=self.slicer, message=message)
+        return SliceReport(
+            status="sliced",
+            message="G-code и проект сохранены",
+            gcode=f"{run}.gcode",
+            project=f"{run}.3mf",
+            folder=r"C:\STE_AIAssistant\mosprom",
+            print_time_seconds=3720,
+            material_meters=1.5,
+        )
 
-def pipeline(pg, steps, select=None, timeout: float = 5) -> ParameterPipeline:
+    def check_gcode(self, key: str, parameter_set: ParameterSet, iteration: int) -> GcodeCheck:
+        self.gcode.append(key)
+        return gcode_verdict(iteration, iteration >= self.gcode_from)
+
+
+def pipeline(pg, steps, select=None, timeout: float = 5, slicer=None, slicing: float = 5):
     return ParameterPipeline(
-        pg.uow, CATALOG, select or steps.select, steps.check, PipelineSettings(timeout)
+        pg.uow,
+        CATALOG,
+        select or steps.select,
+        steps.check,
+        slicer or steps,
+        steps.check_gcode,
+        PipelineSettings(timeout, slicing),
     )
 
 
@@ -128,14 +170,20 @@ async def rows(pg, sql: str, **params) -> list[dict]:
         return [dict(r._mapping) for r in await connection.execute(text(sql), params)]
 
 
+ORDER = ("parameters", "validation", "slicing", "gcode")
+
+
 async def results(pg, job_id: str) -> list[tuple[int, str, int]]:
+    """Stored steps in the order they run."""
     found = await rows(
-        pg,
-        "SELECT revision, stage, iteration FROM stage_results WHERE job_id = :j "
-        "ORDER BY revision, iteration, stage",
-        j=job_id,
+        pg, "SELECT revision, stage, iteration FROM stage_results WHERE job_id = :j", j=job_id
     )
-    return [(r["revision"], r["stage"], r["iteration"]) for r in found]
+    steps = [(r["revision"], r["stage"], r["iteration"]) for r in found]
+    return sorted(steps, key=lambda s: (s[0], s[2], ORDER.index(s[1])))
+
+
+def full_pass(iteration: int) -> list[tuple[int, str, int]]:
+    return [(1, stage, iteration) for stage in ORDER]
 
 
 async def events(pg, job_id: str) -> list[tuple[str, str]]:
@@ -143,7 +191,7 @@ async def events(pg, job_id: str) -> list[tuple[str, str]]:
     return [(r["payload"]["type"], r["payload"]["status"]) for r in found]
 
 
-async def test_a_ready_card_is_selected_checked_and_the_job_completes(pg, http):
+async def test_a_ready_card_goes_through_every_step_to_a_project(pg, http):
     job_id = await ready_job(http, pg)
     queued = await rows(
         pg, "SELECT task_name, status FROM procrastinate_jobs WHERE queue_name = 'stage2'"
@@ -163,18 +211,38 @@ async def test_a_ready_card_is_selected_checked_and_the_job_completes(pg, http):
         "status": "proposed",
         "check": "ok",
     }
-    assert await results(pg, job_id) == [(1, "parameters", 1), (1, "validation", 1)]
-    assert (await events(pg, job_id))[-5:] == [
+    assert done.result.model_dump() == {
+        "iteration": 1,
+        "sliced": True,
+        "message": "G-code и проект сохранены",
+        "gcode_check": "ok",
+        "folder": r"C:\STE_AIAssistant\mosprom",
+        "print_time_seconds": 3720,
+        "material_grams": None,
+        "material_meters": 1.5,
+    }
+    assert steps.sliced == [(f"{job_id}-r1-i1", 1, {"att": "att"})]
+    assert steps.gcode == [f"{job_id}-r1-i1.gcode"]
+    assert await results(pg, job_id) == full_pass(1)
+    assert (await events(pg, job_id))[-9:] == [
         ("parameters.started", "running"),
         ("parameters.completed", "completed"),
         ("validation.started", "running"),
         ("validation.completed", "completed"),
+        ("slicing.started", "running"),
+        ("slicing.completed", "completed"),
+        ("gcode.started", "running"),
+        ("gcode.completed", "completed"),
         ("pipeline.completed", "ok"),
     ]
     messages = await rows(
         pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
     )
-    assert messages[-1]["payload"]["text"].startswith("Параметры подобраны и прошли проверку")
+    assert messages[-1]["payload"]["text"] == (
+        "Проект готов, параметры и G-code прошли проверку. Режим 3D, профиль Fine, "
+        f"материал {CATALOG.materials['enduse_petg'].label}, изменено 1 настройка, "
+        "печать 1 ч 2 мин, 1,5 м материала"
+    )
 
 
 async def test_the_check_sends_the_selection_back_once(pg, http):
@@ -186,12 +254,7 @@ async def test_the_check_sends_the_selection_back_once(pg, http):
         steps.selected[0] is None
         and steps.selected[1].constraints[0].key == "infill_sparse_density"
     )
-    assert await results(pg, job_id) == [
-        (1, "parameters", 1),
-        (1, "validation", 1),
-        (1, "parameters", 2),
-        (1, "validation", 2),
-    ]
+    assert await results(pg, job_id) == [(1, "parameters", 1), (1, "validation", 1), *full_pass(2)]
     done = await job(pg, job_id)
     assert (done.status, done.parameters.iteration, done.parameters.check) == (
         Status.COMPLETED,
@@ -205,8 +268,11 @@ async def test_problems_left_after_the_last_pass_ask_for_attention(pg, http):
     steps = Steps(passing_from=3)
     await pipeline(pg, steps).run(job_id, 1)
     assert steps.checked == [1, 2]
+    # The last pass is sliced with what is left, so the user still gets a project.
+    assert [iteration for _, iteration, _ in steps.sliced] == [2]
     done = await job(pg, job_id)
     assert (done.status, done.parameters.check) == (Status.COMPLETED, "attention")
+    assert done.result.sliced and done.result.gcode_check == "ok"
     assert ("pipeline.completed", "attention") in await events(pg, job_id)
 
 
@@ -278,7 +344,9 @@ async def test_a_redelivered_task_reuses_the_steps_already_done(pg, http):
         # The worker dies during the check: the selection is stored, the job still running.
         raise asyncio.CancelledError
 
-    first = ParameterPipeline(pg.uow, CATALOG, steps.select, stuck_check, PipelineSettings(5))
+    first = ParameterPipeline(
+        pg.uow, CATALOG, steps.select, stuck_check, steps, steps.check_gcode, PipelineSettings(5)
+    )
     with pytest.raises(asyncio.CancelledError):
         await first.run(job_id, 1)
     assert (await job(pg, job_id)).status == Status.RUNNING
@@ -328,11 +396,12 @@ async def test_the_parameter_set_of_the_current_revision_is_served(pg, http, oth
     assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 409
 
 
-async def test_the_real_selection_and_check_complete_a_ready_card(pg, http):
+async def real_job(http, pg) -> str:
     stl = Path("tests/fixtures/box.stl")
+    pg.files.path("att").write_bytes(stl.read_bytes())
     report = analyze_stl(stl, units="mm")
     analysis = StlAnalysis(attachment_id="att", sha256=report["file"]["sha256"], report=report)
-    job_id = await ready_job(
+    return await ready_job(
         http,
         pg,
         purpose="Корпус датчика",
@@ -342,6 +411,19 @@ async def test_the_real_selection_and_check_complete_a_ready_card(pg, http):
         ],
         stl_analysis=analysis,
     )
+
+
+@pytest.fixture
+def plugin(pg):
+    fake = FakeSlicer(pg.settings.slicer_folder)
+    fake.start()
+    yield fake
+    fake.stop()
+
+
+async def test_the_real_steps_and_the_plugin_stand_in_make_a_project(pg, http, plugin):
+    job_id = await real_job(http, pg)
+    assert (await http.get(f"/api/v1/jobs/{job_id}/result/project")).status_code == 409
     await pg.pipeline.run(job_id, 1)
     done = await job(pg, job_id)
     assert (done.status, done.stage) == (Status.COMPLETED, "done")
@@ -354,6 +436,111 @@ async def test_the_real_selection_and_check_complete_a_ready_card(pg, http):
     temperature = next(c for c in served.materials["0"].checks if c.key == "service_temp_max_c")
     assert temperature.status in ("ok", "unknown")
     assert done.parameters.check in ("ok", "attention")
+    # The stand-in got the set as it was selected, and its G-code passed the real check.
+    assert ("set_material", {"material_id": served.materials["0"].id}) in [
+        (name, {k: v for k, v in args.items() if k != "reason"}) for name, args in plugin.calls
+    ]
+    assert done.result.sliced and done.result.gcode_check == "ok", done.result
+    run = pg.settings.slicer_folder / "mosprom" / f"{job_id}-r1-i1"
+    assert done.result.folder == str(run)
+    gcode = await http.get(f"/api/v1/jobs/{job_id}/result/gcode")
+    assert gcode.status_code == 200 and gcode.content == (run / "result.gcode").read_bytes()
+    assert "result.gcode" in gcode.headers["content-disposition"]
+    project = await http.get(f"/api/v1/jobs/{job_id}/result/project")
+    assert project.content == (run / "project.3mf").read_bytes()
+
+
+async def test_without_a_running_slicer_the_parameters_stay_and_the_chat_says_why(pg, http):
+    job_id = await real_job(http, pg)
+    await pg.pipeline.run(job_id, 1)
+    done = await job(pg, job_id)
+    assert (done.status, done.stage) == (Status.COMPLETED, "done")
+    assert done.result.sliced is False and done.result.gcode_check == "pending"
+    assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 200
+    assert (await http.get(f"/api/v1/jobs/{job_id}/result/gcode")).status_code == 409
+    assert await results(pg, job_id) == full_pass(1)[:3]
+    assert ("slicing.completed", "warning") in await events(pg, job_id)
+    assert ("pipeline.completed", "attention") in await events(pg, job_id)
+    messages = await rows(
+        pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
+    )
+    assert messages[-1]["payload"]["text"].startswith(
+        "Параметры подобраны, но проект не создан. STE Slicer с плагином AI Assistant не запущен."
+    )
+
+
+async def test_the_gcode_check_sends_the_selection_back_once(pg, http):
+    job_id = await ready_job(http, pg)
+    steps = Steps(gcode_from=2)
+    await pipeline(pg, steps).run(job_id, 1)
+    assert steps.selected[0] is None
+    assert [e.candidate for e in steps.selected[1].exclude] == ["o1"]
+    assert await results(pg, job_id) == full_pass(1) + full_pass(2)
+    done = await job(pg, job_id)
+    assert (done.result.iteration, done.result.gcode_check) == (2, "ok")
+
+
+async def test_both_checks_share_the_one_return_to_selection(pg, http):
+    job_id = await ready_job(http, pg)
+    steps = Steps(passing_from=2, gcode_from=3)
+    await pipeline(pg, steps).run(job_id, 1)
+    assert len(steps.selected) == 2 and [i for _, i, _ in steps.sliced] == [2]
+    done = await job(pg, job_id)
+    assert (done.status, done.result.gcode_check) == (Status.COMPLETED, "attention")
+    messages = await rows(
+        pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
+    )
+    assert messages[-1]["payload"]["text"].startswith(
+        "Проект создан, но проверка G-code оставила замечания"
+    )
+
+
+async def test_a_stop_during_slicing_ends_it_without_waiting_for_the_slicer(pg, http):
+    job_id = await ready_job(http, pg)
+    steps = Steps()
+
+    class Slow:
+        async def slice(self, run, parameter_set, models):
+            await http.post(f"/api/v1/jobs/{job_id}/control/stop", json={"request_id": rid()})
+            await asyncio.sleep(30)
+
+    started = time.monotonic()
+    await pipeline(pg, steps, slicer=Slow()).run(job_id, 1)
+    assert time.monotonic() - started < 5
+    assert (await job(pg, job_id)).status == Status.STOPPED
+    assert steps.gcode == [] and (1, "slicing", 1) not in await results(pg, job_id)
+
+
+async def test_a_slicer_that_does_not_answer_in_time_leaves_the_parameters(pg, http):
+    job_id = await ready_job(http, pg)
+    steps = Steps()
+
+    class Silent:
+        async def slice(self, run, parameter_set, models):
+            await asyncio.sleep(30)
+
+    await pipeline(pg, steps, slicer=Silent(), slicing=0.2).run(job_id, 1)
+    done = await job(pg, job_id)
+    assert (done.status, done.result.sliced) == (Status.COMPLETED, False)
+    assert done.result.message == "Слайсер не ответил вовремя"
+
+
+async def test_a_redelivered_task_does_not_slice_again(pg, http):
+    job_id = await ready_job(http, pg)
+    steps = Steps()
+
+    def lost(key, parameter_set, iteration):
+        # The worker dies during the G-code check, after the slicing was stored.
+        raise asyncio.CancelledError
+
+    first = ParameterPipeline(
+        pg.uow, CATALOG, steps.select, steps.check, steps, lost, PipelineSettings(5)
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await first.run(job_id, 1)
+    await pipeline(pg, steps).run(job_id, 1)
+    assert len(steps.sliced) == 1 and steps.gcode == [f"{job_id}-r1-i1.gcode"]
+    assert (await job(pg, job_id)).status == Status.COMPLETED
 
 
 async def test_an_infeasible_selection_ends_the_pipeline_without_a_check(pg, http):

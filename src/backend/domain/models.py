@@ -177,7 +177,7 @@ class Answer(Value):
     answered_at: datetime = Field(default_factory=now)
 
 
-Stage = Literal["understanding", "parameters", "validation", "done"]
+Stage = Literal["understanding", "parameters", "validation", "slicing", "gcode", "done"]
 
 
 class ParametersSummary(Value):
@@ -193,6 +193,19 @@ class ParametersSummary(Value):
     # "attention" when the last check still found problems or a requirement is not met.
     check: Literal["pending", "ok", "attention"] = "pending"
 
+
+class ResultSummary(Value):
+    """What the chat shows of the slicing and its G-code check without loading them."""
+
+    iteration: int
+    sliced: bool
+    message: str
+    gcode_check: Literal["pending", "ok", "attention"] = "pending"
+    # Where the slicer saved the G-code and the project, in its own file system.
+    folder: str | None = None
+    print_time_seconds: int | None = None
+    material_grams: float | None = None
+    material_meters: float | None = None
 
 class Job(Value):
     id: str = Field(default_factory=identifier)
@@ -212,6 +225,7 @@ class Job(Value):
     # Between stages the job is queued; it is completed only after the last stage.
     stage: Stage = "understanding"
     parameters: ParametersSummary | None = None
+    result: ResultSummary | None = None
     # Stage-one step of the running revision; answers given before "consolidate" join it.
     phase: Literal["triage", "deep", "consolidate", "verify"] | None = None
     error: str | None = None

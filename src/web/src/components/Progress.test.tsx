@@ -212,4 +212,107 @@ describe("stages after the interpretation follow their own events", () => {
     expect(row()).toHaveAttribute("open");
     expect(screen.getByText("Что подобрано")).toBeVisible();
   });
+  it("slicing and the G-code check follow their passes", () => {
+    const job = { status: "running", stage: "gcode" } as Job;
+    render(
+      <Progress
+        events={[
+          event("stage1.completed"),
+          step("parameters.completed", 1, "completed"),
+          step("validation.completed", 1, "completed"),
+          step("slicing.started", 1, "running"),
+          step(
+            "slicing.completed",
+            1,
+            "completed",
+            "G-code и проект сохранены",
+          ),
+          step("gcode.started", 1, "running"),
+        ]}
+        job={job}
+      />,
+    );
+    expect(state("Нарезка 1")).toBe("done");
+    expect(state("Слайсинг")).toBe("done");
+    expect(state("Проверка G-code 1")).toBe("run");
+    expect(state("Подготовка результата")).toBe("run");
+  });
+  it("a finished pipeline offers the project and its G-code", () => {
+    const job = {
+      id: "j",
+      revision: 1,
+      status: "completed",
+      stage: "done",
+      parameters: null,
+      result: {
+        iteration: 1,
+        sliced: true,
+        message: "G-code и проект сохранены",
+        gcode_check: "ok",
+        folder: "C:\\STE_AIAssistant\\mosprom\\j-r1-i1",
+        print_time_seconds: 19953,
+        material_grams: 36.6,
+        material_meters: 12.25,
+      },
+    } as Job;
+    render(
+      <Progress
+        events={[
+          event("stage1.completed"),
+          step("slicing.completed", 1, "completed"),
+          step("gcode.completed", 1, "completed", "Замечаний нет"),
+        ]}
+        job={job}
+      />,
+    );
+    expect(state("Подготовка результата")).toBe("done");
+    expect(screen.getByText("Что получилось")).toBeVisible();
+    expect(screen.getByText("5 ч 33 мин")).toBeInTheDocument();
+    expect(screen.getByText("12,3 м, 36,6 г")).toBeInTheDocument();
+    expect(screen.getByText("Скачать проект 3MF")).toHaveAttribute(
+      "href",
+      "/api/v1/jobs/j/result/project",
+    );
+  });
+  it("without a project the G-code is not checked and the slicing row says why", () => {
+    const job = {
+      id: "j",
+      revision: 1,
+      status: "completed",
+      stage: "done",
+      parameters: null,
+      result: {
+        iteration: 1,
+        sliced: false,
+        message: "STE Slicer с плагином AI Assistant не запущен",
+        gcode_check: "pending",
+        folder: null,
+        print_time_seconds: null,
+        material_grams: null,
+        material_meters: null,
+      },
+    } as Job;
+    render(
+      <Progress
+        events={[
+          event("stage1.completed"),
+          step("slicing.started", 1, "running"),
+          step(
+            "slicing.completed",
+            1,
+            "warning",
+            "STE Slicer с плагином AI Assistant не запущен",
+          ),
+        ]}
+        job={job}
+      />,
+    );
+    expect(state("Слайсинг")).toBe("warn");
+    expect(
+      screen.getByText("STE Slicer с плагином AI Assistant не запущен"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Не проводилась, проект не создан"),
+    ).toBeInTheDocument();
+  });
 });

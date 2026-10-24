@@ -2,6 +2,8 @@
 
 Версия 0.2. ИИ-анализ карточки в этапе 3 не делаем: жёсткие проверки этапа 3 уже перенесены в `src/backend/validation`.
 
+С 24.10.2026 этапы 4 и 5 встроены в конвейер: `src/backend/slicing` (план вызовов и проверка G-code) и `src/backend/infrastructure/slicer.py` (вызовы плагина), см. [PIPELINE.md](PIPELINE.md). Скрипты `tools/slicing` остаются для ручных прогонов на Windows.
+
 ## Схема
 
 ```
