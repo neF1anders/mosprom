@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "Constraint": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[\\w\\-.]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "eq",
+            "ne",
+            "min",
+            "max",
+            "in"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "severity": {
+          "default": "error",
+          "enum": [
+            "error",
+            "warning"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value"
+        }
+      },
+      "required": [
+        "id",
+        "key",
+        "op",
+        "value"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
+    "Exclusion": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Exclusion",
+      "type": "object"
+    },
+    "FeedbackWarning": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "reason"
+      ],
+      "title": "FeedbackWarning",
+      "type": "object"
+    }
+  },
+  "$id": "https://mosprom.local/schemas/stage3-feedback-0.1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "constraints": {
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      },
+      "title": "Constraints",
+      "type": "array"
+    },
+    "contract": {
+      "const": "stage3.feedback",
+      "default": "stage3.feedback",
+      "title": "Contract",
+      "type": "string"
+    },
+    "exclude": {
+      "items": {
+        "$ref": "#/$defs/Exclusion"
+      },
+      "title": "Exclude",
+      "type": "array"
+    },
+    "iteration": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Iteration",
+      "type": "integer"
+    },
+    "result": {
+      "enum": [
+        "ok",
+        "needs_changes"
+      ],
+      "title": "Result",
+      "type": "string"
+    },
+    "version": {
+      "const": "0.1",
+      "default": "0.1",
+      "title": "Version",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "$ref": "#/$defs/FeedbackWarning"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "iteration",
+    "result"
+  ],
+  "title": "Feedback",
+  "type": "object"
+}
