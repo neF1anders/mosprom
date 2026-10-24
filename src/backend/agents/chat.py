@@ -66,5 +66,6 @@ def chat_text(text: str) -> str:
     text = _CJK.sub("", text)
     text = re.sub(r"\s+[—–]\s+", ", ", text)
     text = re.sub(r"\s*:[ \t]*$", "", text, flags=re.M)
-    text = re.sub(r"(?<=[^\d\s]):(?=\s)", ",", text)
+    # A colon before a space is punctuation; one inside a time like 10:30 stays.
+    text = re.sub(r"(?<=\S):(?=\s)", ",", text)
     return text.strip().removesuffix(".")
