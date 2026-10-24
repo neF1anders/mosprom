@@ -23,7 +23,6 @@ class Messages(Protocol):
     async def list(
         self, job_id: str, before: int | None = None, limit: int = 100
     ) -> builtins.list[dict[str, Any]]: ...
-    async def mark(self, job_id: str, message_id: str, kind: str) -> None: ...
 
 
 class Attachments(Protocol):

@@ -62,9 +62,8 @@ class RunContext:
 
 @cache
 def prompt(name: str) -> str:
-    """Shared rules first, then the role; the digest of this text versions the card."""
-    common = (PROMPTS / "common.md").read_text(encoding="utf-8")
-    return common + "\n" + (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
+    """Each prompt holds its agent's whole instruction; its digest versions the card."""
+    return (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
 
 
 class AgentRunner:
@@ -72,13 +71,17 @@ class AgentRunner:
         self.model, self.tools, self.uow, self.version = model, tools, uow, version
 
     async def run(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> Any:
-        """An agent's result is reused while its prompt, model and own input stay the same.
+        return await self.converse(spec, [{"role": "user", "content": content}], ctx)
 
-        Each agent sees only the data it depends on, so an answer or a new STL unit reruns
-        just the agents that read it. A reply that lost items to validation is not reused:
-        another call may well return them.
+    async def converse(self, spec: AgentSpec, turns: list[dict[str, Any]], ctx: RunContext) -> Any:
+        """An agent's result is reused while its prompt, model and whole dialog stay the same.
+
+        Each agent sees only the data it depends on, so an answer or a new STL reruns just
+        the agents that read it. A later turn repeats the earlier ones, so the answer to it
+        is reused only for the same history. A reply that lost items to validation is not
+        reused: another call may well return them.
         """
-        key = self._key(spec, content, ctx)
+        key = self._key(spec, turns, ctx)
         async with self.uow() as uow:
             cached = await uow.cache.get(key)
             if cached is not None:
@@ -86,14 +89,38 @@ class AgentRunner:
                 await uow.commit()
         if cached is not None:
             return spec.output.model_validate(cached)
-        output, dropped = await self._run(spec, content, ctx)
+        output, dropped = await self._loop(spec, [self._system(spec), *turns], ctx)
         if not dropped:
             async with self.uow() as uow:
                 await uow.cache.put(key, output.model_dump(mode="json"))
                 await uow.commit()
         return output
 
-    def _key(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> str:
+    async def talk(
+        self,
+        spec: AgentSpec,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        ctx: RunContext,
+    ) -> ModelReply:
+        """One plain reply in a chat, where calling a tool is the decision itself.
+
+        The tools are not executed: the caller reads which one was called. Nothing is cached,
+        a chat reply depends on the whole conversation.
+        """
+        await ctx.check()
+        trace = Trace(spec, ctx, 1, messages)
+        try:
+            reply = await self.model.complete(
+                messages, tools, agent=spec.name, thinking=spec.thinking, budget=spec.budget
+            )
+        except AppError as exc:
+            await self._record(trace.done(None, [], exc.message))
+            raise
+        await self._record(trace.done(reply, [], None))
+        return reply
+
+    def _key(self, spec: AgentSpec, turns: list[dict[str, Any]], ctx: RunContext) -> str:
         data = json.dumps(
             [
                 "agent",
@@ -104,7 +131,7 @@ class AgentRunner:
                 spec.thinking,
                 spec.budget,
                 self.version,
-                redact(content, ctx.images),
+                redact(turns, ctx.images),
             ],
             ensure_ascii=False,
             sort_keys=True,
@@ -112,14 +139,14 @@ class AgentRunner:
         )
         return "agent:" + hashlib.sha256(data.encode()).hexdigest()
 
-    async def _run(
-        self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext
-    ) -> tuple[Any, list[str]]:
+    @staticmethod
+    def _system(spec: AgentSpec) -> dict[str, Any]:
         schema = json.dumps(spec.output.model_json_schema(), ensure_ascii=False)
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": prompt(spec.name) + "\n\nСхема ответа JSON\n" + schema},
-            {"role": "user", "content": content},
-        ]
+        return {"role": "system", "content": prompt(spec.name) + "\n\nСхема ответа JSON\n" + schema}
+
+    async def _loop(
+        self, spec: AgentSpec, messages: list[dict[str, Any]], ctx: RunContext
+    ) -> tuple[Any, list[str]]:
         seen: dict[str, dict[str, Any]] = {}
         recorded = 0
         for step in range(1, spec.max_steps + 1):

@@ -7,6 +7,7 @@ not taken into account.
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import Field
@@ -27,6 +28,12 @@ class RequirementKey(Value):
     hint: str = ""
 
 
+# One number or a range of two, with any words around them: «85–90», «+10..+70», «до 60».
+NUMBER = re.compile(r"^[^0-9]*-?\d+([.,]\d+)?([^0-9]+-?\d+([.,]\d+)?)?[^0-9]*$")
+YES = {"да", "yes", "true", "1"}
+NO = {"нет", "no", "false", "0"}
+
+
 class RequirementKeys(Value):
     # Recorded in the card so that parameter selection knows which dictionary it was built with.
     version: str
@@ -45,3 +52,51 @@ class RequirementKeys(Value):
         if entry is None or entry.unit is None or dimension(unit) == dimension(entry.unit):
             return None
         return entry.unit
+
+    def normalise(self, key: str, value: str, unit: str | None) -> tuple[str, str | None] | None:
+        """The value in the form parameter selection reads, or None when it cannot be read.
+
+        A number keeps its range and gets the code's unit when none is given, a flag becomes
+        да or нет, a choice or a list keeps only the code's options.
+        """
+        entry = self.get(key)
+        text = value.strip()
+        if entry is None or not text:
+            return None
+        if entry.kind == "number":
+            return _number(entry, text, unit)
+        if entry.kind == "flag":
+            return _flag(text)
+        if entry.kind == "choice":
+            return _choice(entry, text)
+        if entry.kind == "list" and entry.options:
+            return _options(entry, text)
+        return text, unit
+
+
+def _number(entry: RequirementKey, text: str, unit: str | None) -> tuple[str, str | None] | None:
+    if not NUMBER.match(text):
+        return None
+    if entry.unit is None:
+        return text, unit
+    if not unit:
+        return text, entry.unit
+    return (text, unit) if dimension(unit) == dimension(entry.unit) else None
+
+
+def _flag(text: str) -> tuple[str, None] | None:
+    word = text.casefold()
+    if word in YES:
+        return "да", None
+    return ("нет", None) if word in NO else None
+
+
+def _choice(entry: RequirementKey, text: str) -> tuple[str, None] | None:
+    word = text.casefold()
+    return (word, None) if word in entry.options else None
+
+
+def _options(entry: RequirementKey, text: str) -> tuple[str, None] | None:
+    items = [item.strip().casefold() for item in re.split(r"[,;]", text)]
+    kept = list(dict.fromkeys(item for item in items if item in entry.options))
+    return (", ".join(kept), None) if kept else None

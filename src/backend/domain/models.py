@@ -207,6 +207,7 @@ class ResultSummary(Value):
     material_grams: float | None = None
     material_meters: float | None = None
 
+
 class Job(Value):
     id: str = Field(default_factory=identifier)
     user_id: str
@@ -226,7 +227,7 @@ class Job(Value):
     stage: Stage = "understanding"
     parameters: ParametersSummary | None = None
     result: ResultSummary | None = None
-    # Stage-one step of the running revision; answers given before "consolidate" join it.
+    # Stage-one step of earlier versions; no longer written, kept so old rows still load.
     phase: Literal["triage", "deep", "consolidate", "verify"] | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=now)
@@ -244,9 +245,10 @@ class Message(Value):
     job_id: str
     revision: int
     role: Literal["user", "assistant"]
-    # Answers are echoed into the chat but reach the agents through Job.answers, not as text;
-    # a message outside the print job is answered once and never read by the agents again.
-    kind: Literal["chat", "answers", "offtopic"] = "chat"
+    # Answers are echoed into the chat but reach the agents through Job.answers, not as text.
+    # "gate" is the assistant's one request for details before the work starts; "offtopic"
+    # remains on messages of earlier versions, which the agents never read.
+    kind: Literal["chat", "answers", "gate", "offtopic"] = "chat"
     text: str
     created_at: datetime = Field(default_factory=now)
 

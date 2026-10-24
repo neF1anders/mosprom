@@ -1,113 +1,92 @@
-"""Requirement codes: which agents read them and how the server checks coded values."""
+"""Requirement codes: how the interpreter's codes become requirements of the stage two contract."""
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
+from src.backend.agents.card import WorkingCard, clean_key, fill, to_question
 from src.backend.agents.context import ContentBuilder, codes_block, collect
-from src.backend.agents.runner import AgentRunner
-from src.backend.agents.schemas import Draft
-from src.backend.agents.sources import StlFacts
-from src.backend.agents.stage1 import Early, Stage1, Stage1Settings
-from src.backend.agents.tools import ToolBox
-from src.backend.agents.verification import Verifier
-from src.backend.domain.evidence import reference
-from src.backend.domain.models import Attachment, Geometry, Job, Requirement, Source, StlAnalysis
+from src.backend.agents.runner import parse_output
+from src.backend.agents.schemas import Review, ReviewQuestion, draft_with_codes
+from src.backend.domain.geometry import bind_analysis, summarize
+from src.backend.domain.models import Attachment, Source, TaskCard
+from src.backend.domain.rules import assess
 from src.backend.infrastructure.catalog import load_requirement_keys
+from src.mesh_analysis import analyze_stl
 
-from .fakes import FakeUow, ScriptedModel, context, reply
+from .fakes import context
 
 pytestmark = pytest.mark.unit
 CODES = load_requirement_keys(Path("knowledge/requirement_keys.json"))
-WRITERS = {
-    "interpreter",
-    "analyst_loads",
-    "analyst_environment",
-    "analyst_production",
-    "analyst_geometry",
-    "consolidator",
-}
-MESSAGE = "Шестерня, номинальный момент 25 Нм, рабочая температура до 80 °C"
-TORQUE = {
-    "key": "torque_nominal",
-    "label": "Номинальный момент",
-    "value": "25",
-    "unit": "Нм",
-    "sources": [{"source_id": "m1", "quote": "номинальный момент 25 Нм"}],
-}
-EMPTY_READING = {"requirements": [], "questions": [], "unknowns": []}
+DRAFT = draft_with_codes(CODES)
+MESSAGE = "Шестерня, рабочая температура до 80 °C, без поддержек"
+DOCUMENT = "Номинальный момент 25 Нм. Нагрузка с ударами при пуске"
 
 
-class Store:
-    """Applies a change to one job in memory, as the database store does under the lock."""
-
-    def __init__(self, job: Job):
-        self.current = job
-
-    async def update(self, job_id, revision, change):
-        change(self.current)
-        return self.current
-
-
-def stage(model: ScriptedModel) -> Stage1:
-    runner = AgentRunner(model, ToolBox(None), FakeUow())
-    return Stage1(FakeUow(), None, runner, Stage1Settings(model="m"), CODES)
-
-
-def facts() -> StlFacts:
-    attachment = Attachment(job_id="j", filename="a.stl", kind="stl", sha256="0" * 64, size=1)
-    return StlFacts(
-        attachment=attachment,
-        report={},
-        analysis=StlAnalysis(attachment_id=attachment.id, sha256="0" * 64, report={}),
-        geometry=Geometry(readable=True, units="mm", extents=[10, 20, 30]),
-    )
-
-
-async def test_only_the_agents_that_write_requirements_get_the_codes():
-    model = ScriptedModel(
+def ctx():
+    current = context()
+    current.sources.update(
         {
-            "triage": [reply({"fields": []})],
-            "interpreter": [reply({"purpose": "Шестерня", "requirements": [TORQUE]})],
-            "analyst_loads": [reply(EMPTY_READING)],
-            "analyst_environment": [reply(EMPTY_READING)],
-            "analyst_production": [reply(EMPTY_READING)],
-            "analyst_geometry": [reply(EMPTY_READING)],
-            "consolidator": [reply({})],
-            "discrepancies": [reply({"discrepancies": []})],
-            "judge": [reply({"score": 0.9, "remarks": []})],
+            "m1": Source(id="m1", ref="msg-1", kind="message", text=MESSAGE),
+            "f1p1": Source(id="f1p1", ref="att-1:1", kind="document", text=DOCUMENT),
+            "kb:pa12": Source(id="kb:pa12", ref="kb:pa12", kind="knowledge", text="PA12"),
         }
     )
-    run, job = stage(model), Job(user_id="u", revision=1)
-    run.store = Store(job)  # type: ignore[assignment]
-    message = {"id": "u1", "role": "user", "kind": "chat", "text": MESSAGE}
-    inputs = collect([{**message, "created_at": "2026-10-23T10:00:00+00:00"}], [], {}, None)
-    ctx = context()
-    ctx.sources.update(inputs.sources())
-    content = ContentBuilder(None, inputs, ctx, [], run.codes)
+    return current
 
-    async def stl():
-        return facts()
 
-    asked = await run._triage(job, content, Early(run._card(job, [], None), []), ctx)
-    draft, readings, found = await run._read(job, [], stl(), content, ctx)
-    card = await run._interpret(
-        job, draft, readings, asked, run._card(job, [], found), content, ctx
+def draft(**codes):
+    text = json.dumps(
+        {
+            "purpose": "Шестерня привода",
+            "requirements": [
+                {
+                    "key": "Torque Nominal",
+                    "label": "Номинальный момент",
+                    "value": "25",
+                    "unit": "Нм",
+                    "sources": [{"source_id": "f1p1", "quote": "Номинальный момент 25 Нм"}],
+                },
+                {
+                    "key": "no_supports",
+                    "label": "Без поддержек",
+                    "value": "да",
+                    "sources": [{"source_id": "m1", "quote": "без поддержек"}],
+                },
+            ],
+            "codes": codes,
+        },
+        ensure_ascii=False,
     )
+    output, dropped = parse_output(text, DRAFT)
+    assert dropped == []
+    return output
 
-    def coded(request) -> bool:
-        return "<requirement_keys>" in request["messages"][1]["content"][0]["text"]
 
-    assert {agent for agent, sent in model.requests.items() if any(map(coded, sent))} == WRITERS
-    assert {"triage", "discrepancies", "judge"} < set(model.requests)
-    assert [(r.key, r.verified) for r in card.requirements] == [("torque_nominal", True)]
+TEMPERATURE = {
+    "value": "до 80",
+    "unit": "°C",
+    "label": "Рабочая температура",
+    "source_id": "m1",
+    "quote": "рабочая температура до 80 °C",
+}
+LOAD = {
+    "value": "impact",
+    "inferred": True,
+    "basis": "удары при пуске",
+    "source_id": "f1p1",
+    "quote": "Нагрузка с ударами при пуске",
+}
 
 
 async def test_the_codes_block_is_opt_in_and_cannot_be_closed_by_a_document():
     block = codes_block(CODES)
     assert '{"key": "service_temp_max_c", "kind": "number", "title"' in block
     assert '"unit": "°C"' in block and '"options": ["none", "static"' in block
+    assert '"hint": "только если ТЗ прямо говорит о стекловании' in block
     assert "strict" not in block and block.count("\n") == len(CODES.keys) + 1
     inputs = collect(
         [
@@ -134,61 +113,153 @@ def test_a_coded_number_fits_only_a_unit_of_the_same_quantity():
     assert CODES.unit_mismatch("service_temp_max_c", "°С") is None
     assert CODES.unit_mismatch("density_max_g_cm3", "кг/м³") is None
     assert CODES.unit_mismatch("service_temp_max_c", "мм") == "°C"
-    assert CODES.unit_mismatch("dimensional_tol_mm", None) == "mm"
     assert CODES.unit_mismatch("quantity", "шт") is None
-    assert CODES.unit_mismatch("temperature_operating", "мм") is None
-
-
-def coded_draft(unit: str, mandatory: bool = True) -> Draft:
-    return Draft.model_validate(
-        {
-            "requirements": [
-                {
-                    "key": "service_temp_max_c",
-                    "label": "Рабочая температура",
-                    "value": "80",
-                    "unit": unit,
-                    "mandatory": mandatory,
-                    "sources": [{"source_id": "m1", "quote": "рабочая температура до 80 °C"}],
-                }
-            ]
-        }
-    )
-
-
-async def verify(draft: Draft, answers: dict[str, str]):
-    ctx = context()
-    ctx.sources["m1"] = Source(id="m1", ref="u1", kind="message", text=MESSAGE)
-    verifier = Verifier(AgentRunner(ScriptedModel({}), ToolBox(None), FakeUow()), CODES)
-    return await verifier.check(
-        draft, answers, ContentBuilder(None, collect([], [], {}, None), ctx), ctx
-    )
-
-
-async def test_a_coded_number_in_a_unit_of_another_quantity_is_asked_not_verified():
-    requirements, questions = await verify(coded_draft("°C"), {})
-    assert requirements[0].verified and questions == []
-    requirements, questions = await verify(coded_draft("мм"), {})
-    assert [(r.key, r.value, r.unit, r.verified) for r in requirements] == [
-        ("service_temp_max_c", "80", "мм", False)
-    ]
-    assert [(q.kind, q.blocking, q.options) for q in questions] == [("verify", True, [])]
-    assert "°C" in questions[0].impact and questions[0].requirement_key == "service_temp_max_c"
-    requirements, questions = await verify(coded_draft("мм", mandatory=False), {})
-    assert not requirements[0].verified and questions == []
 
 
 @pytest.mark.parametrize(
-    "answer,unit,verified", [("80", "°C", True), ("75 °C", "°C", True), ("80 мм", "мм", False)]
+    "key,value,unit,expected",
+    [
+        ("service_temp_max_c", "от -20 до +60", "°С", ("от -20 до +60", "°С")),
+        ("dimensional_tol_mm", "±0,1", None, ("±0,1", "mm")),
+        ("service_temp_max_c", "80", "мм", None),
+        ("service_temp_max_c", "высокая", "°C", None),
+        ("water_absorption_max_pct", "0,05", "%", ("0,05", "%")),
+        ("quantity", "50", "шт", ("50", "шт")),
+        ("hydrophobic", "Да", None, ("да", None)),
+        ("no_supports", "false", None, ("нет", None)),
+        ("uv_stable", "Высокий", None, None),
+        ("load_bearing", "Cyclic", None, ("cyclic", None)),
+        ("load_bearing", "циклическая", None, None),
+        ("priority", "strength, скорость, accuracy", None, ("strength, accuracy", None)),
+        ("priority", "надёжность", None, None),
+        ("chemical_resistance", "oil, спирт", None, ("oil, спирт", None)),
+        ("material", "PA12", None, ("PA12", None)),
+        ("unknown_code", "1", None, None),
+    ],
 )
-async def test_an_answer_gives_the_coded_value_a_unit_selection_can_read(answer, unit, verified):
-    stated = coded_draft("мм")
-    question = "verify." + reference(
-        Requirement(**stated.requirements[0].model_dump(exclude={"sources"}))
+def test_a_code_value_is_kept_only_in_a_form_selection_reads(key, value, unit, expected):
+    assert CODES.normalise(key, value, unit) == expected
+
+
+def test_a_badly_filled_code_is_dropped_alone():
+    output = draft(
+        service_temp_max_c=TEMPERATURE,
+        load_bearing="cyclic",
+        hydrophobic={"value": True, "source_id": "m1"},
+        no_visible_layers={"value": {"bad": 1}},
+        quantity={"value": None},
+        temperature_operating={"value": "80"},
     )
-    requirements, _ = await verify(stated, {question: answer})
-    assert (requirements[0].unit, requirements[0].verified) == (unit, verified)
-    assert requirements[0].provenance == "user"
+    filled = output.codes.filled()
+    assert set(filled) == {"service_temp_max_c", "load_bearing", "hydrophobic"}
+    assert filled["hydrophobic"].value == "да" and filled["load_bearing"].value == "cyclic"
+
+
+def test_a_code_replaces_a_free_key_and_appears_once():
+    working = WorkingCard.from_draft(
+        draft(no_supports={"value": "нет", "source_id": "m1"}, load_bearing="циклическая"), CODES
+    )
+    # The free requirement under a code key gives way to the code block.
+    assert working.codes["no_supports"].value == "нет"
+    assert [r.key for r in working.requirements.values()] == ["torque_nominal"]
+    assert "load_bearing" not in working.codes
+    assert any("не распознано" in unknown for unknown in working.unknowns)
+    moved = WorkingCard.from_draft(draft(), CODES)
+    assert moved.codes["no_supports"].value == "да"
+    assert moved.codes["no_supports"].source_id == "m1"
+
+
+def test_the_checker_edits_requirements_by_id_and_codes_by_name():
+    working = WorkingCard.from_draft(draft(tg_min_c={"value": "0", "inferred": True}), CODES)
+    review = Review.model_validate(
+        {
+            "change": [
+                {
+                    "id": "r1",
+                    "key": "torque_nominal",
+                    "value": "30",
+                    "unit": "Нм",
+                    "sources": [{"source_id": "f1p1", "quote": "момент"}],
+                }
+            ],
+            "add": [{"key": "no_metal_fillers", "value": "да"}],
+            "code_fixes": [
+                {"code": "tg_min_c", "value": None, "reason": "стеклование не названо"},
+                {"code": "load_bearing", "value": "impact", "basis": "удары"},
+                {"code": "not_a_code", "value": "1"},
+            ],
+            "assumptions": [{"text": "Комнатная влажность"}, {"text": "комнатная  влажность"}],
+        }
+    )
+    working.apply(review, CODES)
+    assert [(r.key, r.value) for r in working.requirements.values()] == [
+        ("torque_nominal", "30"),
+        ("no_metal_fillers", "да"),
+    ]
+    assert set(working.codes) == {"no_supports", "load_bearing"}
+    assert len(working.assumptions) == 1
+    working.apply(Review.model_validate({"remove": [{"id": "r2"}]}), CODES)
+    assert [r.key for r in working.requirements.values()] == ["torque_nominal"]
+
+
+def test_requirements_cite_their_origin_and_inferred_codes_are_assumptions():
+    working = WorkingCard.from_draft(
+        draft(service_temp_max_c=TEMPERATURE, load_bearing=LOAD), CODES
+    )
+    requirements = working.requirements_for(CODES, ctx())
+    assert [r.key for r in requirements] == [
+        "service_temp_max_c",
+        "no_supports",
+        "load_bearing",
+        "torque_nominal",
+    ]
+    by_key = {r.key: r for r in requirements}
+    temperature, load = by_key["service_temp_max_c"], by_key["load_bearing"]
+    assert (temperature.provenance, temperature.mandatory, temperature.verified) == (
+        "user",
+        True,
+        True,
+    )
+    assert (load.provenance, load.mandatory, load.verified) == ("assumption", False, False)
+    assert load.conditions == "удары при пуске" and load.label == "Характер нагрузки на деталь"
+    assert by_key["torque_nominal"].provenance == "document"
+
+
+def test_a_discrepancy_keeps_its_kind_and_every_question_blocks_until_answered():
+    clarify = to_question(ReviewQuestion(title="Какая среда"))
+    mismatch = to_question(
+        ReviewQuestion(title="Диаметр не совпадает", kind="tz_vs_stl", requirement_key="bore")
+    )
+    assert clarify.id.startswith("clarify.") and clarify.kind == "clarify"
+    assert mismatch.id.startswith("tz_vs_stl.") and mismatch.kind == "discrepancy"
+    assert clarify.blocking and mismatch.blocking
+
+
+def test_an_assembled_card_follows_the_stage_two_contract():
+    contract = json.loads(Path("docs/stage1-contract.schema.json").read_text())
+    report = analyze_stl(Path("tests/fixtures/box.stl"), units="mm")
+    stl = Attachment(
+        job_id="j", filename="box.stl", kind="stl", sha256=report["file"]["sha256"], size=1
+    )
+    working = WorkingCard.from_draft(
+        draft(service_temp_max_c=TEMPERATURE, load_bearing=LOAD), CODES
+    )
+    card = TaskCard(
+        job_id="j",
+        revision=1,
+        geometry=summarize(report, "mm", "r"),
+        stl_analysis=bind_analysis(stl, "mm", report),
+        versions={"requirement_keys": CODES.version},
+    )
+    fill(card, working, working.requirements_for(CODES, ctx()))
+    assess(card, [])
+    Draft202012Validator(contract).validate(card.model_dump(mode="json"))
+    assert card.readiness == "ready"
+
+
+def test_a_free_key_takes_the_form_the_contract_allows():
+    assert clean_key("Torque Nominal") == "torque_nominal"
+    assert clean_key("3d-mode") == "req_3d_mode"
 
 
 def test_the_score_counts_requirements_that_use_a_code():

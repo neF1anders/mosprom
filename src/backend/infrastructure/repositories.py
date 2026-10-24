@@ -5,7 +5,7 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,13 +108,6 @@ class MessageRepository(Repository):
             query = query.where(t.messages.c.seq < before)
         rows = (await self._session.execute(query)).mappings()
         return list(reversed([dict(row["payload"], seq=row["seq"]) for row in rows]))
-
-    async def mark(self, job_id: str, message_id: str, kind: str) -> None:
-        await self._session.execute(
-            update(t.messages)
-            .where(t.messages.c.job_id == job_id, t.messages.c.payload["id"].astext == message_id)
-            .values(payload=t.messages.c.payload.op("||")(func.jsonb_build_object("kind", kind)))
-        )
 
 
 class AttachmentRepository(Repository):

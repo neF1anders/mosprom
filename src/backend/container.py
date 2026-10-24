@@ -59,7 +59,6 @@ class Container:
             AgentRunner(self.model, tools, self.uow, settings.qwen_model),
             Stage1Settings(
                 model=settings.qwen_model,
-                judge_threshold=settings.judge_threshold,
                 timeout_seconds=settings.stage1_timeout_seconds,
                 job_images=settings.limits.job_images,
             ),

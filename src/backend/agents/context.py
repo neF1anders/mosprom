@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from ..domain.geometry import REPORT_SECTIONS
@@ -32,6 +32,8 @@ class Inputs:
     answers: list[Source]
     geometry: Geometry | None
     preview: str | None
+    # The assistant's question the user answered, by the id of that user message.
+    asked: dict[str, str] = field(default_factory=dict)
 
     def sources(self) -> dict[str, Source]:
         return {s.id: s for s in [*self.messages, *self.documents, *self.answers]}
@@ -46,7 +48,7 @@ def collect(
     answers: dict[str, Answer],
     geometry: Geometry | None,
 ) -> Inputs:
-    chat = [m for m in messages if m["role"] == "user" and m.get("kind", "chat") == "chat"]
+    chat, asked = _chat(messages)
     documents = [
         Source(
             id=f"f{number}p{fragment['page']}",
@@ -77,7 +79,27 @@ def collect(
         answers=answer_sources(answers),
         geometry=geometry,
         preview=geometry.preview_id if geometry else None,
+        asked=asked,
     )
+
+
+def _chat(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """The user's chat messages, and the gate's request for details each one answers."""
+    chat: list[dict[str, Any]] = []
+    asked: dict[str, str] = {}
+    question = None
+    for message in messages:
+        kind = message.get("kind", "chat")
+        if message["role"] == "assistant":
+            question = message["text"] if kind == "gate" else None
+            continue
+        if kind != "chat":
+            continue
+        chat.append(message)
+        if question:
+            asked[f"m{len(chat)}"] = question
+        question = None
+    return chat, asked
 
 
 def answer_sources(answers: dict[str, Answer]) -> list[Source]:
@@ -91,6 +113,16 @@ def answer_sources(answers: dict[str, Answer]) -> list[Source]:
         )
         for key, answer in answers.items()
     ]
+
+
+def follow_up(intro: str, answers: list[Source], card: dict[str, Any]) -> str:
+    """The next turn of a dialog: the user's answers and the card as it stands now."""
+    lines = [f'<source id="{a.id}">{_data(a.text)}</source>' for a in answers]
+    return (
+        f"{intro}\n\n<answers>\n"
+        + "\n".join(lines)
+        + f"\n</answers>\n\n<card>\n{_json(card)}\n</card>"
+    )
 
 
 def codes_block(codes: RequirementKeys) -> str:
@@ -119,7 +151,17 @@ class ContentBuilder:
         codes: str = "",
     ):
         self.files, self.inputs, self.ctx = files, inputs, ctx
-        self.knowledge = knowledge or []
+        # Every record is citable, whichever agent read it.
+        self.knowledge = [
+            Source(
+                id="kb:" + record.id,
+                ref="kb:" + record.id,
+                kind="knowledge",
+                text=f"{record.text} {record.property} {record.value} {record.unit or ''}",
+            )
+            for record in knowledge or []
+        ]
+        ctx.sources.update({source.id: source for source in self.knowledge})
         # Built once by codes_block; only the agents that write requirements ask for it.
         self.codes = codes
         self._encoded: dict[str, asyncio.Future[str]] = {}
@@ -169,14 +211,22 @@ class ContentBuilder:
         return parts
 
     async def image(self, artifact: str, label: str) -> list[dict[str, Any]]:
+        return [{"type": "text", "text": label}, await self._image_part(artifact)]
+
+    async def restore(self, parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """A stored input again, with its images encoded from the artifacts it refers to."""
+        restored = []
+        for part in parts:
+            artifact = part.get("artifact") if part.get("type") == "image_url" else None
+            restored.append(await self._image_part(artifact) if artifact else part)
+        return restored
+
+    async def _image_part(self, artifact: str) -> dict[str, Any]:
         if artifact not in self._encoded:
             self._encoded[artifact] = asyncio.ensure_future(self._encode(artifact))
         # Agents building at the same time share one encoding; one cancelled keeps it alive.
         url = await asyncio.shield(self._encoded[artifact])
-        return [
-            {"type": "text", "text": label},
-            {"type": "image_url", "image_url": {"url": url}},
-        ]
+        return {"type": "image_url", "image_url": {"url": url}}
 
     async def _encode(self, artifact: str) -> str:
         content = await self.files.read(artifact)
@@ -185,10 +235,13 @@ class ContentBuilder:
         return url
 
     def _messages(self) -> str:
-        lines = [
-            f'<source id="{m.id}" time="{m.created_at:%Y-%m-%d %H:%M}">{_data(m.text)}</source>'
-            for m in self.inputs.messages
-        ]
+        lines = []
+        for m in self.inputs.messages:
+            if m.id in self.inputs.asked:
+                lines.append(f"<asked>{_data(self.inputs.asked[m.id])}</asked>")
+            lines.append(
+                f'<source id="{m.id}" time="{m.created_at:%Y-%m-%d %H:%M}">{_data(m.text)}</source>'
+            )
         return "<messages>\n" + "\n".join(lines) + "\n</messages>"
 
     def _documents(self) -> str:
@@ -212,16 +265,7 @@ class ContentBuilder:
 
     def _knowledge(self) -> str:
         """The whole knowledge base is small, so it goes into the request and is citable."""
-        lines = []
-        for record in self.knowledge:
-            source = Source(
-                id="kb:" + record.id,
-                ref="kb:" + record.id,
-                kind="knowledge",
-                text=f"{record.text} {record.property} {record.value} {record.unit or ''}",
-            )
-            self.ctx.sources[source.id] = source
-            lines.append(f'<source id="{source.id}">{_data(source.text)}</source>')
+        lines = [f'<source id="{s.id}">{_data(s.text)}</source>' for s in self.knowledge]
         return "<knowledge>\n" + "\n".join(lines) + "\n</knowledge>"
 
     def _stl(self) -> str:

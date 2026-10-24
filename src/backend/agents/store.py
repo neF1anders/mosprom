@@ -53,9 +53,12 @@ class RunStore(JobStore):
             await uow.commit()
 
     async def finish(
-        self, ctx: RunContext, card: TaskCard | None, text: str, offtopic: str | None = None
+        self, ctx: RunContext, card: TaskCard | None, text: str, kind: str = "chat"
     ) -> None:
-        """Publishes the card and the reply; a ready card goes on to parameter selection."""
+        """Publishes the card and the reply; a ready card goes on to parameter selection.
+
+        ``kind`` marks the gate's request for details, which is asked only once.
+        """
         async with self.uow() as uow:
             job = await uow.jobs.get(ctx.job_id, lock=True)
             ensure_current(job.revision, job.status, ctx.revision)
@@ -70,10 +73,14 @@ class RunStore(JobStore):
                 await uow.queue.stage2(job.id, job.revision)
                 job.stage = "parameters"
             await uow.jobs.save(job)
-            if offtopic is not None:
-                await uow.messages.mark(job.id, offtopic, "offtopic")
             await uow.messages.add(
-                Message(job_id=job.id, revision=job.revision, role="assistant", text=text)
+                Message(
+                    job_id=job.id,
+                    revision=job.revision,
+                    role="assistant",
+                    kind=kind,  # type: ignore[arg-type]
+                    text=text,
+                )
             )
             await uow.events.append(
                 Event(
