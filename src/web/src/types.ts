@@ -64,6 +64,7 @@ export interface Card {
   unknowns: string[];
   questions: Question[];
   geometry: Geometry | null;
+  // Kept in the schema; the current chain always leaves it empty.
   verdict: { score: number; passed: boolean; remarks: Remark[] } | null;
   readiness: "ready" | "preliminary" | "blocked";
   allowed_actions: string[];
@@ -140,7 +141,8 @@ export interface Message {
   id: string;
   seq: number;
   role: string;
-  kind?: "chat" | "answers" | "offtopic";
+  // A gate reply asks for details before the work starts; offtopic marks older rows.
+  kind?: "chat" | "answers" | "gate" | "offtopic";
   text: string;
   revision: number;
 }
