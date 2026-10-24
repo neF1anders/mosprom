@@ -34,6 +34,8 @@ async def pg(tmp_path):
             slicer_folder=tmp_path / "slicer",
             qwen_api_key="test",
             app_origin="http://localhost:8000",
+            # Scripted replies go to the agents in order; a narrator would take some of them.
+            narrate_reasoning=False,
         )
     )
     container = app.state.container

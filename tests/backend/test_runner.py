@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from src.backend.agents.events import BUFFER, Clock, ThoughtStream, preview
+from src.backend.agents.events import BUFFER, CallEvents, Clock, Narration, ThoughtStream, preview
 from src.backend.agents.runner import AgentRunner, AgentSpec, parse_output
 from src.backend.agents.schemas import Draft, Output
 from src.backend.agents.tools import ToolBox
@@ -414,3 +414,70 @@ async def test_a_stop_is_never_swallowed_by_the_reasoning():
     stream = ThoughtStream(stopped, "checker", "Проверка", "r:checker:1", FakeClock())
     with pytest.raises(asyncio.CancelledError):
         await stream("w" * BUFFER, 1)
+
+
+def narration(narrate) -> tuple[Narration, list[tuple[int, str]]]:
+    said: list[tuple[int, str]] = []
+
+    async def event(type, message, status="running", **data):
+        said.append((data["attempt"], data["text"]))
+
+    return Narration(event, "checker", "r:checker:1", "Проверка", narrate, 0.01, 0.01), said
+
+
+async def test_the_narrator_says_what_the_agent_does_while_it_reasons():
+    heard: list[tuple[str, str]] = []
+
+    async def narrate(title: str, reasoning: str, previous: str) -> str:
+        heard.append((reasoning, previous))
+        return f"Сверяю {len(heard)}"
+
+    talk, said = narration(narrate)
+    talk.feed("Checking the torque. ", 1)
+    await asyncio.sleep(0.03)
+    talk.feed("Now the temperature.", 1)
+    await asyncio.sleep(0.03)
+    talk.stop()
+    assert said[:2] == [(1, "Сверяю 1"), (1, "Сверяю 2")]
+    assert heard[0] == ("Checking the torque. ", "")
+    assert heard[1] == ("Checking the torque. Now the temperature.", "Сверяю 1")
+
+
+async def test_the_narrator_keeps_quiet_without_news_and_skips_a_failure():
+    calls = 0
+
+    async def narrate(title: str, reasoning: str, previous: str) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise AppError("Модель не отвечает", "model_unavailable", 503)
+        return "Разбираю ТЗ"
+
+    talk, said = narration(narrate)
+    talk.feed("Reading the spec", 1)
+    await asyncio.sleep(0.05)
+    # The failed phrase is skipped and nothing new came, so no second call is made.
+    assert calls == 1 and said == []
+    talk.feed(" further", 2)
+    await asyncio.sleep(0.03)
+    talk.stop()
+    assert said[0] == (2, "Разбираю ТЗ")
+
+
+async def test_a_cancelled_call_stops_its_narrator():
+    async def narrate(title: str, reasoning: str, previous: str) -> str:
+        return "Разбираю ТЗ"
+
+    async def event(type, message, status="running", **data):
+        pass
+
+    ctx = context()
+    ctx.event = event
+    events = CallEvents(SPEC, ctx, 1, FakeClock(), narrate=narrate)
+    with pytest.raises(asyncio.CancelledError):
+        async with events:
+            await events.thoughts("Reading", 1)
+            raise asyncio.CancelledError
+    await asyncio.sleep(0)
+    assert events.narration is not None and events.narration.task is not None
+    assert events.narration.task.cancelled() or events.narration.task.done()

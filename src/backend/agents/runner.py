@@ -20,7 +20,7 @@ from ..domain.errors import AppError
 from ..domain.models import AgentCall, Source, now
 from ..ports.operations import ModelClient, ModelReply
 from ..ports.persistence import UowFactory
-from .events import CallEvents, Clock, notify, preview
+from .events import CallEvents, Clock, Narrate, notify, preview
 
 if TYPE_CHECKING:
     from .tools import ToolBox
@@ -75,9 +75,11 @@ class AgentRunner:
         uow: UowFactory,
         version: str = "",
         clock: Clock = time.monotonic,
+        narrate: Narrate | None = None,
     ):
         self.model, self.tools, self.uow, self.version = model, tools, uow, version
-        self.clock = clock
+        # The chat gets a Russian phrase about the reasoning; the agents never see it.
+        self.clock, self.narrate = clock, narrate
 
     async def run(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> Any:
         return await self.converse(spec, [{"role": "user", "content": content}], ctx)
@@ -120,7 +122,7 @@ class AgentRunner:
         """
         await ctx.check()
         trace = Trace(spec, ctx, 1, messages)
-        async with CallEvents(spec, ctx, 1, self.clock) as events:
+        async with CallEvents(spec, ctx, 1, self.clock, narrate=self.narrate) as events:
             reply = await self._complete(spec, messages, tools, trace, events)
             await self._record(trace.done(reply, [], None))
         return reply
@@ -163,7 +165,7 @@ class AgentRunner:
             # Each step stores only what it added, so a long dialog is not written again.
             trace = Trace(spec, ctx, step, messages[recorded:], recorded)
             recorded = len(messages)
-            async with CallEvents(spec, ctx, step, self.clock) as events:
+            async with CallEvents(spec, ctx, step, self.clock, narrate=self.narrate) as events:
                 reply = await self._complete(spec, messages, schemas, trace, events)
                 if not (reply.tool_calls and schemas):
                     return await self._answer(spec, reply, trace, ctx)

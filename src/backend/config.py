@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     qwen_max_tokens: int = Field(default=32768, ge=1024, le=131072)
     # Stage one targets five minutes; a run three times longer is stuck, not slow.
     stage1_timeout_seconds: float = Field(default=900, gt=0)
+    # The model reasons in English; a narrator tells the chat in Russian what an agent does.
+    narrate_reasoning: bool = True
     # Selection and its check take well under a second; a minute means something is stuck.
     parameters_timeout_seconds: float = Field(default=60, gt=0)
     # STE Slicer with the AI Assistant plugin: the folder of its server.json, shared with the

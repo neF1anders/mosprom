@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import cached_property
 
+from .agents.events import Narrator
 from .agents.runner import AgentRunner
 from .agents.stage1 import Stage1, Stage1Settings
 from .agents.tools import ToolBox
@@ -56,7 +57,13 @@ class Container:
         self.stage1 = Stage1(
             self.uow,
             self.files,
-            AgentRunner(self.model, tools, self.uow, settings.qwen_model),
+            AgentRunner(
+                self.model,
+                tools,
+                self.uow,
+                settings.qwen_model,
+                narrate=Narrator(self.model) if settings.narrate_reasoning else None,
+            ),
             Stage1Settings(
                 model=settings.qwen_model,
                 timeout_seconds=settings.stage1_timeout_seconds,
