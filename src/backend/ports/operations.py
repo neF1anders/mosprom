@@ -6,6 +6,9 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from ..domain.parameters import ParameterSet
+from ..domain.slicing import SliceReport
+
 
 class Files(Protocol):
     async def put(self, key: str, chunks: AsyncIterator[bytes], limit: int) -> tuple[str, int]: ...
@@ -41,3 +44,16 @@ class Notifier(Protocol):
     """Wakes readers of a job's events when a new one commits, in any process."""
 
     def watch(self, job_id: str) -> AbstractAsyncContextManager[asyncio.Event]: ...
+
+
+class Slicer(Protocol):
+    """STE Slicer with the AI Assistant plugin, one run at a time.
+
+    ``run`` names the run and its stored files; ``models`` maps an attachment id of the set
+    to its stored file. A slicer that is not running, fails a step or runs out of time is
+    reported, not raised.
+    """
+
+    async def slice(
+        self, run: str, parameter_set: ParameterSet, models: dict[str, str]
+    ) -> SliceReport: ...

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Audit } from "./Audit";
 import { modelSize } from "../format";
 import type { Card, Evidence, Geometry, Job, ProgressEvent } from "../types";
-import { answered, isRunning, statusLabel, UNKNOWN_ANSWER } from "../types";
+import { answered, isRunning, jobStatus, UNKNOWN_ANSWER } from "../types";
 import styles from "../App.module.css";
 
 const methodLabels: Record<string, string> = {
@@ -73,6 +73,9 @@ function Field({
     </section>
   );
 }
+// Stages after the card: the chat says it was handed over until the pipeline ends.
+const handedOver = new Set(["parameters", "validation", "slicing", "gcode"]);
+
 export function TaskCard({
   job,
   onCollapse,
@@ -101,15 +104,12 @@ export function TaskCard({
   const size = modelSize(geometry);
   const unresolved = card?.questions.filter((q) => !answered(q)).length || 0;
   const defects = geometry?.defects.map((d) => defectLabels[d] || d) || [];
-  const remarks =
-    card?.verdict?.remarks.filter((r) => r.severity !== "minor") || [];
   const unknowns = card
     ? [
         ...card.assumptions.map((a) =>
           a.basis ? `${a.text}, основание ${a.basis}` : a.text,
         ),
         ...card.unknowns,
-        ...remarks.map((r) => r.text),
       ]
     : [];
   const blockers = [
@@ -232,12 +232,12 @@ export function TaskCard({
               aria-label="Показать журнал вызовов"
               title="Раскрыть журнал проверок"
             >
-              <span role="status">{statusLabel[job?.status || "draft"]}</span>
+              <span role="status">{jobStatus(job)}</span>
             </summary>
             <Audit events={events} />
           </details>
         ) : (
-          <p role="status">{statusLabel[job?.status || "draft"]}</p>
+          <p role="status">{jobStatus(job)}</p>
         )}
         {!!blockers.length && (
           <details className={styles.geometryDetails}>
@@ -247,14 +247,41 @@ export function TaskCard({
             ))}
           </details>
         )}
-        {job?.next_stage === "queued" && (
+        {job && handedOver.has(job.stage) && (
           <p>Карточка передана на подбор параметров</p>
         )}
       </Field>
-      {card && !running && card.revision === job?.revision && (
-        <a href={`/api/v1/jobs/${job?.id}/card`} download="task-card.json">
-          Скачать карточку JSON
+      {/* The card stays available while later stages work on it. */}
+      {card &&
+        card.revision === job?.revision &&
+        (!running || job.stage !== "understanding") && (
+          <a href={`/api/v1/jobs/${job.id}/card`} download="task-card.json">
+            Скачать карточку JSON
+          </a>
+        )}
+      {job?.stage === "done" && job.parameters && (
+        <a
+          href={`/api/v1/jobs/${job.id}/parameters`}
+          download="parameter-set.json"
+        >
+          Скачать параметры JSON
         </a>
+      )}
+      {job?.stage === "done" && job.result?.sliced && (
+        <>
+          <a
+            href={`/api/v1/jobs/${job.id}/result/project`}
+            download="project.3mf"
+          >
+            Скачать проект 3MF
+          </a>
+          <a
+            href={`/api/v1/jobs/${job.id}/result/gcode`}
+            download="result.gcode"
+          >
+            Скачать G-code
+          </a>
+        </>
       )}
     </aside>
   );

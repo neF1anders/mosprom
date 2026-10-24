@@ -1,0 +1,117 @@
+{
+  "case": "условие применимости вне языка формул",
+  "original": [
+    [
+      "info",
+      "settings.carve_multiple_volumes",
+      "условие применимости не вычислено: all(p != 'surface' for p in extruderValues('magic_mesh_surface_mode'))"
+    ]
+  ],
+  "parameter_set": {
+    "contract": "stage2.parameter_set",
+    "version": "0.2",
+    "card_ref": {
+      "job_id": "00000000-0000-0000-0000-000000000001",
+      "revision": 3
+    },
+    "iteration": 1,
+    "printer": "hte530v5.2.4",
+    "printing_mode": {
+      "value": "classic",
+      "why": "обычная деталь без требований к 5D",
+      "source": "assumption:A1"
+    },
+    "quality": {
+      "quality_type": "draft",
+      "why": "слой 0,2 мм: компромисс прочности и времени для функциональной детали",
+      "source": "rule:QUAL-LOAD-1"
+    },
+    "materials": {
+      "0": {
+        "id": "generic_petg_175",
+        "why": "пользователь указал PETG",
+        "source": "requirement:R1"
+      }
+    },
+    "settings": {
+      "wall_line_count": {
+        "value": 4,
+        "why": "деталь под нагрузку: больше стенок",
+        "source": "rule:WALL-LOAD-1"
+      },
+      "infill_sparse_density": {
+        "value": 40,
+        "unit": "%",
+        "why": "деталь под нагрузку",
+        "source": "rule:INFILL-LOAD-1"
+      },
+      "infill_pattern": {
+        "value": "cubic",
+        "why": "равномерная прочность по направлениям",
+        "source": "rule:INFILL-LOAD-2"
+      },
+      "support_enable": {
+        "value": false,
+        "why": "требование «без поддержек»",
+        "source": "requirement:R2"
+      },
+      "adhesion_type": {
+        "value": "brim",
+        "why": "PETG: лучше держится на столе",
+        "source": "rule:ADH-PETG-1"
+      },
+      "carve_multiple_volumes": {
+        "value": true,
+        "why": "x",
+        "source": "rule:T"
+      }
+    },
+    "models": [
+      {
+        "id": "m1",
+        "attachment_id": "attachment-1",
+        "extruder": 0,
+        "transform": {
+          "rotation": [
+            [
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              1
+            ]
+          ],
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        "why": "основание кронштейна на столе, нависаний нет",
+        "source": "rule:ORIENT-1",
+        "orientation_candidate": "o1"
+      }
+    ],
+    "assumptions": [
+      {
+        "id": "A1",
+        "text": "режим 3D, так как 5D не запрошен",
+        "basis": "в запросе нет упоминаний 5D или цилиндрической печати"
+      }
+    ],
+    "status": "proposed"
+  }
+}

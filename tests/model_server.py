@@ -1,77 +1,124 @@
-"""Deterministic OpenAI-compatible provider for browser E2E only; answers per agent header."""
+"""Deterministic OpenAI-compatible provider for browser E2E only; answers per agent header.
+
+Markers anywhere in the chat or in a document steer it. TEST_PROVIDER_401 and
+TEST_PROVIDER_INVALID_JSON break the provider, TEST_DELAY slows every call down. In the
+latest message TEST_OFFTOPIC and TEST_GATE_ASK keep the gate talking instead of starting the
+work. TEST_TOOL makes the interpreter call a tool first. TEST_QUESTIONS, TEST_CONFLICT and
+TEST_STL_MISMATCH make the checker ask in its first turn.
+"""
 
 import asyncio
 import json
 import re
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 app = FastAPI()
 SOURCE = re.compile(r'<source id="([^"]+)"[^>]*>\n?(.*?)\n?</source>', re.S)
+KEYS = re.compile(r"<requirement_keys>\n(.*?)\n</requirement_keys>", re.S)
 VISUAL = [
     ("torque_nominal", "25", "Nominal torque 25 Nm"),
     ("torque_peak", "75", "Peak torque 75 Nm"),
 ]
+# A line naming one of these becomes a requirement code instead of a free requirement.
+CODES = [
+    ("service_temp_max_c", "°C", re.compile(r"[Тт]емпература\s+(.*\d)\s*°?\s*[CС]?\s*$")),
+    ("quantity", None, re.compile(r"[Кк]оличество\s+(\d+)")),
+    ("dimensional_tol_mm", "mm", re.compile(r"[Дд]опуск\D*?(\d+(?:[.,]\d+)?)\s*мм")),
+]
+OFF_TOPIC = "Я помогаю только с подготовкой задания на печать"
+NO_MODEL = "Приложите модель STL, и я подберу параметры печати"
+GATE_ASK = "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
+UNKNOWN = "Не знаю"
 
 
 @app.post("/v1/chat/completions")
 async def complete(request: Request):
     payload = await request.json()
     agent = request.headers.get("X-Mosprom-Agent", "")
-    content = payload["messages"][1]["content"]
-    text = content if isinstance(content, str) else content[0]["text"]
-    if "TEST_PROVIDER_401" in text:
+    messages = payload["messages"]
+    everything = "\n".join(text(m) for m in messages if m["role"] != "system")
+    if "TEST_PROVIDER_401" in everything:
         return JSONResponse({"error": "synthetic authorization failure"}, status_code=401)
-    if "TEST_DELAY" in text:
+    if "TEST_DELAY" in everything:
         await asyncio.sleep(2)
-    if "TEST_PROVIDER_INVALID_JSON" in text:
+    if agent == "gate":
+        return gate(payload)
+    # The gate replies in plain text, so a broken answer reaches the first JSON agent.
+    if "TEST_PROVIDER_INVALID_JSON" in everything:
         return message("invalid")
-    called = any(m["role"] == "tool" for m in payload["messages"])
-    if agent == "interpreter" and "TEST_TOOL" in text and not called:
-        arguments = {"value": "1", "from_unit": "inch", "to_unit": "mm"}
-        tool = {
-            "id": "t1",
-            "type": "function",
-            "function": {"name": "convert_units", "arguments": json.dumps(arguments)},
-        }
-        return {
-            "choices": [
-                {
-                    "finish_reason": "tool_calls",
-                    "message": {"role": "assistant", "content": None, "tool_calls": [tool]},
-                }
-            ]
-        }
-    answer = ANSWERS.get(agent, lambda text, content: {})(text, content)
+    called = any(m["role"] == "tool" for m in messages)
+    if agent == "interpreter" and "TEST_TOOL" in everything and not called:
+        return tool_call("convert_units", {"value": "1", "from_unit": "inch", "to_unit": "mm"})
+    answer = ANSWERS.get(agent, lambda messages: {})(messages)
     return message(json.dumps(answer, ensure_ascii=False))
 
 
+def text(item: dict[str, Any]) -> str:
+    content = item.get("content") or ""
+    if isinstance(content, str):
+        return content
+    return "\n".join(p.get("text", "") for p in content if p.get("type") == "text")
+
+
 def message(content: str) -> dict:
+    return reply({"role": "assistant", "content": content}, "stop")
+
+
+def tool_call(name: str, arguments: dict[str, Any]) -> dict:
+    call = {
+        "id": "t1",
+        "type": "function",
+        "function": {"name": name, "arguments": json.dumps(arguments)},
+    }
+    return reply({"role": "assistant", "content": None, "tool_calls": [call]}, "tool_calls")
+
+
+def reply(body: dict[str, Any], finish: str) -> dict:
     return {
-        "choices": [
-            {"finish_reason": "stop", "message": {"role": "assistant", "content": content}}
-        ],
+        "choices": [{"finish_reason": finish, "message": body}],
         "usage": {"prompt_tokens": 100, "completion_tokens": 100, "total_tokens": 200},
     }
 
 
-def sources(text: str) -> dict[str, str]:
-    data = text.split("<draft>")[0]
-    return {key: body for key, body in SOURCE.findall(data)}
+def gate(payload: dict[str, Any]) -> dict:
+    """With a model attached the work starts, unless the latest message is marked otherwise."""
+    users = [m for m in payload["messages"] if m["role"] == "user"]
+    latest = text(users[-1]) if users else ""
+    if "TEST_GATE_ASK" in latest:
+        return message(GATE_ASK)
+    if "TEST_OFFTOPIC" in latest:
+        return message(OFF_TOPIC)
+    if not payload.get("tools"):
+        return message(NO_MODEL)
+    return tool_call("start_pipeline", {})
 
 
-def interpret(text: str, content) -> dict:
-    found = sources(text)
-    images = (
-        [
-            p["text"].split()[2].rstrip(",")
-            for p in content[1:]
-            if p["type"] == "text" and p["text"].startswith("Изображение источника")
-        ]
-        if isinstance(content, list)
-        else []
-    )
+def interpret(messages: list[dict[str, Any]]) -> dict:
+    """Every line with a number is a requirement; a line naming a code fills that code."""
+    content = next(m["content"] for m in messages if m["role"] == "user")
+    data = text({"content": content})
+    found = dict(SOURCE.findall(data))
+    codes: dict[str, Any] = {key: None for key in dictionary(data)}
+    coded: set[str] = set()
+    # Documents first, so that a later chat message overrides the value they give.
+    for source, body in sorted(found.items(), key=lambda item: item[0].startswith("m")):
+        for line in body.splitlines():
+            for code, unit, pattern in CODES:
+                match = pattern.search(line)
+                if match and code in codes:
+                    codes[code] = {
+                        "value": match.group(1),
+                        "unit": unit,
+                        "source_id": source,
+                        "quote": line,
+                        "conditions": "",
+                        "mandatory": True,
+                        "inferred": False,
+                    }
+                    coded.add(line)
     requirements = [
         {
             "key": f"line_{source}_{index}",
@@ -80,9 +127,13 @@ def interpret(text: str, content) -> dict:
             "sources": [{"source_id": source, "quote": line}],
         }
         for source, body in found.items()
-        if not source.startswith("a:")
         for index, line in enumerate(body.splitlines())
-        if re.search(r"\d", line) and "TEST_" not in line
+        if re.search(r"\d", line) and "TEST_" not in line and line not in coded
+    ]
+    images = [
+        p["text"].split()[2].rstrip(",")
+        for p in (content[1:] if isinstance(content, list) else [])
+        if p["type"] == "text" and p["text"].startswith("Изображение источника")
     ]
     requirements += [
         {
@@ -96,124 +147,79 @@ def interpret(text: str, content) -> dict:
         if not found.get(source, "").strip()
         for key, value, quote in VISUAL
     ]
-    if "TEST_CONFLICT" in text:
-        requirements += [
-            {
-                "key": "length",
-                "label": "Длина детали",
-                "value": value,
-                "unit": "мм",
-                "sources": [{"source_id": source, "quote": f"Длина {value} мм"}],
-            }
-            for source, value in [
-                (s, v) for s, body in found.items() for v in re.findall(r"Длина (\d+) мм", body)
-            ]
-        ]
+    # Small talk the gate answered does not describe the part.
+    purpose = next(
+        (
+            body.strip()[:150]
+            for source, body in found.items()
+            if source.startswith("m") and "TEST_OFFTOPIC" not in body
+        ),
+        "Деталь",
+    )
+    return {"purpose": purpose, "requirements": requirements, "codes": codes}
+
+
+def dictionary(data: str) -> list[str]:
+    block = KEYS.search(data)
+    return [json.loads(line)["key"] for line in block.group(1).splitlines()] if block else []
+
+
+def check(messages: list[dict[str, Any]]) -> dict:
+    """The first turn asks what the markers call for; the answer turn asks nothing again."""
+    turns = [m for m in messages if m["role"] != "system"]
+    if len(turns) > 1:
+        return answered(text(turns[-1]))
+    data = text(turns[0])
     questions = []
-    if "TEST_QUESTIONS" in text:
-        questions = [
+    if "TEST_QUESTIONS" in data:
+        questions += [
             {
                 "title": f"Уточнение {i}",
                 "impact": "Влияет на подбор параметров",
                 "options": ["Да", "Нет"],
+                "kind": "clarify",
             }
             for i in (1, 2)
         ]
-    purpose = next(
-        (body.strip()[:150] for source, body in found.items() if source.startswith("m")), "Деталь"
-    )
-    return {"purpose": purpose, "requirements": requirements, "questions": questions}
-
-
-def second_reading(text: str, content) -> dict:
-    items = json.loads(text.split("<items>")[1].split("</items>")[0])
-    values = {key: value for key, value, _ in VISUAL}
-    return {
-        "readings": [
+    if "TEST_CONFLICT" in data:
+        lengths = dict.fromkeys(re.findall(r"Длина (\d+) мм", data))
+        questions.append(
             {
-                "key": i["key"],
-                "value": values.get(i["key"], ""),
-                "unit": "Nm",
-                "legible": i["key"] in values,
-            }
-            for i in items
-        ]
-    }
-
-
-def discrepancies(text: str, content) -> dict:
-    if "TEST_STL_MISMATCH" not in text:
-        return {"discrepancies": []}
-    return {
-        "discrepancies": [
-            {
-                "kind": "tz_vs_stl",
+                "title": "Источники расходятся, Длина детали",
+                "impact": "Влияет на масштаб и подбор параметров",
+                "options": [f"{value} мм" for value in lengths],
+                "kind": "sources",
                 "requirement_key": "length",
+            }
+        )
+    if "TEST_STL_MISMATCH" in data:
+        questions.append(
+            {
                 "title": "Длина в ТЗ 100 мм, в модели 30 мм",
                 "impact": "Влияет на масштаб и подбор параметров",
                 "options": ["Верно ТЗ", "Верна модель STL"],
+                "kind": "tz_vs_stl",
+                "requirement_key": "length",
             }
-        ]
-    }
+        )
+    return {"questions": questions} if questions else {}
 
 
-def judge(text: str, content) -> dict:
-    if "TEST_JUDGE_LOW" in text:
-        return {
-            "score": 0.3,
-            "remarks": [{"severity": "major", "text": "Потеряно условие пикового момента"}],
-        }
-    return {"score": 0.9, "remarks": []}
-
-
-def triage(text: str, content) -> dict:
-    """Every field is found in the first source line, so no early questions get in the way."""
-    if "TEST_TRIAGE" in text:
-        return {"fields": [], "questions": []}
-    fields = json.loads(text.split("<fields>")[1].split("</fields>")[0])
-    line = next(
-        (
-            (source, row.strip())
-            for source, body in sources(text).items()
-            for row in body.splitlines()
-            if row.strip()
-        ),
-        None,
-    )
-    if line is None:
-        return {"fields": [], "questions": []}
+def answered(turn: str) -> dict:
+    """An answer the user does not know becomes an assumption, as the prompt asks."""
+    answers = turn.split("<answers>")[-1].split("</answers>")[0]
+    unknown = [
+        body.removesuffix(UNKNOWN).strip()
+        for source, body in SOURCE.findall(answers)
+        if source.startswith("a:") and body.endswith(UNKNOWN)
+    ]
     return {
-        "fields": [
-            {"field": f["field"], "value": line[1], "source_id": line[0], "quote": line[1]}
-            for f in fields
+        "assumptions": [
+            {"text": f"{title}, принято без ответа", "basis": "Пользователь не знает ответа"}
+            for title in unknown
         ],
         "questions": [],
     }
 
 
-def gate(text: str, content) -> dict:
-    """Only a message marked TEST_OFFTOPIC is outside the print job."""
-    latest = text.split("<latest>")[1].split("</latest>")[0]
-    if "TEST_OFFTOPIC" in latest:
-        return {"task": False, "reply": "Я помогаю только с подготовкой задания на печать"}
-    return {"task": True}
-
-
-def reading(text: str, content) -> dict:
-    return {"requirements": [], "questions": [], "unknowns": []}
-
-
-ANSWERS = {
-    "gate": gate,
-    "triage": triage,
-    "interpreter": interpret,
-    # An empty patch keeps the interpreter's draft and its questions.
-    "consolidator": lambda text, content: {},
-    "analyst_loads": reading,
-    "analyst_environment": reading,
-    "analyst_geometry": reading,
-    "analyst_production": reading,
-    "second_reading": second_reading,
-    "discrepancies": discrepancies,
-    "judge": judge,
-}
+ANSWERS = {"interpreter": interpret, "checker": check}

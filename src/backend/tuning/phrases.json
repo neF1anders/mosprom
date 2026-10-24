@@ -1,0 +1,20 @@
+{
+  "note": "Free text of the stage-1 task card that parameter selection reads. Requirement codes, kinds and units come from knowledge/requirement_keys.json. Phrases are regular expressions searched in lowercase free text; \\b marks a word boundary, so a stem matches only at the start of a word. load_phrases is checked in order, first match wins.",
+  "booleans": {
+    "true": ["true", "да", "yes", "требуется", "обязательно"],
+    "false": ["false", "нет", "no", "не требуется"]
+  },
+  "load_phrases": [
+    ["none", ["\\bне несёт", "\\bне несет", "\\bбез нагруз", "\\bне рассчитан"]],
+    ["impact", ["\\bудар"]],
+    ["cyclic", ["\\bциклич", "\\bвибрац", "\\bзнакоперемен"]],
+    ["static", ["\\bстатич"]]
+  ],
+  "priority_phrases": {
+    "strength": ["\\bпрочн"],
+    "accuracy": ["\\bточн", "\\bдопуск(?:и|а|у|ом|е|ов|ам|ами|ах)?\\b"],
+    "speed": ["\\bбыстр", "\\bсрочн"],
+    "cost": ["\\bдешев", "\\bдёшев", "\\bэконом"]
+  },
+  "supports_forbidden_phrases": ["\\bбез поддерж", "\\bбез опор", "\\bбез следов поддерж"]
+}

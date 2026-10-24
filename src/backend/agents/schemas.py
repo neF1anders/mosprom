@@ -2,13 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model, model_validator
+
+from ..domain.requirement_keys import RequirementKeys
 
 
 class Output(BaseModel):
     model_config = ConfigDict(extra="ignore", coerce_numbers_to_str=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def defaults_for_nulls(cls, data: Any) -> Any:
+        """A null in a field the model may leave out means its default, not a broken item.
+
+        Otherwise ``"conditions": null`` would drop the whole requirement it belongs to.
+        """
+        if not isinstance(data, dict):
+            return data
+        fields = cls.model_fields
+        return {
+            name: value
+            for name, value in data.items()
+            if value is not None or name not in fields or fields[name].is_required()
+        }
 
 
 class Citation(Output):
@@ -24,7 +42,6 @@ class DraftRequirement(Output):
     unit: str | None = None
     conditions: str = ""
     mandatory: bool = True
-    provenance: Literal["user", "document", "knowledge", "assumption"] = "document"
     sources: list[Citation] = Field(default_factory=list)
 
 
@@ -40,9 +57,6 @@ class DraftQuestion(Output):
     options: list[str] = Field(default_factory=list)
     suggested: str | None = None
     basis: str | None = None
-    blocking: bool = True
-    # Set when the question asks for one of the fields of the quick triage.
-    field: str | None = None
 
 
 class Draft(Output):
@@ -55,39 +69,78 @@ class Draft(Output):
     questions: list[DraftQuestion] = Field(default_factory=list)
 
 
-class Gate(Output):
-    """Whether the latest chat message belongs to the print job; a reply only when it does not."""
+def _lenient(data: Any) -> Any:
+    """A bare value, a list or a yes/no boolean is still a usable code value."""
+    data = dict(data) if isinstance(data, dict) else {"value": data}
+    value = data.get("value")
+    if isinstance(value, list):
+        data["value"] = ", ".join(map(str, value))
+    elif isinstance(value, bool):
+        data["value"] = "да" if value else "нет"
+    if isinstance(data.get("quote"), list):
+        data["quote"] = " ".join(map(str, data["quote"]))
+    return data
 
-    task: bool = True
-    reply: str = ""
 
+class CodeValue(Output):
+    """The value of one requirement code, either named by a source or inferred from it."""
 
-class TriageField(Output):
-    field: str
-    value: str = ""
+    value: str
+    unit: str | None = None
+    label: str = ""
+    conditions: str = ""
+    mandatory: bool = True
     source_id: str | None = None
+    page: int | None = None
     quote: str = ""
+    inferred: bool = False
+    basis: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def lenient(cls, data: Any) -> Any:
+        return _lenient(data)
 
 
-class TriageProposal(Output):
-    field: str
-    options: list[str] = Field(default_factory=list)
-    suggested: str | None = None
-    basis: str | None = None
+class Codes(Output):
+    """One field per dictionary code; a code the model filled badly is dropped alone.
+
+    Otherwise one wrong value would make the whole block fail and lose every code.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def per_code(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return {}
+        kept: dict[str, CodeValue] = {}
+        for code, value in data.items():
+            if code not in cls.model_fields or value is None:
+                continue
+            if isinstance(value, dict) and value.get("value") is None:
+                continue
+            try:
+                kept[code] = CodeValue.model_validate(value)
+            except ValidationError:
+                continue
+        return kept
+
+    def filled(self) -> dict[str, CodeValue]:
+        return {code: value for code, value in self if isinstance(value, CodeValue)}
 
 
-class Triage(Output):
-    title: str = ""
-    fields: list[TriageField] = Field(default_factory=list)
-    questions: list[TriageProposal] = Field(default_factory=list)
+class DraftWithCodes(Draft):
+    codes: Codes = Field(default_factory=Codes)
 
 
-class DomainReading(Output):
-    """What one domain analyst read in the sources on its own, without the draft."""
-
-    requirements: list[DraftRequirement] = Field(default_factory=list)
-    questions: list[DraftQuestion] = Field(default_factory=list)
-    unknowns: list[str] = Field(default_factory=list)
+def draft_with_codes(keys: RequirementKeys) -> type[DraftWithCodes]:
+    """The interpreter's answer lists every code, so the schema itself asks for each one."""
+    fields: Any = {entry.key: (CodeValue | None, None) for entry in keys.keys}
+    codes = create_model("Codes", __base__=Codes, **fields)
+    model = create_model(
+        "DraftWithCodes", __base__=DraftWithCodes, codes=(codes, Field(default_factory=codes))
+    )
+    return cast(type[DraftWithCodes], model)
 
 
 class RequirementChange(DraftRequirement):
@@ -99,52 +152,35 @@ class Removal(Output):
     reason: str = ""
 
 
-class Patch(Output):
-    """The consolidator's edit of the draft; the server applies it by requirement id."""
+class CodeFix(Output):
+    """A corrected code; an empty value removes the code."""
 
-    purpose: str | None = None
-    add: list[DraftRequirement] = Field(default_factory=list)
+    code: str
+    value: str | None = None
+    unit: str | None = None
+    source_id: str | None = None
+    quote: str = ""
+    inferred: bool = True
+    basis: str = ""
+    reason: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def lenient(cls, data: Any) -> Any:
+        return _lenient(data) if isinstance(data, dict) else data
+
+
+class ReviewQuestion(DraftQuestion):
+    kind: str = "clarify"
+    requirement_key: str | None = None
+
+
+class Review(Output):
+    """The checker's edit of the card; the server applies it by requirement id and code."""
+
     change: list[RequirementChange] = Field(default_factory=list)
     remove: list[Removal] = Field(default_factory=list)
-    preferences: list[str] | None = None
-    production_constraints: list[str] | None = None
-    assumptions: list[DraftAssumption] | None = None
-    unknowns: list[str] | None = None
-    questions: list[DraftQuestion] | None = None
-
-
-class DiscrepancyItem(Output):
-    kind: Literal["tz_vs_stl", "capability", "defect_vs_purpose"]
-    requirement_key: str | None = None
-    title: str
-    impact: str = ""
-    options: list[str] = Field(default_factory=list)
-    suggested: str | None = None
-    basis: str | None = None
-    sources: list[Citation] = Field(default_factory=list)
-
-
-class Discrepancies(Output):
-    discrepancies: list[DiscrepancyItem] = Field(default_factory=list)
-
-
-class Reading(Output):
-    key: str
-    value: str = ""
-    unit: str | None = None
-    legible: bool = True
-
-
-class SecondReading(Output):
-    readings: list[Reading] = Field(default_factory=list)
-
-
-class JudgeRemark(Output):
-    severity: Literal["critical", "major", "minor"]
-    text: str
-    requirement_key: str | None = None
-
-
-class JudgeVerdict(Output):
-    score: float = Field(ge=0, le=1)
-    remarks: list[JudgeRemark] = Field(default_factory=list)
+    add: list[DraftRequirement] = Field(default_factory=list)
+    code_fixes: list[CodeFix] = Field(default_factory=list)
+    assumptions: list[DraftAssumption] = Field(default_factory=list)
+    questions: list[ReviewQuestion] = Field(default_factory=list)

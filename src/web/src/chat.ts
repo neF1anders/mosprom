@@ -30,6 +30,10 @@ export function composerPlaceholder(
     return "Можно написать сообщение, я отвечу после текущего шага";
   return "Напишите, что нужно напечатать…";
 }
+// Questions come with the finished card; the window shows only while the job waits for them.
+export function asksQuestions(job?: Job | null) {
+  return job?.status === "waiting_user" && job.card?.revision === job.revision;
+}
 // Mirrors KINDS and the upper InputLimits on the server, which may be configured lower.
 const LIMITS_MIB: Record<string, number> = {
   stl: 256,
