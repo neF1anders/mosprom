@@ -1,33 +1,33 @@
-import os
+import json
 import time
 
 import httpx
-import pytest
 import pytest_asyncio
-from sqlalchemy import text
 
 from src.backend.api.app import create_app
 from src.backend.config import Settings
 from src.backend.domain.tokens import sign_token
+from src.backend.infrastructure.database import create_schema
 
-TEST_DATABASE = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom_test"
-)
-TABLES = (
-    "jobs, messages, attachments, events, receipts, operation_cache, knowledge, agent_calls, "
-    "stage_results, procrastinate_jobs, procrastinate_events"
-)
+JSON_COLUMNS = {"payload", "response", "request", "tools", "result", "aliases"}
+
+
+def decoded(row: dict) -> dict:
+    """Raw SQL returns JSON columns as text; the application reads them as values."""
+    return {
+        k: json.loads(v) if k in JSON_COLUMNS and isinstance(v, str) else v
+        for k, v in row.items()
+    }
 
 
 @pytest_asyncio.fixture
-async def pg(tmp_path):
-    if not TEST_DATABASE.rsplit("/", 1)[-1].endswith("_test"):
-        pytest.fail("Integration tests require a database ending in _test")
+async def pg(tmp_path, tmp_path_factory):
+    """The app's container on a fresh SQLite file; the runner stays off unless a test starts it."""
     app = create_app(
         Settings(
             # The developer's .env, with its real slicer folder, never reaches a test.
             _env_file=None,
-            database_url=TEST_DATABASE,
+            database_url="sqlite+aiosqlite:///" + (tmp_path_factory.mktemp("db") / "test.db").as_posix(),
             session_secret="test-secret-" * 4,
             data_dir=tmp_path,
             # No slicer runs here unless a test starts the stand-in in this folder.
@@ -37,8 +37,7 @@ async def pg(tmp_path):
         )
     )
     container = app.state.container
-    async with container.engine.begin() as connection:
-        await connection.execute(text(f"TRUNCATE {TABLES} RESTART IDENTITY CASCADE"))
+    await create_schema(container.engine)
     yield container
     await container.close()
 

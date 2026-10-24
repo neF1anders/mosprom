@@ -24,6 +24,8 @@ from src.backend.infrastructure.catalog import load_catalog
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
 from src.mesh_analysis import analyze_stl
 
+from .conftest import decoded
+
 pytestmark = pytest.mark.integration
 CATALOG = load_catalog(Path("knowledge/ste_5.2.4"), "hte530v5.2.4")
 REASON = {"why": "профиль по умолчанию", "source": "default"}
@@ -167,7 +169,7 @@ async def job(pg, job_id: str):
 
 async def rows(pg, sql: str, **params) -> list[dict]:
     async with pg.engine.connect() as connection:
-        return [dict(r._mapping) for r in await connection.execute(text(sql), params)]
+        return [decoded(dict(r._mapping)) for r in await connection.execute(text(sql), params)]
 
 
 ORDER = ("parameters", "validation", "slicing", "gcode")
@@ -194,7 +196,7 @@ async def events(pg, job_id: str) -> list[tuple[str, str]]:
 async def test_a_ready_card_goes_through_every_step_to_a_project(pg, http):
     job_id = await ready_job(http, pg)
     queued = await rows(
-        pg, "SELECT task_name, status FROM procrastinate_jobs WHERE queue_name = 'stage2'"
+        pg, "SELECT task AS task_name, status FROM task_queue WHERE task = 'stage2.select_parameters'"
     )
     assert queued == [{"task_name": "stage2.select_parameters", "status": "todo"}]
     steps = Steps()

@@ -11,6 +11,7 @@ from sqlalchemy import text
 from src.backend.domain.errors import AppError
 from src.backend.domain.models import Status
 
+from .conftest import decoded
 from .fakes import ScriptedModel, call, reply
 
 pytestmark = pytest.mark.integration
@@ -116,7 +117,7 @@ async def answer(http, job, answers: dict):
 
 async def rows(pg, sql: str, **params):
     async with pg.engine.connect() as connection:
-        return [dict(r._mapping) for r in await connection.execute(text(sql), params)]
+        return [decoded(dict(r._mapping)) for r in await connection.execute(text(sql), params)]
 
 
 async def chat(http, job_id: str) -> list[dict]:
@@ -167,13 +168,10 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     # The report replaces the summary; the projections still show the shape.
     assert "<stl>" not in checking[0]["text"] and checking[-1]["type"] == "image_url"
     queued = await rows(
-        pg, "SELECT task_name, args FROM procrastinate_jobs WHERE queue_name = 'stage2'"
+        pg, "SELECT task, job_id, revision FROM task_queue WHERE task = 'stage2.select_parameters'"
     )
     assert queued == [
-        {
-            "task_name": "stage2.select_parameters",
-            "args": {"job_id": job.id, "revision": job.revision},
-        }
+        {"task": "stage2.select_parameters", "job_id": job.id, "revision": job.revision}
     ]
     traces = await rows(
         pg, "SELECT agent, response, cached FROM agent_calls WHERE job_id = :j", j=job.id
@@ -247,10 +245,17 @@ async def test_a_chat_reply_on_a_finished_card_keeps_the_card(pg, http):
 
 
 async def todo(pg, queue: str) -> list[dict]:
+    task = {"stage1": "stage1.run", "stage2": "stage2.select_parameters"}[queue]
     found = await rows(
-        pg, "SELECT args FROM procrastinate_jobs WHERE queue_name = :q AND status = 'todo'", q=queue
+        pg,
+        "SELECT job_id, revision, start FROM task_queue WHERE task = :t AND status = 'todo'",
+        t=task,
     )
-    return [row["args"] for row in found]
+    # Only a start request carries its flag.
+    return [
+        {"job_id": row["job_id"], "revision": row["revision"], **({"start": True} if row["start"] else {})}
+        for row in found
+    ]
 
 
 async def finished(pg, http):
@@ -329,7 +334,7 @@ async def test_checker_questions_wait_for_answers_in_the_same_dialog(pg, http):
     assert job.status == Status.WAITING and job.stage == "understanding"
     [question] = job.card.questions
     assert question.id.startswith("clarify.") and question.blocking
-    assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'stage2'") == []
+    assert await rows(pg, "SELECT id FROM task_queue WHERE task = 'stage2.select_parameters'") == []
     await answer(http, job, {question.id: "вода"})
     fix = {
         "code_fixes": [
@@ -472,7 +477,7 @@ async def test_files_attached_during_a_run_keep_the_card_from_stage_two(pg, http
     job = await run(pg, job_id, script(checker=[attach_meanwhile]))
     assert job.files_changed and job.status == Status.WAITING
     assert job.card.readiness == "ready" and job.stage == "understanding"
-    assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'stage2'") == []
+    assert await rows(pg, "SELECT id FROM task_queue WHERE task = 'stage2.select_parameters'") == []
 
 
 async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):

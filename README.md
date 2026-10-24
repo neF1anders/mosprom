@@ -6,14 +6,7 @@
 
 Ядро второго этапа, подбор параметров печати по готовой карточке, лежит в `src/backend/tuning`. Как выбирается каждый параметр, описано в [методике](docs/tuning/METHODOLOGY.md), принятые решения — в [DECISIONS.md](docs/tuning/DECISIONS.md).
 
-```bash
-python3 scripts/bootstrap.py
-# Заполните QWEN_API_KEY в .env
-docker compose up --build -d
-python3 scripts/bootstrap.py <user_id>
-```
-
-Откройте ссылку из последней команды. В браузер передаётся только одноразовый токен локальной сессии; ключ Qwen остаётся на сервере.
+**Портативная версия.** Установка: распаковать `AIAssistant-portable.zip` в `%APPDATA%\steslicer\7.10\plugins`, открыть STE Slicer и выбрать «AI Assistant → Открыть StereotechAI». Подробности и сборка в [PORTABLE.md](docs/PORTABLE.md). Запуск из исходников: `uv sync --locked`, затем `uv run uvicorn src.backend.api.app:create_app --factory --port 8000` с заполненным `.env`.
 
 После карточки конвейер подбирает параметры, проверяет их, нарезает в STE Slicer через плагин AI Assistant и проверяет G-code; итог это `project.3mf` и `result.gcode`. Как это устроено и как проверить на Windows с настоящим слайсером, описано в [PIPELINE.md](docs/PIPELINE.md). Без слайсера (например на Mac) его заменяет `scripts/fake_ste_slicer.py`.
 

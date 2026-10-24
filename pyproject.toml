@@ -4,16 +4,13 @@ version = "0.1.0"
 description = "Local task interpretation and STL analysis for STE Slicer"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    "alembic==1.20.1",
+    "aiosqlite==0.21.0",
     "fastapi==0.161.1",
     "httpx==0.28.1",
     "json-repair==0.64.2",
-    "matplotlib==3.10.7",
     "networkx==3.5",
     "numpy==2.3.4",
     "pillow==13.0.0",
-    "procrastinate==3.10.0",
-    "psycopg[binary]==3.3.6",
     "pydantic==2.14.1",
     "pydantic-settings==2.16.1",
     "pypdf==6.21.2",

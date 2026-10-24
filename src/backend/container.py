@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from functools import cached_property
 
 from .agents.runner import AgentRunner
@@ -12,8 +13,8 @@ from .domain.catalog import Catalog
 from .infrastructure.catalog import load_catalog, load_requirement_keys
 from .infrastructure.database import database
 from .infrastructure.files import LocalFiles
-from .infrastructure.notifier import PostgresNotifier
-from .infrastructure.queue import queue_app
+from .infrastructure.notifier import Notifier
+from .infrastructure.queue import STAGE1_TASK, STAGE2_TASK, TaskRunner
 from .infrastructure.qwen import QwenClient
 from .infrastructure.slicer import McpSlicer, SlicerSettings, gcode_facts
 from .pipeline.parameters import ParameterPipeline, PipelineSettings
@@ -33,8 +34,9 @@ from .validation import check
 class Container:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.queue = queue_app(settings.database_url)
-        self.engine, self.uow = database(settings.database_url, self.queue)
+        self.notifier = Notifier()
+        self.wake = asyncio.Event()
+        self.engine, self.uow = database(settings.database_url, self.notifier, self.wake)
         self.files = LocalFiles(settings.data_dir, limits=settings.limits)
         self.model = QwenClient(
             settings.qwen_base_url,
@@ -42,7 +44,6 @@ class Container:
             settings.qwen_api_key,
             max_tokens=settings.qwen_max_tokens,
         )
-        self.notifier = PostgresNotifier(settings.database_url)
         self.requirement_keys = load_requirement_keys(settings.requirement_keys_path)
         commands = Commands(self.uow)
         self.jobs = JobService(self.uow, self.notifier)
@@ -63,6 +64,21 @@ class Container:
                 job_images=settings.limits.job_images,
             ),
             self.requirement_keys,
+        )
+
+    @cached_property
+    def runner(self) -> TaskRunner:
+        async def stage1(job_id: str, revision: int, start: bool) -> None:
+            await self.stage1.run(job_id, revision, start)
+
+        async def parameters(job_id: str, revision: int, start: bool) -> None:
+            await self.pipeline.run(job_id, revision)
+
+        return TaskRunner(
+            self.uow,
+            self.wake,
+            {STAGE1_TASK: stage1, STAGE2_TASK: parameters},
+            self.settings.worker_concurrency,
         )
 
     @cached_property
@@ -100,6 +116,6 @@ class Container:
         )
 
     async def close(self) -> None:
-        await self.notifier.close()
+        await self.runner.stop()
         await self.model.close()
         await self.engine.dispose()

@@ -5,16 +5,14 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import and_, false, func, or_, select
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.errors import AppError, NotFound
 from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
 from ..domain.pipeline import Step
 from . import tables as t
-
-EVENTS_CHANNEL = "job_events"
 
 
 class Repository:
@@ -30,7 +28,7 @@ class JobRepository(Repository):
                     select(
                         t.jobs.c.id,
                         t.jobs.c.payload["revision"].as_integer().label("revision"),
-                        t.jobs.c.payload["status"].astext.label("status"),
+                        t.jobs.c.payload["status"].as_string().label("status"),
                     ).where(t.jobs.c.id == job_id)
                 )
             )
@@ -46,8 +44,6 @@ class JobRepository(Repository):
         query = select(t.jobs.c.payload).where(t.jobs.c.id == job_id)
         if user_id is not None:
             query = query.where(t.jobs.c.user_id == user_id)
-        if lock:
-            query = query.with_for_update()
         value = await self._session.scalar(query)
         if value is None:
             raise NotFound()
@@ -69,12 +65,12 @@ class JobRepository(Repository):
     async def list(
         self, user_id: str, before: str | None = None, limit: int = 50
     ) -> builtins.list[Job]:
-        updated = t.jobs.c.payload["updated_at"].astext
+        updated = t.jobs.c.payload["updated_at"].as_string()
         query = (
-            select(t.jobs.c.payload.op("-")("card"))
+            select(t.jobs.c.payload)
             .where(
                 t.jobs.c.user_id == user_id,
-                t.jobs.c.payload["deleted"].astext.is_distinct_from("true"),
+                ~func.coalesce(t.jobs.c.payload["deleted"].as_boolean(), false()),
             )
             .order_by(updated.desc(), t.jobs.c.id.desc())
             .limit(limit)
@@ -84,7 +80,11 @@ class JobRepository(Repository):
             query = query.where(
                 or_(updated < cursor, and_(updated == cursor, t.jobs.c.id < before))
             )
-        return [Job.model_validate(v) for v in await self._session.scalars(query)]
+        # The list shows no cards; they are large and only one job at a time needs its own.
+        return [
+            Job.model_validate({k: v for k, v in value.items() if k != "card"})
+            for value in await self._session.scalars(query)
+        ]
 
 
 class MessageRepository(Repository):
@@ -132,10 +132,8 @@ class AttachmentRepository(Repository):
 
 class ReceiptRepository(Repository):
     async def find(self, key: str, payload_hash: str) -> dict[str, Any] | None:
-        # Transaction advisory lock also serializes create commands before a job exists.
-        await self._session.execute(
-            select(func.pg_advisory_xact_lock(func.hashtextextended(key, 0)))
-        )
+        # Every transaction holds the write lock from its first statement, so create commands
+        # are serialized before a job exists.
         row = (
             (await self._session.execute(select(t.receipts).where(t.receipts.c.key == key)))
             .mappings()
@@ -167,15 +165,12 @@ class CacheRepository(Repository):
 
 class EventRepository(Repository):
     async def append(self, event: Event) -> None:
-        # Serialize event allocation per job so SSE cursors follow commit order.
-        await self._session.execute(
-            select(t.jobs.c.id).where(t.jobs.c.id == event.job_id).with_for_update()
-        )
+        # One writer at a time keeps SSE cursors in commit order.
         await self._session.execute(
             insert(t.events).values(job_id=event.job_id, payload=event.model_dump(mode="json"))
         )
         # Delivered on commit: open event streams of the job fetch at once instead of polling.
-        await self._session.execute(select(func.pg_notify(EVENTS_CHANNEL, event.job_id)))
+        self._session.info["notify"].add(event.job_id)
 
     async def list(self, job_id: str, after: int = 0, limit: int = 100) -> builtins.list[Event]:
         query = (
@@ -210,7 +205,6 @@ class KnowledgeRepository(Repository):
             material_id=record.material_id,
             property=record.property,
             aliases=[a.casefold() for a in record.aliases],
-            search=func.to_tsvector("russian", record.text + " " + record.property),
             payload=record.model_dump(mode="json"),
         )
         await self._session.execute(
@@ -218,7 +212,7 @@ class KnowledgeRepository(Repository):
                 index_elements=["id"],
                 set_={
                     c: query.excluded[c]
-                    for c in ["material_id", "property", "aliases", "search", "payload"]
+                    for c in ["material_id", "property", "aliases", "payload"]
                 },
             )
         )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .domain.limits import InputLimits
@@ -11,7 +11,8 @@ from .domain.limits import InputLimits
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_nested_delimiter="__")
     limits: InputLimits = InputLimits()
-    database_url: str = "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom"
+    # Empty means app.db in ``data_dir``.
+    database_url: str = ""
     data_dir: Path = Path("artifacts/stage1")
     # The issued STE Slicer build and the printer whose parameters are selected.
     build_dir: Path = Path("knowledge/ste_5.2.4")
@@ -33,6 +34,15 @@ class Settings(BaseSettings):
     slicer_host: str = "127.0.0.1"
     # The plugin waits up to five minutes for a slicing, loading and saving add a minute.
     slicing_timeout_seconds: float = Field(default=420, gt=0)
-    worker_concurrency: int = Field(default=2, ge=1, le=32)
+    # Stages run at once; one local user rarely has more than a few chats going.
+    worker_concurrency: int = Field(default=4, ge=1, le=32)
     app_origin: str = "http://localhost:8000"
     session_secret: str = ""
+    # The plugin that started this process; when it is gone the process exits too.
+    parent_pid: int = 0
+
+    @model_validator(mode="after")
+    def default_database(self) -> "Settings":
+        if not self.database_url:
+            self.database_url = "sqlite+aiosqlite:///" + (self.data_dir / "app.db").as_posix()
+        return self
