@@ -2,8 +2,9 @@
 
 Requirement codes, kinds and units come from the dictionary shared with stage one
 (``knowledge/requirement_keys.json``); a requirement under another key is reported as not taken
-into account. Free text is read only for priorities, a ban on supports and the load, by the
-phrases of ``phrases.json``; every such inference is told to the user as an assumption.
+into account. Free text is read only for a ban on supports, the load and, when the card has no
+``priority`` code, the priorities, by the phrases of ``phrases.json``; every such inference is
+told to the user as an assumption.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from ..domain.requirement_keys import RequirementKey, RequirementKeys
 from ..domain.units import convert, dimension, numbers
 from .geometry import Geometry, read_geometry
 
-RequirementValue = float | bool | tuple[str, ...]
+RequirementValue = float | bool | str | tuple[str, ...]
 # How far a requirement is confirmed: by the user or a document, by knowledge, or not at all.
 Basis = Literal["user", "model", "assumption"]
 _BASIS: dict[str, Basis] = {
@@ -105,6 +106,7 @@ class _Draft:
     requirements: list[CardRequirement] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     quantity: int = 1
+    priority: tuple[str, ...] = ()
     load: str | None = None
     mode: ModeRequest | None = None
     material: MaterialRequest | None = None
@@ -246,6 +248,13 @@ def _items(requirement: Requirement, entry: RequirementKey) -> tuple[str, ...]:
     return found
 
 
+def _choice(requirement: Requirement, entry: RequirementKey) -> str:
+    value = requirement.value.strip().lower()
+    if value not in entry.options:
+        raise Unreadable(f"expected one of {', '.join(entry.options)}, got {requirement.value!r}")
+    return value
+
+
 def _read_quantity(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
@@ -277,6 +286,29 @@ def _read_printing_mode(
     )
 
 
+def _read_priority(
+    draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
+) -> None:
+    """Known priorities in the stated order; an unknown one is dropped with a warning. Without
+    a known one the wishes are read instead."""
+    options = ", ".join(entry.options)
+    items = [item.strip().lower() for item in _LIST_SEPARATORS.split(requirement.value)]
+    known = tuple(dict.fromkeys(item for item in items if item in entry.options))
+    if not known:
+        _not_interpreted(
+            draft, requirement, f"{label}: expected some of {options}, got {requirement.value!r}"
+        )
+        return
+    unknown = [item for item in items if item and item not in entry.options]
+    if unknown:
+        draft.warnings.append(f"priority {label}: {', '.join(unknown)} not one of {options}")
+    draft.priority = known
+    if _basis(requirement) == "assumption":
+        draft.assumptions.append(
+            f"приоритеты {', '.join(known)} в карточке не подтверждены и приняты как допущение"
+        )
+
+
 def _read_material(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
@@ -290,6 +322,7 @@ def _read_material(
 _CardField = Callable[[_Draft, Requirement, str, str, RequirementKey], None]
 _CARD_FIELDS: dict[str, _CardField] = {
     "quantity": _read_quantity,
+    "priority": _read_priority,
     "load_bearing": _read_load,
     "printing_mode": _read_printing_mode,
     "material": _read_material,
@@ -298,6 +331,7 @@ _VALUES: dict[str, Callable[[Requirement, RequirementKey], RequirementValue]] = 
     "number": _number,
     "flag": _flag,
     "list": _items,
+    "choice": _choice,
 }
 
 
@@ -320,7 +354,9 @@ def _read_answers(draft: _Draft, card: TaskCard) -> None:
 
 
 def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
-    """Priorities in the order the wishes name them."""
+    """The ``priority`` code of the card, else priorities in the order the wishes name them."""
+    if draft.priority:
+        return draft.priority
     positions = []
     for priority, phrases in sorted(PHRASES.priority_phrases.items()):
         hits = [wishes.find(phrase) for phrase in phrases if phrase in wishes]

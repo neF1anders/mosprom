@@ -1,7 +1,8 @@
 """Flat facts that rule conditions are evaluated against.
 
-``geometry.overhang_area_fraction``, which the support and 5D rules read, is not a fact yet:
-the STL report has no overhang measurement.
+A measure the STL report does not give is not a fact, so the rules that read it do not fire:
+without ``overhangs`` in the report that is ``geometry.overhang_area_fraction`` of the support
+and 5D rules.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValu
         "geometry.min_wall_estimate_mm": geometry.min_wall_estimate,
         "geometry.volume_mm3": geometry.volume,
         "geometry.surface_area_mm2": geometry.surface_area,
+        "geometry.overhang_area_fraction": geometry.overhang_fraction,
         "material.speed": material.speed,
         "material.cooling_pct": material.cooling_percent,
     }
