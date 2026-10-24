@@ -33,6 +33,7 @@ class MaterialTraits(Value):
     friction: Level | None = None
     abrasion: Grade | None = None
     warp: Level | None = None
+    infill_min_pct: float | None = None
 
 
 class TextFlags(Value):

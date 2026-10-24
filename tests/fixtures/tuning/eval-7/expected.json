@@ -196,6 +196,12 @@
    "unit": "mm",
    "value": 0.2,
    "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
+  },
+  "wall_thickness": {
+   "source": "rule:WALLS-STANDARD",
+   "unit": "mm",
+   "value": 1.2,
+   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
   }
  },
  "status": "proposed",

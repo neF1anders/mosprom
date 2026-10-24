@@ -24,6 +24,7 @@ ContextRef = Literal[
     "material.print_temperature",
     "material.speed",
     "material.speed_floor",
+    "material.infill_min_pct",
     "limits.temperature_max_c",
 ]
 
@@ -108,6 +109,8 @@ class AxisContext:
     material_speed: float | None
     speed_floor: float
     temperature_max: float
+    # The datasheet's least infill for a functional part; rules read it only when it is known.
+    infill_min: float | None = None
 
     def number(self, spec: NumberSpec) -> float:
         if isinstance(spec, NumberRef):
@@ -121,6 +124,7 @@ _CONTEXT_FIELDS: dict[ContextRef, str] = {
     "material.print_temperature": "material_temperature",
     "material.speed": "material_speed",
     "material.speed_floor": "speed_floor",
+    "material.infill_min_pct": "infill_min",
     "limits.temperature_max_c": "temperature_max",
 }
 

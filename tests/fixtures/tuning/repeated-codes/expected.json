@@ -123,6 +123,12 @@
    "unit": "mm/s",
    "value": 50.0,
    "why": "скорость печати не выше рекомендованной в файле материала"
+  },
+  "wall_thickness": {
+   "source": "rule:WALLS-STANDARD",
+   "unit": "mm",
+   "value": 1.2,
+   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
   }
  },
  "status": "proposed",
