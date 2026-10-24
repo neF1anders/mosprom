@@ -1,0 +1,3 @@
+*.pdf binary
+# Extracted reference excerpts retain whitespace from the organizer's documents.
+knowledge/sources/example-*.md -whitespace
