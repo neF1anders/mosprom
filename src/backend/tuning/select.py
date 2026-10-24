@@ -35,8 +35,13 @@ from .placement import place_model
 from .planning import build_plan, find_conflicts, plan_unmet
 from .printer import Mode, load_printer
 from .quality import choose_quality
-from .rules import RULE_BY_ID, fired_rules
+from .ranking import CHECKED_CODES
+from .rules import RULE_BY_ID, RULES, fired_rules, requirement_keys
 from .settings import choose_settings
+
+# Requirement codes the material checks and the rule conditions read; ``intake`` reads the card
+# fields itself and tells the user about a requirement under any other code.
+READ_CODES = frozenset({*CHECKED_CODES, *(key for rule in RULES for key in requirement_keys(rule))})
 
 
 def select_parameters(
@@ -47,7 +52,7 @@ def select_parameters(
 ) -> ParameterSet:
     """First pass without feedback; the second and last pass with the feedback on the first."""
     iteration = _iteration(feedback)
-    request = read_card(card, keys)
+    request = read_card(card, keys, READ_CODES)
     printer = load_printer(catalog)
     constraints = feedback.constraints if feedback is not None else []
     choices = choices_from(constraints)

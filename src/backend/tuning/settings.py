@@ -79,7 +79,7 @@ def _axis_setting(
     entry = plan.axes[axis.id]
     baseline = _baseline(baseline_spec, mode, quality, material)
     t, rule_id = resolve_t(entry, axis.clamped_t_of(baseline))
-    value = axis.value_at(t)
+    value = axis.value_at(t, entry.low, entry.high)
     value, rule_id = _enough_layers(plan, axis, value, rule_id, quality.layer_height)
     if rule_id is None or abs(value - baseline) < EPSILON:
         return None

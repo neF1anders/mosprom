@@ -21,7 +21,7 @@ select_parameters(card: TaskCard, catalog: Catalog, keys: RequirementKeys, feedb
 ```
 TaskCard 2.0 [+ stage3.feedback 0.1]
   │ 1. приём: готовность, требования по общему словарю, свободный текст, геометрия STL   (intake.py, geometry.py)
-  │ 2. материал: из карточки, ответа или ограничения, иначе ранжирование каталога 1,75 мм (material_choice.py, ranking.py)
+  │ 2. материал: из карточки или ограничения, иначе ранжирование каталога 1,75 мм        (material_choice.py, ranking.py)
   │ 3. факты и правила: сработавшие правила по фактам                                   (facts.py, rules.py, rules.json)
   │ 4. режим печати: голоса правил и ограничения, отсев по габаритам                     (mode.py)
   │ 5. план: сдвиги и жёсткие пределы осей, дискретные значения                          (axes.py, planning.py)
@@ -56,7 +56,7 @@ ParameterSet 0.2
 - требования `req.<код>` / `reqhard.<код>`, в том числе коды выбора вроде `part_class` (значение только из `options` словаря);
 - `pref.supports_allowed`, `pref.printing_mode`, `pref.quantity`;
 - факты материала `material.speed`, `material.cooling_pct`;
-- геометрия: `geometry.needs_repair`, `geometry.min_wall_estimate_mm`, `geometry.volume_mm3`, `geometry.surface_area_mm2`, `geometry.overhang_area_fraction` (`overhangs.area_fraction` отчёта STL). Без раздела `overhangs` правила по нависаниям не срабатывают, и в ответе остаётся допущение.
+- геометрия: `geometry.overhang_area_fraction` (`overhangs.area_fraction` отчёта STL). Без раздела `overhangs` правила по нависаниям не срабатывают, и в ответе остаётся допущение.
 
 ## 1. Сводка: параметр → алгоритм
 
@@ -65,7 +65,7 @@ ParameterSet 0.2
 | Параметр | Вход | Алгоритм | Отправляется | Знание |
 |---|---|---|---|---|
 | `printing_mode` | требование `printing_mode`; ограничение этапа 3; габариты | голосование: classic 1, карточка 10, ограничение 1000, гипотеза 5D 2; режим, где деталь не помещается, исключается | всегда | S, D, H |
-| материал `materials.0` | требование `material`, ответ на вопрос `material_choice`, ограничение; требования к материалу | назван и найден → он; иначе ранжирование пула 1,75 мм | всегда | D, G |
+| материал `materials.0` | требование `material`, ограничение; требования к материалу | назван и найден → он; иначе ранжирование пула 1,75 мм | всегда | D, G |
 | `quality_type` | приоритет, допуск, «без видимых слоёв», ограничения | целевой слой по оси → ближайший профиль в пределах | всегда | D, S, G |
 | `layer_height` | то же | только если ни один профиль не в пределах | редко | D |
 | `wall_thickness` | приоритет, нагрузка, жёсткость, гибкость | ось 2 → 6 периметров; отправляется `n · ширина линии` | при отличии | S, G, D |
@@ -81,7 +81,7 @@ ParameterSet 0.2
 | `support_enable` | нависания, `supports_allowed`, `no_supports` | `true` при доле нависаний > 0,05 и разрешённых поддержках | при `true` | S, G |
 | `support_type`, `support_angle` | — | значения сборки (everywhere, 50°) | нет | D |
 | `adhesion_type` | режим | формула сборки: brim в 3D / 5D Spiral, raft в 5D | при вето / ограничении | D |
-| 5D: `cylindrical_mode_base_diameter` | `revolution.bore.diameter_mm` отчёта STL | диаметр отверстия, округлённый вниз до 0,5 мм; без отверстия или меньше 4 мм (`minimum_value` сборки) остаются 6 мм и допущение | при отверстии от 4 мм | D |
+| 5D: `cylindrical_mode_base_diameter` | `revolution.bore.diameter_mm` отчёта STL | диаметр сквозного отверстия тела вращения, округлённый вниз до 0,5 мм; без такого отверстия или меньше 4 мм (`minimum_value` сборки) остаются 6 мм и допущение | при сквозном отверстии тела вращения от 4 мм | D |
 | 5D: `non_printing_base_diameter` | — | значение сборки 6 мм | нет (пока) | D |
 | 5D: `cylindrical_layer_height`, `support_enable_cylindrical`, `cylindrical_raft_thickness`, `cylindrical_raft_diameter` | — | формулы сборки от `layer_height`, `support_enable`, диаметра основания, плота | нет | D |
 | 5D: `cylindrical_layer_height_0`, `cylindrical_raft_type`, `cylindrical_raft_base_height`, `support_enable_top_support` | — | значения сборки (0,3; solid; 15; false) | нет (пока) | D |
@@ -110,8 +110,7 @@ ParameterSet 0.2
 
 ### 2.2 Материал
 - **Материал назван** и найден по id или названию среди материалов 1,75 мм. Источники:
-  - подтверждённое требование `material`, `source: requirement:<id>`;
-  - ответ на вопрос `material_choice`, `source: requirement:answer.material_choice`;
+  - подтверждённое требование `material`, `source: requirement:<id>`, в том числе из ответа пользователя: этап 1 сам переводит ответы в требования;
   - ограничение `material eq`, `source: constraint:<id>`.
 
   Найденный материал проверяется по требованиям.
@@ -192,7 +191,7 @@ ParameterSet 0.2
 - Формула сборки (D, 5.2.4): `brim` в 3D и 5D Spiral, `raft` в `cylindrical_full`. Правил нет, отправляется только по ограничению.
 
 ### 2.14 5D-ключи
-- **Диаметр основания.** `cylindrical_mode_base_diameter` — диаметр цилиндра, которым слайсер режет модель в 5D: внутри 3D, снаружи 5D, `StartSliceJob` (D). Где он действует, видно по условию `enabled` в сборке. Он равен диаметру отверстия детали из `revolution.bore.diameter_mm` отчёта STL, округлённому вниз до 0,5 мм, `source: assumption:stl.revolution.bore`. Отправляется только в режимах, где ключ действует. Без отверстия или при значении меньше 4 мм (`minimum_value` сборки) остаются 6 мм сборки с допущением в ответе. Ограничение этапа 3 на этот ключ важнее отверстия. `non_printing_base_diameter` остаётся значением сборки. В тестовых G-code Stereotech — 10–20 мм.
+- **Диаметр основания.** `cylindrical_mode_base_diameter` — диаметр цилиндра, которым слайсер режет модель в 5D: внутри 3D, снаружи 5D, `StartSliceJob` (D). Где он действует, видно по условию `enabled` в сборке. Он равен диаметру отверстия детали из `revolution.bore.diameter_mm` отчёта STL, округлённому вниз до 0,5 мм, `source: assumption:stl.revolution.bore`. Берётся только сквозное отверстие (`bore.through`) детали, которая по отчёту тело вращения (`is_revolution`): цилиндр основания проходит через всю деталь по оси. Отправляется только в режимах, где ключ действует. Без такого отверстия или при значении меньше 4 мм (`minimum_value` сборки) остаются 6 мм сборки с допущением в ответе. Ограничение этапа 3 на этот ключ важнее отверстия. `non_printing_base_diameter` остаётся значением сборки. В тестовых G-code Stereotech — 10–20 мм.
 - **Формулы сборки:** `cylindrical_layer_height` (= `layer_height`), `support_enable_cylindrical` (= `support_enable`), `cylindrical_raft_thickness`, `cylindrical_raft_diameter`.
 - **Значения сборки:** `cylindrical_layer_height_0` 0,3, `cylindrical_raft_type` solid, `cylindrical_raft_base_height` 15.
 
