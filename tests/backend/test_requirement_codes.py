@@ -1,5 +1,6 @@
 """Requirement codes: which agents read them and how the server checks coded values."""
 
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -188,3 +189,23 @@ async def test_an_answer_gives_the_coded_value_a_unit_selection_can_read(answer,
     requirements, _ = await verify(stated, {question: answer})
     assert (requirements[0].unit, requirements[0].verified) == (unit, verified)
     assert requirements[0].provenance == "user"
+
+
+def test_the_score_counts_requirements_that_use_a_code():
+    path = Path("scripts/eval_stage1.py")
+    spec = importlib.util.spec_from_file_location("stage1_quality", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    card = {
+        "requirements": [
+            {"key": "torque_nominal", "label": "Номинальный момент", "value": "25"},
+            {"key": "torque_peak", "label": "Пиковый момент", "value": "75"},
+            {"key": "humidity", "value": "85–98", "unit": "%"},
+            {"key": "service_temp_max_c", "value": "от +10 до +70", "unit": "°C"},
+            {"key": "tg_min_c", "label": "Температура стеклования", "value": "85–90"},
+        ]
+    }
+    result = module.score("1", card, CODES)
+    assert result["codes"] == "2/5" and result["matched"] == result["facts"] == 5
+    assert module.score("1", {}, CODES)["codes"] == "0/0"
