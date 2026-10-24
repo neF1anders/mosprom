@@ -43,6 +43,19 @@ def test_runtime_dependencies_cover_lazy_production_imports():
         ("domain", ("sqlalchemy", "psycopg", "fastapi", "httpx", "infrastructure", "agents")),
         ("ports", ("sqlalchemy", "psycopg", "fastapi", "infrastructure")),
         ("infrastructure", ("api.routes", "services", "agents")),
+        (
+            "validation",
+            (
+                "sqlalchemy",
+                "psycopg",
+                "fastapi",
+                "httpx",
+                "infrastructure",
+                "agents",
+                "services",
+                "pipeline",
+            ),
+        ),
     ],
 )
 def test_A01_import_boundaries(folder, forbidden):
@@ -73,6 +86,14 @@ def test_A01_application_branch_nesting_at_most_two():
         for child in ast.iter_child_nodes(node):
             visit(child, current, inline or isinstance(node, ast.IfExp))
 
-    for folder in ["domain", "services", "agents", "api", "api/routes", "infrastructure"]:
+    for folder in [
+        "domain",
+        "services",
+        "agents",
+        "api",
+        "api/routes",
+        "infrastructure",
+        "validation",
+    ]:
         for path in (ROOT / folder).rglob("*.py"):
             visit(ast.parse(path.read_text()))
