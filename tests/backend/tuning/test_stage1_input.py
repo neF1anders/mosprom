@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from src.backend.domain.errors import AppError
-from src.backend.domain.requirement_keys import RequirementKey, RequirementKeys
+from src.backend.domain.requirement_keys import RequirementKey
 from src.backend.tuning.intake import Unreadable, read_flag, stricter_end
 from src.backend.tuning.select import select_parameters
 from tests.backend.tuning.cards import SHA, card, report, requirement
@@ -263,7 +263,7 @@ def test_unreadable_values_are_told_and_not_used(select):
 
 def test_code_of_a_kind_selection_does_not_read_is_not_taken_into_account(catalog, keys):
     finish = RequirementKey(key="surface_finish", kind="text", title="Чистота поверхности")
-    extended = RequirementKeys(keys=[*keys.keys, finish])
+    extended = keys.model_copy(update={"keys": [*keys.keys, finish]})
     stated = card(requirements=[requirement("surface_finish", "Ra 3.2")])
     parameter_set = select_parameters(stated, catalog, extended).published()
     assert (

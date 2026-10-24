@@ -23,9 +23,13 @@ class RequirementKey(Value):
     # Which end of a range binds: the upper one for "at least", the lower one for "at most".
     strict: Literal["upper", "lower"] | None = None
     options: list[str] = Field(default_factory=list)
+    # How a wording of the specification maps to this code, shown to the model with the code.
+    hint: str = ""
 
 
 class RequirementKeys(Value):
+    # Recorded in the card so that parameter selection knows which dictionary it was built with.
+    version: str
     keys: list[RequirementKey]
 
     def get(self, key: str) -> RequirementKey | None:
