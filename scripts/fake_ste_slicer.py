@@ -1,7 +1,6 @@
 """Stand-in for STE Slicer with the AI Assistant plugin, for a Mac or a test without the slicer.
 
-It answers the plugin's MCP calls the way ``src/plugin/AIAssistant/agent`` of the branch
-``feat/ste-plugin`` does: the same port and token in ``server.json``, the same Host and token
+It answers the plugin's MCP calls the way ``src/plugin/AIAssistant/agent`` does: the same port and token in ``server.json``, the same Host and token
 checks and the tools slicing uses. Nothing is sliced: the G-code is a few layers around the
 model's footprint with the layer height and temperatures that were set, and the project is a
 3MF with a note that it is a stand-in.

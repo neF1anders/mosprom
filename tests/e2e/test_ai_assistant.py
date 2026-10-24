@@ -1,6 +1,6 @@
 """End-to-end checks of the AI Assistant plugin against a running STE Slicer.
 
-Start the slicer with the plugin installed and the environment variable AIASSISTANT_AUTOSTART=1, wait until
+Start the slicer with the plugin installed (its server starts with the slicer), wait until
 Documents/STE_AIAssistant/server.json appears, then run:  python -m unittest tests.e2e.test_ai_assistant -v
 The chat test talks to a fake OpenAI-compatible server, so no real API key is needed or changed.
 """

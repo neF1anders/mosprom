@@ -1,6 +1,7 @@
 """Standard-library bootstrap: creates .env and prints a one-time launch link for a user.
 
-The STE Slicer plugin builds the same link with the same secret to open the chat.
+The STE Slicer plugin builds the same link with the same secret to open the chat; the script
+leaves the origin, secret and user for it in mosprom.json next to the plugin's server.json.
 Usage: python3 scripts/bootstrap.py [user_id]
 """
 
@@ -42,6 +43,18 @@ if len(secret) < 32:
     raise SystemExit("Set SESSION_SECRET to at least 32 characters")
 origin = os.environ.get("APP_ORIGIN", values.get("APP_ORIGIN", "http://localhost:8000"))
 user_id = sys.argv[1] if len(sys.argv) > 1 else "local"
+plugin_folder = Path(
+    os.environ.get("SLICER_HOST_FOLDER")
+    or values.get("SLICER_HOST_FOLDER")
+    or Path.home() / "Documents" / "STE_AIAssistant"
+)
+try:
+    plugin_folder.mkdir(parents=True, exist_ok=True)
+    config = plugin_folder / "mosprom.json"
+    config.write_text(json.dumps({"origin": origin, "secret": secret, "user_id": user_id}))
+    config.chmod(0o600)
+except OSError as exc:
+    print(f"The plugin config was not written to {plugin_folder}: {exc}", file=sys.stderr)
 payload = base64.urlsafe_b64encode(
     json.dumps(
         {
