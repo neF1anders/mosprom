@@ -52,7 +52,7 @@ function tree(job: Job | undefined, attachments: Attachment[]): Node | null {
       ]
     : [];
   children.push({ name: "результат", children: result });
-  return { name: job.title, children };
+  return { name: job.projects?.at(-1)?.title || job.title, children };
 }
 // Level guides as in a code editor: a pipe for an ancestor with siblings below, a bend for the row.
 function guides(depth: number, continues: boolean[], last: boolean) {

@@ -26,16 +26,19 @@ function uploadState(file: DraftFile) {
   return file.error ? "failed" : "ready";
 }
 // Files wait in the composer until the message is sent, as on Figma screen 11.
+// Without onRemove the cards only show what a sent message carried.
 export function Attachments({
   files,
   onRemove,
+  label = "Вложения к сообщению",
 }: {
   files: DraftFile[];
-  onRemove: (file: DraftFile) => void;
+  onRemove?: (file: DraftFile) => void;
+  label?: string;
 }) {
   if (!files.length) return null;
   return (
-    <ul className={styles.attachments} aria-label="Вложения к сообщению">
+    <ul className={styles.attachments} aria-label={label}>
       {files.map((file) => (
         <AttachmentCard key={file.key} file={file} onRemove={onRemove} />
       ))}
@@ -47,7 +50,7 @@ function AttachmentCard({
   onRemove,
 }: {
   file: DraftFile;
-  onRemove: (file: DraftFile) => void;
+  onRemove?: (file: DraftFile) => void;
 }) {
   const state = uploadState(file);
   const shown = usePreview(state === "ready" ? file : undefined);
@@ -81,7 +84,7 @@ function AttachmentCard({
         <Icon name={icons[file.kind] || "plain-file"} />
         <span title={file.name}>{file.name}</span>
       </div>
-      {!file.uploading && (
+      {onRemove && !file.uploading && (
         <button
           type="button"
           className={styles.attachmentRemove}

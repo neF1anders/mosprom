@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { usePanelFocus } from "./usePanelFocus";
 import { api, authenticate, command } from "./api";
-import { asksQuestions, composerPlaceholder } from "./chat";
+import { answering, asksQuestions, composerPlaceholder, splitAt } from "./chat";
 import type { Job, QueuedMessage, Snapshot } from "./types";
 import { isRunning, jobStatus } from "./types";
 import { useFollow } from "./hooks/useFollow";
@@ -21,6 +21,7 @@ import { MessageList } from "./components/MessageList";
 import { forget } from "./preview";
 import { Questions } from "./components/Questions";
 import { QueuedMessages } from "./components/QueuedMessages";
+import { Replying } from "./components/Replying";
 import { Timeline } from "./components/Timeline";
 import { AgentDetail } from "./components/AgentDetail";
 import { buildTimeline, summaries } from "./timeline";
@@ -284,30 +285,38 @@ export function App() {
     [...past.older, ...(snapshot.data?.messages || [])],
     (message) => message.id,
   ).sort((a, b) => a.seq - b.seq);
-  // Unsent files wait in the composer; the thread shows only what was sent.
-  const sent = (snapshot.data?.attachments || []).filter((file) => !file.draft);
+  const files = snapshot.data?.attachments || [];
+  const project = job?.projects?.at(-1)?.number;
+  // Unsent files wait in the composer; the tree shows the files of the current project.
+  const sent = files.filter(
+    (file) =>
+      !file.draft &&
+      file.active !== false &&
+      (project === undefined || file.project === project),
+  );
   const order = [...picked.current.keys()];
+  const load = async (id: string) => {
+    const local = picked.current.get(id);
+    if (local) return local;
+    const response = await fetch(`/api/v1/jobs/${selected}/artifacts/${id}`, {
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw new Error(response.statusText);
+    return response.blob();
+  };
   const drafts: DraftFile[] = [
-    ...(snapshot.data?.attachments || [])
-      .filter((file) => file.draft)
+    ...files
+      .filter((file) => file.draft && file.active !== false)
       .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
       .map((file) => ({
         key: file.id,
         name: file.filename,
         kind: file.kind,
-        load: async () => {
-          const local = picked.current.get(file.id);
-          if (local) return local;
-          const response = await fetch(
-            `/api/v1/jobs/${selected}/artifacts/${file.id}`,
-            { credentials: "same-origin" },
-          );
-          if (!response.ok) throw new Error(response.statusText);
-          return response.blob();
-        },
+        load: () => load(file.id),
       })),
     ...uploads,
   ];
+  const byId = new Map(files.map((file) => [file.id, file]));
   const running = isRunning(job);
   // A reply that started no work keeps the timeline of the work before it.
   const current = events.filter((e) => e.revision >= (job?.work_revision ?? 0));
@@ -324,6 +333,12 @@ export function App() {
   });
   // Replies the timeline shows in place are not repeated in the chat.
   const hidden = summaries(stages);
+  // What came after the work began, its report and the talk about it, follows the timeline.
+  const [before, after] = splitAt(
+    messages,
+    stages ? current[0]?.created_at : undefined,
+  );
+  const replying = answering(events, messages, running);
   const agents = (stages || []).flatMap((stage) => stage.agents);
   const working = agents.filter(
     (agent) => agent.state === "run" && !agent.code,
@@ -459,13 +474,27 @@ export function App() {
                   Предыдущие сообщения
                 </button>
               )}
-              <MessageList messages={messages} job={job} hidden={hidden} />
+              <MessageList
+                messages={before}
+                job={job}
+                hidden={hidden}
+                files={byId}
+                load={load}
+              />
               <Timeline
                 stages={stages}
                 job={job}
                 highlighted={highlighted}
                 onAgent={setAgentView}
               />
+              <MessageList
+                messages={after}
+                job={job}
+                hidden={hidden}
+                files={byId}
+                load={load}
+              />
+              {replying && <Replying thoughts={thoughts} />}
               {job?.status === "stopped" && (
                 <button onClick={() => control.mutate("retry")}>
                   Продолжить
