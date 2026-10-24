@@ -333,6 +333,12 @@ describe("agents and their reasoning", () => {
       event("agent.thinking", "running", { call, attempt: 2, text: "Вторая" }),
     );
     expect(two[call].chunks.map((c) => c.text)).toEqual(["Вторая"]);
+    // A late translation of the first attempt does not bring it back.
+    const late = addThought(
+      two,
+      event("agent.thinking", "running", { call, attempt: 1, text: "Поздняя" }),
+    );
+    expect(late[call].chunks.map((c) => c.text)).toEqual(["Вторая"]);
   });
   it("splits reasoning into paragraphs across pieces", () => {
     expect(

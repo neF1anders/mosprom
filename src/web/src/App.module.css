@@ -145,15 +145,13 @@
 .card {
   height: 100%;
   overflow: auto;
-  background: var(--surface);
+  background: var(--panel);
   scrollbar-width: thin;
 }
 .chats {
-  border-right: 1px solid var(--line);
   padding: 20px 12px;
 }
 .card {
-  border-left: 1px solid var(--line);
   padding: 20px 14px;
 }
 .chat {
@@ -1003,7 +1001,7 @@ a.treeRow:hover,
 }
 .agents button:hover,
 .agents button[data-highlighted="true"] {
-  background: var(--bubble);
+  background: var(--hover);
 }
 .taskCard > .row h2 {
   font-size: 15px;
@@ -1811,7 +1809,6 @@ button.agentDone:hover {
   }
   .chats,
   .card {
-    border: 0;
     border-radius: 16px;
   }
   .brand {

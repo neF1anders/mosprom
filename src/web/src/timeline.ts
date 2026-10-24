@@ -545,6 +545,8 @@ export function addThought(
   if (!call) return store;
   const attempt = Number(data.attempt || 1);
   const previous = store[call];
+  // A piece of an attempt already replaced, such as a late translation, is dropped.
+  if (previous && attempt < previous.attempt) return store;
   const chunks =
     previous && previous.attempt === attempt ? [...previous.chunks] : [];
   chunks.push({ at: time(event) ?? Date.now(), text: String(data.text || "") });
