@@ -362,7 +362,10 @@ export async function designFixture(page: Page, state: DesignState) {
     const data = path.endsWith("/session")
       ? { authenticated: true }
       : path.endsWith("/capabilities")
-        ? { model_configured: true }
+        ? {
+            model_configured: true,
+            project_folder: "C:\\Users\\user\\Documents\\STE_AIAssistant\\",
+          }
         : path.endsWith("/parameters")
           ? parameters
           : path.endsWith("/jobs")

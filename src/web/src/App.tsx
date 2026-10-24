@@ -9,7 +9,7 @@ import { usePanelFocus } from "./usePanelFocus";
 import { api, authenticate, command } from "./api";
 import { asksQuestions, composerPlaceholder } from "./chat";
 import type { Job, Snapshot } from "./types";
-import { isRunning } from "./types";
+import { isRunning, jobStatus } from "./types";
 import { useFollow } from "./hooks/useFollow";
 import { useHistory } from "./hooks/useHistory";
 import { useJobEvents } from "./hooks/useJobEvents";
@@ -86,7 +86,10 @@ export function App() {
   });
   const capability = useQuery({
     queryKey: ["capabilities"],
-    queryFn: () => api<{ model_configured: boolean }>("/capabilities"),
+    queryFn: () =>
+      api<{ model_configured: boolean; project_folder?: string | null }>(
+        "/capabilities",
+      ),
     enabled: !!session.data,
   });
   const past = useHistory(
@@ -375,14 +378,7 @@ export function App() {
                   Предыдущие сообщения
                 </button>
               )}
-              <MessageList
-                messages={messages}
-                job={job}
-                attachments={sent}
-                running={running}
-                pending={detach.isPending}
-                onRemove={(id) => detach.mutate(id)}
-              />
+              <MessageList messages={messages} job={job} />
               <Progress
                 events={current}
                 job={job}
@@ -415,6 +411,9 @@ export function App() {
               <Icon name="arrow-down" />
             </button>
           </div>
+          <p className={styles.srOnly} role="status">
+            {jobStatus(job)}
+          </p>
           {job?.error && (
             <section className={styles.notice} role="alert">
               <span className={styles.badge} data-state="error">
@@ -483,8 +482,12 @@ export function App() {
           <TaskCard
             job={job}
             events={current}
+            attachments={sent}
+            folder={capability.data?.project_folder}
+            pending={detach.isPending}
             collapsed={!right}
             onCollapse={() => setRight(false)}
+            onRemove={(id) => detach.mutate(id)}
           />
         </div>
       </div>
