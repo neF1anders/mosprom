@@ -72,6 +72,22 @@ def test_unsupported_citations_are_rejected(case):
     assert check_citations(case, SOURCES) == "rejected"
 
 
+def test_a_value_converted_from_the_unit_of_its_quote_is_cited():
+    sources = {
+        "f5p1": Source(id="f5p1", ref="d:1", kind="document", text="Плотность не более 1200 кг/м3")
+    }
+    density = Requirement(
+        key="density_max_g_cm3",
+        value="1.2",
+        unit="g/cm3",
+        sources=[Evidence(source_id="f5p1", quote="не более 1200 кг/м3")],
+    )
+    assert check_citations(density, sources) == "verified"
+    for value, unit in [("1.3", "g/cm3"), ("1.2", "г")]:
+        wrong = density.model_copy(deep=True, update={"value": value, "unit": unit})
+        assert check_citations(wrong, sources) == "rejected"
+
+
 def test_text_layer_quote_is_text_even_on_a_page_with_an_image():
     r = requirement(source="f3p2", quote="Номинальный момент 25 Н·м")
     assert check_citations(r, SOURCES) == "verified"

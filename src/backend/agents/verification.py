@@ -15,6 +15,7 @@ from ..domain.evidence import (
     verify_question,
 )
 from ..domain.models import Question, Requirement
+from ..domain.requirement_keys import RequirementKeys
 from ..domain.rules import known
 from .card import reading_text, to_requirement
 from .concurrency import together
@@ -28,8 +29,8 @@ SECOND_READER = AgentSpec(
 
 
 class Verifier:
-    def __init__(self, runner: AgentRunner):
-        self.runner = runner
+    def __init__(self, runner: AgentRunner, codes: RequirementKeys):
+        self.runner, self.codes = runner, codes
 
     async def check(
         self, draft: Draft, answers: dict[str, str], content: ContentBuilder, ctx: RunContext
@@ -39,17 +40,17 @@ class Verifier:
             question_id = "verify." + reference(requirement)
             if known(answers.get(question_id)):
                 questions.append(verify_question(requirement, "Значение подтверждено вами", []))
-                checked.append(
-                    apply_decision(requirement, question_id, answers[question_id], [requirement])
-                )
+                checked.append(self._decide(requirement, question_id, answers[question_id]))
                 continue
             status = check_citations(requirement, ctx.sources)
+            expected = self.codes.unit_mismatch(requirement.key, requirement.unit)
+            if expected is not None:
+                status = "rejected"
             requirement.verified = status == "verified"
             if status == "vision":
                 pending.append(requirement)
             elif status == "rejected" and requirement.mandatory:
-                impact = "Значение не найдено в источнике дословно"
-                questions.append(verify_question(requirement, impact, [display(requirement)]))
+                questions.append(_unverified(requirement, expected))
             checked.append(requirement)
         for requirement, reading in await self._second_reading(pending, content, ctx):
             if requirement.mandatory:
@@ -58,7 +59,17 @@ class Verifier:
                     verify_question(requirement, impact, [display(requirement), reading])
                 )
         merged, conflicts = reconcile(checked, ctx.sources, answers)
+        for requirement in merged:
+            # Neither a decision nor a choice between sources makes such a unit readable.
+            fits = self.codes.unit_mismatch(requirement.key, requirement.unit) is None
+            requirement.verified = requirement.verified and fits
         return merged, questions + conflicts
+
+    def _decide(self, requirement: Requirement, question_id: str, answer: str) -> Requirement:
+        """A bare number answered for a coded value in a wrong unit takes the code's unit."""
+        expected = self.codes.unit_mismatch(requirement.key, requirement.unit)
+        asked = requirement.model_copy(update={"unit": expected or requirement.unit})
+        return apply_decision(asked, question_id, answer, [requirement])
 
     async def _second_reading(
         self, pending: list[Requirement], content: ContentBuilder, ctx: RunContext
@@ -107,3 +118,12 @@ class Verifier:
         parts.extend(await content.image(source.image or "", f"Страница {source.id}"))
         reading = await self.runner.run(SECOND_READER, parts, ctx)
         return {r.key: r for r in reading.readings}
+
+
+def _unverified(requirement: Requirement, expected: str | None) -> Question:
+    """A value without a literal quote may be confirmed as stated; a coded value in a unit of
+    another quantity needs a new value, so the stated one is not offered."""
+    if expected is None:
+        impact = "Значение не найдено в источнике дословно"
+        return verify_question(requirement, impact, [display(requirement)])
+    return verify_question(requirement, f"Для подбора параметров нужно значение в {expected}", [])
