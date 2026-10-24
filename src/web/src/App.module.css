@@ -1394,10 +1394,12 @@ button.action:hover,
   font-size: 13px;
   line-height: 20px;
   overflow-wrap: anywhere;
+  animation: phrase 400ms ease;
 }
-.reasoning > span {
-  color: var(--text-3);
-  transition: color 600ms ease;
+@keyframes phrase {
+  from {
+    opacity: 0;
+  }
 }
 .agentDone,
 .agentDone:hover {
@@ -1557,6 +1559,41 @@ button.agentDone:hover {
   color: var(--text-2);
 }
 .thoughts li[data-age="now"] p {
+  color: var(--text);
+}
+.thoughts button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.thoughts button:hover p {
+  color: var(--text);
+}
+.original {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.thoughts li .original p {
+  color: var(--text-2);
+}
+.reveal {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 145%;
+  cursor: pointer;
+}
+.reveal:hover {
   color: var(--text);
 }
 .detailActions {
@@ -1729,6 +1766,7 @@ button.agentDone:hover {
   .question,
   .notice,
   .stepItems,
+  .reasoning,
   .spin {
     animation: none;
   }

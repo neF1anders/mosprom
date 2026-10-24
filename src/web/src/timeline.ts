@@ -18,6 +18,10 @@ export interface Thought {
   at: number;
   text: string;
 }
+// A Russian phrase of the narrator and the reasoning it retells, which a click shows.
+export interface Retold extends Thought {
+  original: Thought[];
+}
 export interface AgentRun {
   id: string;
   agent: string;
@@ -26,7 +30,9 @@ export interface AgentRun {
   state: "run" | "done" | "error";
   started: number;
   finished?: number;
+  // The reasoning as the model wrote it, often in English.
   thoughts: Thought[];
+  said: Retold[];
   actions: Action[];
   // A step of code shown among the agents, like the STL analysis: no reasoning of its own.
   code?: boolean;
@@ -43,11 +49,12 @@ export interface Stage {
   finished?: number;
   result?: "card" | "parameters" | "project";
 }
-// The reasoning of one model call as it arrived; a retry starts it over.
+// The reasoning of one model call as it arrived and the narrator's phrases; a retry starts both over.
 export interface CallThoughts {
   agent: string;
   attempt: number;
   chunks: Thought[];
+  said: Thought[];
 }
 
 const AGENTS: Record<string, { title: string; icon: string }> = {
@@ -298,6 +305,7 @@ function agentRuns(
         state: "run",
         started: at,
         thoughts: [],
+        said: [],
         actions: [],
       } as AgentRun);
     runs.set(id, run);
@@ -311,7 +319,12 @@ function agentRuns(
     const calls = Object.entries(thoughts)
       .filter(([call]) => call.startsWith(`${run.id}:`))
       .sort(([a], [b]) => step(a) - step(b));
-    run.thoughts = paragraphs(calls.flatMap(([, call]) => call.chunks));
+    const chunks = calls.flatMap(([, call]) => call.chunks);
+    run.thoughts = paragraphs(chunks);
+    run.said = retell(
+      calls.flatMap(([, call]) => call.said),
+      chunks,
+    );
     run.actions = actions.filter((a) => a.agent === run.agent);
   }
   return [...runs.values()];
@@ -335,6 +348,18 @@ export function paragraphs(chunks: Thought[]): Thought[] {
   }
   return result;
 }
+// Each phrase retells the reasoning since the phrase before; what came after the last one is its too.
+export function retell(said: Thought[], chunks: Thought[]): Retold[] {
+  const groups = said.map(() => [] as Thought[]);
+  for (const chunk of chunks) {
+    const index = said.findIndex((phrase) => chunk.at <= phrase.at);
+    groups.at(index)?.push(chunk);
+  }
+  return said.map((phrase, index) => ({
+    ...phrase,
+    original: paragraphs(groups[index]),
+  }));
+}
 function stlRun(events: ProgressEvent[]): AgentRun | undefined {
   const start = last(events, (e) => e.type === "stl.started");
   const end = last(events, (e) =>
@@ -350,6 +375,7 @@ function stlRun(events: ProgressEvent[]): AgentRun | undefined {
     started: time(start)!,
     finished: time(end),
     thoughts: [],
+    said: [],
     actions: [],
     code: true,
   };
@@ -535,7 +561,7 @@ export function buildTimeline({
   return stages;
 }
 const THOUGHT_LIMIT = 20000;
-// One piece of reasoning added to its call; a new attempt of the call starts the text over.
+// A piece of reasoning or a narrator's phrase added to its call; a new attempt starts the call over.
 export function addThought(
   store: Record<string, CallThoughts>,
   event: ProgressEvent,
@@ -545,17 +571,29 @@ export function addThought(
   if (!call) return store;
   const attempt = Number(data.attempt || 1);
   const previous = store[call];
-  // A piece of an attempt already replaced, such as a late translation, is dropped.
+  // A piece of an attempt already replaced, such as a late phrase, is dropped.
   if (previous && attempt < previous.attempt) return store;
-  const chunks =
-    previous && previous.attempt === attempt ? [...previous.chunks] : [];
-  chunks.push({ at: time(event) ?? Date.now(), text: String(data.text || "") });
+  const same = previous && previous.attempt === attempt;
+  const chunks = same ? [...previous.chunks] : [];
+  const said = same ? [...previous.said] : [];
+  const piece = {
+    at: time(event) ?? Date.now(),
+    text: String(data.text || ""),
+  };
+  if (event.type === "agent.narration") {
+    said.push(piece);
+    return {
+      ...store,
+      [call]: { agent: String(data.agent || ""), attempt, chunks, said },
+    };
+  }
+  chunks.push(piece);
   let size = chunks.reduce((total, chunk) => total + chunk.text.length, 0);
   while (size > THOUGHT_LIMIT && chunks.length > 1)
     size -= chunks.shift()!.text.length;
   return {
     ...store,
-    [call]: { agent: String(data.agent || ""), attempt, chunks },
+    [call]: { agent: String(data.agent || ""), attempt, chunks, said },
   };
 }
 // Texts the timeline already shows as a stage summary are not repeated in the chat.
