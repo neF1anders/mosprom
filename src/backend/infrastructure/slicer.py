@@ -27,7 +27,8 @@ from .files import LocalFiles
 
 logger = logging.getLogger(__name__)
 EXCHANGE = "mosprom"
-# Slicing waits up to 300 s inside the plugin; any other call answers within seconds.
+# The plugin gives slice_model 300 s in all, its wait for the settings check included, and
+# lets a call wait 50 s for the one before it; any other call answers within seconds.
 SLICE_SECONDS = 330
 CALL_SECONDS = 60
 RESET_TOOL = "reset_settings"
@@ -192,15 +193,12 @@ class McpSlicer:
             unsupported=unsupported,
             folder=self._host(run),
         )
-        prelude = [SlicerCall(step="clear_scene", tool="list_models", args={})]
-        if RESET_TOOL in tools:
-            prelude.append(SlicerCall(step="reset_settings", tool=RESET_TOOL, args={}))
-        else:
+        if RESET_TOOL not in tools:
             report.warnings.append(
                 "плагин не сбрасывает настройки: изменённые прошлыми нарезками ключи, "
                 "которых нет в наборе, остались в слайсере"
             )
-        for call in [*prelude, *calls]:
+        for call in _steps(calls, RESET_TOOL in tools):
             if stop.is_set():
                 report.status, report.message = "failed", OVERRUN
                 return report
@@ -293,6 +291,17 @@ async def _rpc(
     if not isinstance(reply.get("result"), dict):
         raise CallFailed("в ответе плагина нет результата")
     return reply["result"]
+
+
+def _steps(calls: list[SlicerCall], reset: bool) -> list[SlicerCall]:
+    """The plan after a clear plate, with the reset of earlier settings when the plugin has it.
+    The reset works on the active printer, so it follows the choice of the one that slices."""
+    steps = [SlicerCall(step="clear_scene", tool="list_models", args={})]
+    for call in calls:
+        steps.append(call)
+        if call.tool == "set_printer" and reset:
+            steps.append(SlicerCall(step="reset_settings", tool=RESET_TOOL, args={}))
+    return steps
 
 
 def _settle(answer: asyncio.Future[SliceReport], report: SliceReport) -> None:
