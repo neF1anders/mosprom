@@ -652,3 +652,17 @@ async def test_the_answers_about_a_finished_part_hint_the_next_one(pg, http):
     assert f'<earlier_answers>\n[\n "{QUESTION["title"]} вода"\n]' in checking
     reading = sent(model, "interpreter")
     assert "Теперь вторая деталь" in reading and "Шестерня" not in reading
+
+
+async def test_files_alone_go_to_the_assistant_and_an_empty_message_is_refused(pg, http):
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    empty = await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid()})
+    assert (empty.status_code, empty.json()["code"]) == (422, "empty_message")
+    await upload(http, job_id, "box.stl")
+    await send(http, job_id, "")
+    [message] = await chat(http, job_id)
+    assert message["text"] == "" and len(message["attachment_ids"]) == 1
+    model = assistant(START)
+    job = await turn(pg, job_id, model)
+    assert [p.number for p in job.projects] == [1]
+    assert "[вложения box.stl]" in model.requests["assistant"][0]["messages"][-1]["content"]

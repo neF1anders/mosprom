@@ -28,6 +28,8 @@ async def post(uow: UnitOfWork, job: Job, text: str) -> None:
     if job.title_source == "auto" and job.title == "Новое задание" and text.strip():
         job.title = text[:80]
     sent = await _send_files(uow, job)
+    if not text.strip() and not sent:
+        raise AppError("Напишите сообщение или приложите файл", "empty_message", 422)
     job.updated_at = now()
     await uow.jobs.save(job)
     if job.status in WORKING:
