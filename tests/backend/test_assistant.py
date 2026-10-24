@@ -237,3 +237,20 @@ def test_twice_failed_messages_go_only_when_sent_by_hand():
     failed = QueuedMessage(job_id="j", text="x", attempts=2)
     assert not claimable(failed, False, now()) and claimable(failed, True, now())
     assert claimable(failed.model_copy(update={"attempts": 1}), False, now())
+
+
+async def test_a_new_project_while_questions_wait_needs_the_users_consent():
+    job = Job(
+        user_id="u", revision=1, status=Status.WAITING, projects=[Project(number=1, title="Вал")]
+    )
+    job.card = TaskCard(job_id=job.id, revision=1)
+    files = [file("Колесо.STL", "stl")]
+    hasty = reply("", tool_calls=[call(START, {"title": "Колесо"})])
+    agent, model = assistant(assistant=[hasty, reply("Отложить вал и начать колесо?")])
+    assert (await agent.decide(situation(job, files=files), said)).action == "reply"
+    assert "ждёт ответов" in model.requests["assistant"][1]["messages"][-1]["content"]
+    agreed = reply("", tool_calls=[call(START, {"title": "Колесо", "drop_current": True})])
+    agent, _ = assistant(assistant=[agreed])
+    assert (await agent.decide(situation(job, files=files), said)).action == "start"
+    state = assistant_messages("система", situation(job))[-1]["content"]
+    assert "как принять ответ" not in state

@@ -60,7 +60,7 @@ STATES = {
 _TEXT = {"type": "string"}
 START_ARGS = {
     "type": "object",
-    "properties": {"title": _TEXT, "notes": _TEXT},
+    "properties": {"title": _TEXT, "notes": _TEXT, "drop_current": {"type": "boolean"}},
     "required": ["title"],
 }
 UPDATE_ARGS = {"type": "object", "properties": {"summary": _TEXT}, "required": ["summary"]}
@@ -148,7 +148,7 @@ class Assistant:
     ) -> Decision | None:
         """The first decision the code accepts; a refused one is answered by ``_tool``."""
         start = called(calls, START)
-        if start is not None and refusal(START, situation) is None:
+        if start is not None and refusal(START, situation, start) is None:
             title, notes = str(start.get("title") or ""), str(start.get("notes") or "")
             return Decision("start", chat_text(text), title, notes)
         update = called(calls, UPDATE)
@@ -162,7 +162,7 @@ class Assistant:
     ) -> dict[str, Any]:
         name = call.get("function", {}).get("name", "")
         if name in (START, UPDATE):
-            return {"error": refusal(name, situation)}
+            return {"error": refusal(name, situation, called([call], name) or {})}
         if name == LOG:
             return await self.journal.facts(situation.job)
         if name == INVESTIGATE:
@@ -222,9 +222,17 @@ async def _nothing() -> None:
     return None
 
 
-def refusal(name: str, situation: Situation) -> str | None:
+def refusal(
+    name: str, situation: Situation, arguments: dict[str, Any] | None = None
+) -> str | None:
     """Why the code does not take the call, said to the agent; None when it does."""
     job = situation.job
+    waiting = job.status == Status.WAITING and job.card is not None
+    if name == START and waiting and not (arguments or {}).get("drop_current"):
+        return (
+            "Текущий проект ждёт ответов на вопросы. Спроси пользователя, отложить ли его, и "
+            "начни новый с drop_current true, только когда он согласится"
+        )
     if name == START and situation.working:
         return (
             "Сейчас идёт работа над текущим проектом, новый можно начать, когда она закончится. "
@@ -280,12 +288,19 @@ def state(situation: Situation) -> dict[str, Any]:
             "назначение": job.card.purpose if job.card else "",
         }
     waiting = job.card.questions if job.card and job.status == Status.WAITING else []
-    return {
+    open_questions = [q.title for q in waiting if not q.answer]
+    state = {
         "работа": f"идёт, этап {STAGES[job.stage]}" if situation.working else "не идёт",
         "текущий проект": current,
-        "вопросы без ответа": [q.title for q in waiting if not q.answer],
+        "вопросы без ответа": open_questions,
         "новые файлы": [_file(a) for a in situation.files],
     }
+    if open_questions:
+        state["как принять ответ"] = (
+            "любой ответ на эти вопросы, даже «не знаю» или «решай сам», передай вызовом "
+            "update_project, текстом он не засчитывается и работа стоит"
+        )
+    return state
 
 
 def _file(attachment: Attachment) -> str:
