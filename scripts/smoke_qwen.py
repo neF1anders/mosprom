@@ -13,6 +13,8 @@ from PIL import Image, ImageDraw
 
 from src.backend.agents.tools import ConvertArgs
 from src.backend.config import Settings
+from src.backend.domain.model_settings import ModelSettings
+from src.backend.infrastructure.model_settings import ModelSettingsFile
 from src.backend.infrastructure.qwen import QwenClient
 
 TOOLS = [
@@ -29,7 +31,12 @@ TOOLS = [
 
 async def main():
     settings = Settings()
-    client = QwenClient(settings.qwen_base_url, settings.qwen_model, settings.qwen_api_key)
+    # The same provider the app calls: saved in the chat, otherwise from env.
+    saved = ModelSettingsFile(
+        settings.data_dir,
+        ModelSettings(settings.qwen_base_url, settings.qwen_model, settings.qwen_api_key),
+    )
+    client = QwenClient(saved.current)
     image = Image.new("RGB", (256, 256), "white")
     ImageDraw.Draw(image).rectangle((50, 50, 200, 200), fill="red")
     buffer = io.BytesIO()

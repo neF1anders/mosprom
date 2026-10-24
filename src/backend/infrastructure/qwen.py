@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 
 from ..domain.errors import AppError
+from ..domain.model_settings import ModelSettings
 from ..ports.operations import ModelReply, Reasoning
 
 logger = logging.getLogger(__name__)
@@ -30,9 +31,7 @@ class QwenClient:
 
     def __init__(
         self,
-        base_url: str,
-        model: str,
-        api_key: str,
+        settings: Callable[[], ModelSettings],
         *,
         max_tokens: int = 32768,
         transport: httpx.AsyncBaseTransport | None = None,
@@ -40,10 +39,10 @@ class QwenClient:
         silence_seconds: float = 120,
         call_seconds: float = 600,
     ):
-        self.model, self.api_key, self.retry_delay = model, api_key, retry_delay
+        # Read at every call: the address, model and key saved in the chat apply at once.
+        self.settings, self.retry_delay = settings, retry_delay
         self.max_tokens, self.call_seconds = max_tokens, call_seconds
         self.client = httpx.AsyncClient(
-            base_url=base_url.rstrip("/") + "/",
             # read bounds the wait for the first token (provider queue) and every gap after it.
             timeout=httpx.Timeout(silence_seconds, connect=15),
             transport=transport,
@@ -63,10 +62,15 @@ class QwenClient:
         budget: int | None = None,
         on_reasoning: Reasoning | None = None,
     ) -> ModelReply:
-        if not self.api_key:
-            raise AppError("Ключ Qwen не настроен на сервере", "model_not_configured", 503)
+        settings = self.settings()
+        if not settings.configured:
+            raise AppError(
+                "LLM модель не подключена, укажите адрес API, модель и ключ",
+                "model_not_configured",
+                503,
+            )
         payload: dict[str, Any] = {
-            "model": self.model,
+            "model": settings.model,
             "messages": messages,
             "max_tokens": self.max_tokens,
             "enable_thinking": thinking,
@@ -82,7 +86,7 @@ class QwenClient:
             think = partial(_forward, on_reasoning, attempt + 1)
             try:
                 async with asyncio.timeout(self.call_seconds):
-                    return await self._request(payload, agent, think)
+                    return await self._request(settings, payload, agent, think)
             except TimeoutError as exc:
                 # A stream still going after the call budget would only repeat on retry.
                 logger.warning("Model call %s exceeded %ss", agent, self.call_seconds)
@@ -96,18 +100,21 @@ class QwenClient:
         raise AppError("Модель не отвечает, попробуйте позже", "model_unavailable", 503)
 
     async def _request(
-        self, payload: dict[str, Any], agent: str, think: Callable[[str], Awaitable[None]]
+        self,
+        settings: ModelSettings,
+        payload: dict[str, Any],
+        agent: str,
+        think: Callable[[str], Awaitable[None]],
     ) -> ModelReply:
-        headers = {"Authorization": f"Bearer {self.api_key}", "X-Mosprom-Agent": agent}
+        url = settings.base_url.rstrip("/") + "/chat/completions"
+        headers = {"Authorization": f"Bearer {settings.api_key}", "X-Mosprom-Agent": agent}
         try:
-            async with self.client.stream(
-                "POST", "chat/completions", json=payload, headers=headers
-            ) as response:
+            async with self.client.stream("POST", url, json=payload, headers=headers) as response:
                 if not response.is_success:
                     await response.aread()
                     if response.status_code < 500 and response.status_code != 429:
                         raise AppError(
-                            "API модели отклонил запрос, проверьте настройки сервера",
+                            "API модели отклонил запрос, проверьте адрес API, модель и ключ",
                             "model_request_error",
                             502,
                         )

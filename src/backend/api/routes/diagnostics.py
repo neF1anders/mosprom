@@ -21,7 +21,7 @@ async def capabilities(services: Services):
         "card_schema_version": CARD_SCHEMA_VERSION,
         "formats": ["stl", "pdf", "docx", "txt", "md", "jpg", "jpeg", "png"],
         "knowledge_scope": "KB-001",
-        "model_configured": bool(settings.qwen_api_key),
+        "model_configured": services.model_settings.current().configured,
         "events": "sse",
         "project_folder": project_folder(settings),
     }

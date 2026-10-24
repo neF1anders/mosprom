@@ -18,6 +18,8 @@
 
 Ключ в исходниках не хранится: он записывается в настройки приложения на этом компьютере (`ai_assistant/api_key`). Через API чата можно задать ключ только на сессию (`"persist": false`).
 
+Приложение StereotechAI хранит свои адрес API, модель и ключ отдельно от чата плагина. Их вводят в окне его чата при первом запуске, сервер приложения держит их в `DATA_DIR/model.json`.
+
 ## Что умеет
 
 - **Принтер, профиль, материал:** `get_state`, `list_printers`, `set_printer` (по умолчанию Stereotech Hybrid 530 V5.2.4, `hte530v5.2.4`), `list_materials`, `set_material`, `list_quality_profiles`, `set_quality_profile`, `save_profile`.

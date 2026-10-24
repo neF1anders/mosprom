@@ -21,6 +21,7 @@ from .routes import (
     events,
     jobs,
     messages,
+    model,
     sessions,
 )
 
@@ -61,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         events,
         artifacts,
         diagnostics,
+        model,
         sessions,
     ]:
         app.include_router(module.router, prefix="/api/v1")
