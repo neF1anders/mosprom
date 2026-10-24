@@ -3,7 +3,9 @@
   "rules": [
     {"id": "LAYER-MAX-NOZZLE", "source": "D: fdmprinter layer_height maximum_value_warning = 0.8 * nozzle", "reason": "слой не толще 0,8 диаметра сопла",
      "when": {}, "then": [{"op": "limit", "param": "layer_height", "max": {"ref": "profile.nozzle_mm", "mul": 0.8}}]},
-    {"id": "LAYER-MIN-010", "source": "S 4.2: below 0.10 mm little gain at a large time cost", "reason": "слой тоньше 0,1 мм почти не улучшает качество, а время растёт",
+    {"id": "LAYER-STANDARD", "source": "S: Stereotech reference projects for Hybrid 530 (wiki memo/examples_of_projects) print at 0.2 mm on the normal profile, 3 of 3; SeeMeCNC projects of the validation branch use 0.2 mm for ordinary quality, 31 of 31", "reason": "обычный слой 0,2 мм, как в типовых проектах Stereotech",
+     "when": {}, "then": [{"op": "start", "param": "layer_height", "value": 0.2}]},
+    {"id": "LAYER-MIN-010","source": "S 4.2: below 0.10 mm little gain at a large time cost", "reason": "слой тоньше 0,1 мм почти не улучшает качество, а время растёт",
      "when": {}, "then": [{"op": "limit", "param": "layer_height", "min": 0.1}]},
     {"id": "WALLS-MIN-2", "source": "S 4.2", "reason": "не меньше двух периметров",
      "when": {}, "then": [{"op": "limit", "param": "wall_line_count", "min": 2}]},
@@ -24,14 +26,22 @@
        {"op": "shift", "param": "skin_thickness", "delta": 0.25},
        {"op": "shift", "param": "infill_density", "delta": 0.2},
        {"op": "shift", "param": "print_temperature", "delta": 0.25}]},
-    {"id": "PRIORITY-SPEED", "source": "G", "reason": "главный приоритет — скорость: толще слой, меньше периметров и заполнения",
+    {"id": "PRIORITY-SPEED", "source": "G; SeeMeCNC projects: 15-30 % infill for fast prints", "reason": "главный приоритет — скорость: реже заполнение",
      "when": {"fact": "pref.priority_first", "op": "==", "value": "speed"}, "then": [
-       {"op": "shift", "param": "layer_height", "delta": -0.25},
        {"op": "shift", "param": "infill_density", "delta": -0.1}]},
-    {"id": "PRIORITY-ACCURACY", "source": "G", "reason": "главный приоритет — точность: тоньше слой и медленнее печать",
+    {"id": "PRIORITY-SPEED-LAYER", "source": "SeeMeCNC projects: 0.3-0.35 mm for fast prints, 9 of 9; the card names no quality level", "reason": "главный приоритет — скорость, уровень качества не задан: толстый слой 0,3 мм",
+     "when": {"all": [{"fact": "pref.priority_first", "op": "==", "value": "speed"}, {"not": {"fact": "req.print_quality", "op": "exists"}}]}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": -0.4}]},
+    {"id": "PRIORITY-ACCURACY", "source": "G; Stereotech memo print-parameter: a thinner layer gives a more accurate surface", "reason": "главный приоритет — точность: тонкий слой 0,1 мм и медленнее печать",
      "when": {"fact": "pref.priority_first", "op": "==", "value": "accuracy"}, "then": [
-       {"op": "shift", "param": "layer_height", "delta": 0.25},
+       {"op": "shift", "param": "layer_height", "delta": 0.4},
        {"op": "shift", "param": "print_speed", "delta": 0.3}]},
+    {"id": "QUALITY-DRAFT", "source": "SeeMeCNC projects: 0.3-0.35 mm when appearance does not matter, 9 of 9", "reason": "черновое качество: толстый слой 0,3 мм",
+     "when": {"fact": "req.print_quality", "op": "==", "value": "draft"}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": -0.4}]},
+    {"id": "QUALITY-FINE", "source": "SeeMeCNC projects: 0.1 mm for a smooth surface, 6 of 6; Stereotech memo print-parameter", "reason": "высокое качество поверхности: тонкий слой 0,1 мм",
+     "when": {"fact": "req.print_quality", "op": "==", "value": "fine"}, "then": [
+       {"op": "shift", "param": "layer_height", "delta": 0.4}]},
     {"id": "PRIORITY-COST", "source": "G", "reason": "главный приоритет — стоимость: меньше заполнения",
      "when": {"fact": "pref.priority_first", "op": "==", "value": "cost"}, "then": [
        {"op": "shift", "param": "infill_density", "delta": -0.1}]},

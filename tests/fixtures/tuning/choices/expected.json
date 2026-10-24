@@ -43,7 +43,6 @@
   "revision": 1
  },
  "contract": "stage2.parameter_set",
- "idempotency_key": "job-1:1",
  "iteration": 2,
  "materials": {
   "0": {
@@ -78,25 +77,25 @@
     ],
     "rotation": [
      [
-      1,
-      0,
-      0
+      1.0,
+      0.0,
+      0.0
      ],
      [
-      0,
-      1,
-      0
+      0.0,
+      1.0,
+      0.0
      ],
      [
-      0,
-      0,
-      1
+      0.0,
+      0.0,
+      1.0
      ]
     ],
     "scale": [
-     1,
-     1,
-     1
+     1.0,
+     1.0,
+     1.0
     ]
    },
    "why": "модель стоит как в файле, в центре рабочей области стола режима 5D Spiral"
@@ -129,7 +128,7 @@
  },
  "status": "proposed",
  "unsatisfied": [],
- "version": "0.1",
+ "version": "0.2",
  "warnings": [
   "stl report: Self-intersections and intersections/nesting between shells are not checked."
  ]

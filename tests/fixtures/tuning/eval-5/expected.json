@@ -146,7 +146,6 @@
   "revision": 2
  },
  "contract": "stage2.parameter_set",
- "idempotency_key": "30a6630e-d30b-4d8f-a374-c1905708a75d:2",
  "iteration": 1,
  "materials": {
   "0": {
@@ -181,25 +180,25 @@
     ],
     "rotation": [
      [
-      1,
-      0,
-      0
+      1.0,
+      0.0,
+      0.0
      ],
      [
-      0,
-      1,
-      0
+      0.0,
+      1.0,
+      0.0
      ],
      [
-      0,
-      0,
-      1
+      0.0,
+      0.0,
+      1.0
      ]
     ],
     "scale": [
-     1,
-     1,
-     1
+     1.0,
+     1.0,
+     1.0
     ]
    },
    "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
@@ -214,7 +213,7 @@
  "quality": {
   "quality_type": "normal",
   "source": "default",
-  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+  "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
  },
  "settings": {
   "cool_fan_enabled_classic": {
@@ -222,6 +221,12 @@
    "source": "rule:FAN-OFF-NO-COOLING",
    "value": false,
    "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "layer_height": {
+   "source": "rule:LAYER-STANDARD",
+   "unit": "mm",
+   "value": 0.2,
+   "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
   },
   "speed_print": {
    "source": "rule:SPEED-MATERIAL-MAX",
@@ -232,7 +237,7 @@
  },
  "status": "proposed",
  "unsatisfied": [],
- "version": "0.1",
+ "version": "0.2",
  "warnings": [
   "requirement conductive_fillers_avoided (Токопроводящие наполнители) is not used by parameter selection",
   "stage 1 unknown: Марка и производитель филамента не заданы, подбираются по критериям ТЗ.",

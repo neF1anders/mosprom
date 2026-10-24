@@ -26,7 +26,6 @@
   "revision": 1
  },
  "contract": "stage2.parameter_set",
- "idempotency_key": "job-1:1",
  "iteration": 1,
  "materials": {
   "0": {
@@ -61,25 +60,25 @@
     ],
     "rotation": [
      [
-      1,
-      0,
-      0
+      1.0,
+      0.0,
+      0.0
      ],
      [
-      0,
-      1,
-      0
+      0.0,
+      1.0,
+      0.0
      ],
      [
-      0,
-      0,
-      1
+      0.0,
+      0.0,
+      1.0
      ]
     ],
     "scale": [
-     1,
-     1,
-     1
+     1.0,
+     1.0,
+     1.0
     ]
    },
    "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
@@ -92,9 +91,9 @@
   "why": "режим 3D (classic) по умолчанию: 5D не запрошен"
  },
  "quality": {
-  "quality_type": "fast",
-  "source": "rule:PRIORITY-SPEED",
-  "why": "главный приоритет — скорость: толще слой, меньше периметров и заполнения; ближайший профиль — Normal, слой 0.15 мм"
+  "quality_type": "normal",
+  "source": "default",
+  "why": "профиль принтера по умолчанию: Fine, слой 0.3 мм задан отдельно: главный приоритет — скорость, уровень качества не задан: толстый слой 0,3 мм"
  },
  "settings": {
   "cool_fan_enabled_classic": {
@@ -103,16 +102,34 @@
    "value": false,
    "why": "в файле материала обдув 0 %: обдув выключен"
   },
+  "infill_sparse_density": {
+   "source": "rule:PRIORITY-SPEED",
+   "unit": "%",
+   "value": 15.0,
+   "why": "главный приоритет — скорость: реже заполнение"
+  },
+  "layer_height": {
+   "source": "rule:PRIORITY-SPEED-LAYER",
+   "unit": "mm",
+   "value": 0.3,
+   "why": "главный приоритет — скорость, уровень качества не задан: толстый слой 0,3 мм"
+  },
   "speed_print": {
    "source": "rule:SPEED-MATERIAL-MAX",
    "unit": "mm/s",
    "value": 50.0,
    "why": "скорость печати не выше рекомендованной в файле материала"
+  },
+  "top_bottom_thickness": {
+   "source": "rule:SKIN-MIN-3-LAYERS",
+   "unit": "mm",
+   "value": 0.9,
+   "why": "сверху и снизу не меньше трёх сплошных слоёв"
   }
  },
  "status": "proposed",
  "unsatisfied": [],
- "version": "0.1",
+ "version": "0.2",
  "warnings": [
   "stl report: Self-intersections and intersections/nesting between shells are not checked."
  ]

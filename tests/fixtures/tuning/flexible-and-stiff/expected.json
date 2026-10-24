@@ -21,7 +21,6 @@
   "revision": 1
  },
  "contract": "stage2.parameter_set",
- "idempotency_key": "job-1:1",
  "iteration": 1,
  "materials": {
   "0": {
@@ -71,25 +70,25 @@
     ],
     "rotation": [
      [
-      1,
-      0,
-      0
+      1.0,
+      0.0,
+      0.0
      ],
      [
-      0,
-      1,
-      0
+      0.0,
+      1.0,
+      0.0
      ],
      [
-      0,
-      0,
-      1
+      0.0,
+      0.0,
+      1.0
      ]
     ],
     "scale": [
-     1,
-     1,
-     1
+     1.0,
+     1.0,
+     1.0
     ]
    },
    "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
@@ -104,7 +103,7 @@
  "quality": {
   "quality_type": "normal",
   "source": "default",
-  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+  "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
  },
  "settings": {
   "cool_fan_enabled_classic": {
@@ -123,6 +122,12 @@
    "unit": "%",
    "value": 30.0,
    "why": "обязательная высокая жёсткость: не меньше 4 периметров и 30 % заполнения"
+  },
+  "layer_height": {
+   "source": "rule:LAYER-STANDARD",
+   "unit": "mm",
+   "value": 0.2,
+   "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
   },
   "speed_print": {
    "source": "rule:SPEED-MATERIAL-MAX",
@@ -145,7 +150,7 @@
    "why": "ни один материал каталога не выполняет оба обязательных требования"
   }
  ],
- "version": "0.1",
+ "version": "0.2",
  "warnings": [
   "stl report: Self-intersections and intersections/nesting between shells are not checked."
  ]

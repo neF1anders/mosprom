@@ -71,6 +71,14 @@ class LimitAction(Value):
     maximum: NumberSpec | None = Field(default=None, alias="max")
 
 
+class StartAction(Value):
+    """A start value of an axis in place of the slicer's own, when practice disagrees with it."""
+
+    op: Literal["start"]
+    param: str
+    value: NumberSpec
+
+
 class MinLayersAction(Value):
     op: Literal["min_layers"]
     param: str
@@ -99,6 +107,7 @@ Action = Annotated[
     ShiftAction
     | BoundAction
     | LimitAction
+    | StartAction
     | MinLayersAction
     | SetDiscreteAction
     | ModeVoteAction

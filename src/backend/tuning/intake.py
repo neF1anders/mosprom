@@ -246,6 +246,13 @@ def _flag(requirement: Requirement, entry: RequirementKey) -> bool:
     return read_flag(requirement.value)
 
 
+def _option(requirement: Requirement, entry: RequirementKey) -> str:
+    value = requirement.value.strip().lower()
+    if value not in entry.options:
+        raise Unreadable(f"expected one of {', '.join(entry.options)}, got {requirement.value!r}")
+    return value
+
+
 def _items(requirement: Requirement, entry: RequirementKey) -> tuple[str, ...]:
     items = [item.strip().lower() for item in _LIST_SEPARATORS.split(requirement.value)]
     found = tuple(item for item in items if item)
@@ -347,6 +354,7 @@ _VALUES: dict[str, Callable[[Requirement, RequirementKey], RequirementValue]] = 
     "number": _number,
     "flag": _flag,
     "list": _items,
+    "choice": _option,
 }
 
 

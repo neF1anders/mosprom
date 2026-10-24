@@ -91,10 +91,11 @@ def test_settings_carry_only_what_differs_from_profile_and_material(select):
     assert settings["infill_pattern"]["value"] == "gyroid"
     assert settings["material_print_temperature"]["scope"] == "extruder:0"
     # Values the slicer takes from the material file or the profile anyway are not sent.
+    layer = settings["layer_height"]
+    assert (layer["value"], layer["source"]) == (0.2, "rule:LAYER-STANDARD")
     for key in (
         "material_bed_temperature",
         "cool_fan_speed",
-        "layer_height",
         "support_enable",
         "adhesion_type",
     ):
@@ -104,18 +105,19 @@ def test_settings_carry_only_what_differs_from_profile_and_material(select):
     )
 
 
-def test_neutral_card_keeps_slicer_defaults(select):
+def test_neutral_card_keeps_slicer_defaults_with_the_standard_layer(select):
     parameter_set = select(card())
     assert parameter_set["quality"] == {
         "quality_type": "normal",
-        "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм",
+        "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой "
+        "0,2 мм, как в типовых проектах Stereotech",
         "source": "default",
     }
     # enduse_abs wins the tie. Its file has no part cooling and recommends 50 mm/s against the
     # slicer's 60, so exactly these two differences are sent.
     assert parameter_set["materials"]["0"]["id"] == "enduse_abs"
     settings = parameter_set["settings"]
-    assert sorted(settings) == ["cool_fan_enabled_classic", "speed_print"]
+    assert sorted(settings) == ["cool_fan_enabled_classic", "layer_height", "speed_print"]
     assert settings["cool_fan_enabled_classic"]["value"] is False
     assert (settings["speed_print"]["value"], settings["speed_print"]["source"]) == (
         50,
@@ -123,11 +125,41 @@ def test_neutral_card_keeps_slicer_defaults(select):
     )
 
 
-def test_speed_priority_moves_to_a_coarser_quality_profile(select):
+def test_speed_priority_prints_thick_layers_on_the_default_profile(select):
     parameter_set = select(card(preferences=["Нужно быстро"]))
-    assert parameter_set["quality"]["quality_type"] == "fast"
-    assert parameter_set["quality"]["source"] == "rule:PRIORITY-SPEED"
-    assert "layer_height" not in parameter_set["settings"]
+    assert parameter_set["quality"]["quality_type"] == "normal"
+    settings = parameter_set["settings"]
+    layer = settings["layer_height"]
+    assert (layer["value"], layer["source"]) == (0.3, "rule:PRIORITY-SPEED-LAYER")
+    # The profile no longer brings the 10 % infill of `fast` with it.
+    assert settings["infill_sparse_density"]["value"] == 15
+
+
+@pytest.mark.parametrize(
+    ("level", "layer", "source"),
+    [
+        ("draft", 0.3, "rule:QUALITY-DRAFT"),
+        ("standard", 0.2, "rule:LAYER-STANDARD"),
+        ("fine", None, None),
+    ],
+)
+def test_quality_level_code_sets_the_layer(select, level, layer, source):
+    settings = select(card(requirements=[requirement("print_quality", level)]))["settings"]
+    if layer is None:
+        # Fine is the 0.1 mm layer of the default profile itself.
+        assert "layer_height" not in settings
+        return
+    assert (settings["layer_height"]["value"], settings["layer_height"]["source"]) == (
+        layer,
+        source,
+    )
+
+
+def test_quality_level_wins_over_the_speed_of_the_wishes(select):
+    standard = card(requirements=[requirement("print_quality", "standard")], preferences=["быстро"])
+    settings = select(standard)["settings"]
+    assert settings["layer_height"]["value"] == 0.2
+    assert settings["infill_sparse_density"]["value"] == 15
 
 
 def test_hard_tolerance_keeps_fine_layers_and_slows_down(select):
@@ -169,7 +201,7 @@ def test_a_batch_is_told_to_be_one_model_in_the_project(select):
     assert "партия 15 шт.: в проекте одна модель, копии в раскладку не добавлены" in texts
 
 
-def test_layer_is_sent_only_when_no_profile_fits_the_limits(select):
+def test_layer_between_profile_layers_is_sent_as_is(select):
     narrow = feedback(
         constraint("C1", "layer_height", "min", 0.12),
         constraint("C2", "layer_height", "max", 0.13),
@@ -177,8 +209,8 @@ def test_layer_is_sent_only_when_no_profile_fits_the_limits(select):
     parameter_set = select(card(), narrow)
     layer = parameter_set["settings"]["layer_height"]
     assert 0.12 <= layer["value"] <= 0.13 and layer["unit"] == "mm"
-    assert layer["why"].startswith("ни один профиль не укладывается в ограничения")
-    assert parameter_set["quality"]["quality_type"] in ("normal", "fast")
+    assert layer["source"].startswith("constraint:")
+    assert parameter_set["quality"]["quality_type"] == "normal"
 
 
 def test_coarse_profile_keeps_three_skin_layers(select):
@@ -190,6 +222,6 @@ def test_coarse_profile_keeps_three_skin_layers(select):
 
 def test_banned_default_profile_gives_the_nearest_one(select):
     quality = select(card(), feedback(constraint("C1", "quality_type", "ne", "normal")))["quality"]
-    assert quality["quality_type"] in ("high", "fast")
-    assert quality["why"].startswith("значение слайсера; ближайший профиль")
-    assert quality["source"] == "default"
+    # The 0.2 mm standard layer is the layer of `draft` itself, so no layer is sent.
+    assert quality["quality_type"] == "draft"
+    assert quality["why"].startswith("профиль Fine исключён этапом 3, ближайший — Draft")
