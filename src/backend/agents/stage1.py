@@ -30,6 +30,7 @@ from ..domain.models import (
     Verdict,
     identifier,
 )
+from ..domain.requirement_keys import RequirementKeys
 from ..domain.rules import RULES_VERSION, assess, known
 from ..domain.transitions import transition
 from ..ports.operations import Files
@@ -128,10 +129,15 @@ class Early:
 
 class Stage1:
     def __init__(
-        self, uow: UowFactory, files: Files, runner: AgentRunner, settings: Stage1Settings
+        self,
+        uow: UowFactory,
+        files: Files,
+        runner: AgentRunner,
+        settings: Stage1Settings,
+        codes: RequirementKeys,
     ):
         self.store, self.files, self.runner, self.settings = RunStore(uow), files, runner, settings
-        self.sources, self.verifier = Sources(self.store, files), Verifier(runner)
+        self.sources, self.verifier = Sources(self.store, files), Verifier(runner, codes)
 
     async def run(self, job_id: str, revision: int) -> None:
         ctx = RunContext(
