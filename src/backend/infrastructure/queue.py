@@ -22,8 +22,8 @@ class ProcrastinateQueue:
     def __init__(self, session: AsyncSession, app: App):
         self._session, self._app = session, app
 
-    async def stage1(self, job_id: str, revision: int) -> None:
-        await self._defer(STAGE1_TASK, STAGE1_QUEUE, job_id, revision)
+    async def stage1(self, job_id: str, revision: int, start: bool = False) -> None:
+        await self._defer(STAGE1_TASK, STAGE1_QUEUE, job_id, revision, start=start)
 
     async def stage2(self, job_id: str, revision: int) -> None:
         await self._defer(STAGE2_TASK, STAGE2_QUEUE, job_id, revision)
@@ -42,12 +42,12 @@ class ProcrastinateQueue:
             {"lock": _lock(job_id)},
         )
 
-    async def _defer(self, task: str, queue: str, job_id: str, revision: int) -> None:
+    async def _defer(self, task: str, queue: str, job_id: str, revision: int, **options) -> None:
         connection = await (await self._session.connection()).get_raw_connection()
         deferrer = self._app.configure_task(
             task, queue=queue, lock=_lock(job_id), connection=connection.driver_connection
         )
-        await deferrer.defer_async(job_id=job_id, revision=revision)
+        await deferrer.defer_async(job_id=job_id, revision=revision, **options)
 
 
 def _lock(job_id: str) -> str:

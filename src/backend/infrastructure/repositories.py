@@ -232,6 +232,18 @@ class TraceRepository(Repository):
     async def record(self, call: AgentCall) -> None:
         await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))
 
+    async def usage(self, job_id: str) -> tuple[int, int]:
+        """Provider calls a job made and the tokens they spent; cached results cost nothing."""
+        tokens = t.agent_calls.c.response["usage"]["total_tokens"].as_integer()
+        row = (
+            await self._session.execute(
+                select(func.count(), func.coalesce(func.sum(tokens), 0)).where(
+                    t.agent_calls.c.job_id == job_id, ~t.agent_calls.c.cached
+                )
+            )
+        ).one()
+        return row[0], row[1]
+
 
 class StageResultRepository(Repository):
     """Results of the deterministic steps, one per job revision, step and pass."""

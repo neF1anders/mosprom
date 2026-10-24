@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from .models import Job
 from .parameters import MAX_ITERATIONS
 
 StepName = Literal["parameters", "validation", "slicing", "gcode"]
@@ -42,3 +43,9 @@ def next_step(step: Step, verdict: Verdict | None = None) -> Step | None:
     if verdict == "needs_changes" and step.iteration < MAX_ITERATIONS:
         return Step("parameters", step.iteration + 1)
     return Step("slicing", step.iteration) if step.stage == "validation" else None
+
+
+def restart(job: Job) -> None:
+    """New work on the job in its current revision; what the previous work made is gone."""
+    job.stage, job.work_revision = "understanding", job.revision
+    job.parameters = job.result = job.outcome = None

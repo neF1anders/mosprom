@@ -90,7 +90,8 @@ class Stage1:
         )
         self.gate_prompt, self.start = split_tool(prompt("gate"))
 
-    async def run(self, job_id: str, revision: int) -> None:
+    async def run(self, job_id: str, revision: int, start: bool = False) -> None:
+        """``start`` resumes work the user stopped or that failed, without asking the gate."""
         ctx = RunContext(
             job_id=job_id,
             revision=revision,
@@ -99,7 +100,7 @@ class Stage1:
             event=partial(self.store.event, job_id, revision),
         )
         try:
-            await asyncio.wait_for(self._guarded(ctx), self.settings.timeout_seconds)
+            await asyncio.wait_for(self._guarded(ctx, start), self.settings.timeout_seconds)
         except OperationCancelled:
             await self.store.cancel(job_id)
         except TimeoutError:
@@ -118,9 +119,9 @@ class Stage1:
             )
             raise
 
-    async def _guarded(self, ctx: RunContext) -> None:
+    async def _guarded(self, ctx: RunContext, start: bool) -> None:
         """A stop or a newer revision interrupts the run at once, even inside a model call."""
-        work = asyncio.ensure_future(self._run(ctx))
+        work = asyncio.ensure_future(self._run(ctx, start))
         try:
             while not work.done():
                 await asyncio.wait({work}, timeout=CHECK_SECONDS)
@@ -132,7 +133,7 @@ class Stage1:
             raise
         work.result()
 
-    async def _run(self, ctx: RunContext) -> None:
+    async def _run(self, ctx: RunContext, start: bool) -> None:
         job = await self.store.update(ctx.job_id, ctx.revision, _started)
         attachments = _active(job, await self.store.attachments(job.id))
         messages = await self.store.messages(job.id)
@@ -150,7 +151,7 @@ class Stage1:
         session = await self._session(job, attachments)
         if session is not None:
             await self._answered(job, attachments, messages, inputs, session, content, ctx)
-        elif await self._gate(job, attachments, messages, inputs, ctx):
+        elif start or await self._gate(job, attachments, messages, inputs, ctx):
             await self._work(job, attachments, content, ctx)
 
     async def _session(self, job: Job, attachments: list[Attachment]) -> Session | None:
@@ -186,23 +187,24 @@ class Stage1:
         )
         if stl and started(reply.tool_calls):
             return True
-        card = job.card.model_copy(update={"revision": ctx.revision}) if job.card else None
+        current = _card_files(job.card) == {a.id for a in attachments}
         # Only a reply before the first card for these files asks for details.
-        asking = stl and _card_files(job.card) != {a.id for a in attachments}
-        text = clean(reply.content) or OFF_TOPIC
-        await self.store.finish(ctx, card, text, kind="gate" if asking else "chat")
+        kind = "gate" if stl and not current else "chat"
+        await self.store.reply(ctx, clean(reply.content) or OFF_TOPIC, kind, current)
         return False
 
     async def _work(
         self, job: Job, attachments: list[Attachment], content: ContentBuilder, ctx: RunContext
     ) -> None:
+        await self.store.begin(ctx)
         await self.sources.announce(attachments, ctx)
         await ctx.event("interpretation.started", "Разбираю задание")
         # The interpreter does not need the STL; its analysis runs meanwhile.
         stl = asyncio.ensure_future(self.sources.stl(job, attachments, ctx))
         try:
+            # Earlier answers are facts of the task, so a new run starts from them.
             draft = await self.runner.run(
-                self.interpreter, await content.build(answers=False, stl=False, codes=True), ctx
+                self.interpreter, await content.build(stl=False, codes=True), ctx
             )
             facts = await stl
         finally:
@@ -218,7 +220,7 @@ class Stage1:
             ctx.stl_report = facts.report
             content.use_geometry(facts.geometry)
         turn = await content.build(
-            answers=False, report=True, knowledge=True, codes=True, card=working.view()
+            stl=False, report=True, knowledge=True, codes=True, card=working.view()
         )
         review = await self.runner.run(CHECKER, turn, ctx)
         working.apply(review, self.keys)
@@ -258,6 +260,7 @@ class Stage1:
         """
         assert job.card is not None
         previous = job.card
+        await self.store.begin(ctx)
         await ctx.event("files.completed", "Файлы прочитаны", "completed")
         if previous.stl_analysis is not None:
             await ctx.event("stl.completed", "STL проанализирован", "completed")

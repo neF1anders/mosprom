@@ -19,7 +19,9 @@ class ControlService:
         async def apply(uow: UnitOfWork, job: Job):
             if action == "retry":
                 await name_from_files(uow, job)
-                await changed(uow, job, "Продолжаем обработку")
+                # Stopped or failed work resumes; files sent without a message go to the gate.
+                resume = job.status in {Status.STOPPED, Status.FAILED}
+                await changed(uow, job, "Продолжаем обработку", start=resume)
                 return job.model_dump(mode="json")
             # Running work stops at its next safe point; anything else stops at once.
             target = Status.STOPPING if job.status == Status.RUNNING else Status.STOPPED

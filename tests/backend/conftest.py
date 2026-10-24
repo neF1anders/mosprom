@@ -25,6 +25,8 @@ async def pg(tmp_path):
         pytest.fail("Integration tests require a database ending in _test")
     app = create_app(
         Settings(
+            # The developer's .env, with its real slicer folder, never reaches a test.
+            _env_file=None,
             database_url=TEST_DATABASE,
             session_secret="test-secret-" * 4,
             data_dir=tmp_path,

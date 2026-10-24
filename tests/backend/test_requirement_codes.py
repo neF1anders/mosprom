@@ -16,7 +16,7 @@ from src.backend.agents.card import (
 )
 from src.backend.agents.context import ContentBuilder, codes_block, collect
 from src.backend.agents.runner import parse_output
-from src.backend.agents.schemas import Review, ReviewQuestion, draft_with_codes
+from src.backend.agents.schemas import DraftRequirement, Review, ReviewQuestion, draft_with_codes
 from src.backend.domain.geometry import bind_analysis, summarize
 from src.backend.domain.models import Attachment, Source, TaskCard
 from src.backend.domain.rules import assess
@@ -303,3 +303,95 @@ def test_a_cited_page_keeps_its_image_for_the_card():
         "method": "text",
         "artifact_id": "p1.png",
     }
+
+
+def test_a_bare_flag_or_list_is_still_a_code_value():
+    """Regression: a bare true or list was dropped though the schema promised to accept it."""
+    output = draft(hydrophobic=True, chemical_resistance=["вода", "масло"])
+    filled = output.codes.filled()
+    assert filled["hydrophobic"].value == "да"
+    assert filled["chemical_resistance"].value == "вода, масло"
+
+
+def sourced(key, value, source, quote, unit="°C"):
+    return {
+        "key": key,
+        "value": value,
+        "unit": unit,
+        "sources": [{"source_id": source, "quote": quote}],
+    }
+
+
+def test_sources_that_disagree_on_a_code_reach_the_checker_and_the_answer_settles_it():
+    """Regression: the second value of a disputed code was silently dropped."""
+    message = sourced("service_temp_max_c", "90", "m1", "рабочая температура до 90")
+    text = json.dumps(
+        {
+            "requirements": [
+                sourced("service_temp_max_c", "70", "f1p1", "до 70 °C"),
+                message,
+                # The same value from another source is no dispute.
+                sourced("tg_min_c", "80", "f1p1", "80 °C"),
+                sourced("tg_min_c", "80", "m1", "80 °C"),
+            ],
+            "codes": {"service_temp_max_c": {"value": "70", "unit": "°C", "source_id": "f1p1"}},
+        },
+        ensure_ascii=False,
+    )
+    output, _ = parse_output(text, DRAFT)
+    working = WorkingCard.from_draft(output, CODES)
+    assert "service_temp_max_c" not in working.codes and working.codes["tg_min_c"].value == "80"
+    disputed = [r for r in working.view()["requirements"] if r["key"] == "service_temp_max_c"]
+    assert sorted(r["value"] for r in disputed) == ["70", "90"]
+    answer = Source(id="a:sources.1", ref="answer:sources.1", kind="answer", text="90")
+    fix = {"code": "service_temp_max_c", "value": "90", "unit": "°C", "source_id": answer.id}
+    working.apply(Review.model_validate({"code_fixes": [fix]}), CODES)
+    assert working.requirements == {}
+    current = ctx()
+    current.sources[answer.id] = answer
+    card = TaskCard(job_id="j", revision=1)
+    fill(card, working, working.requirements_for(CODES, current))
+    stable_references(card, current)
+    temperature = next(r for r in card.requirements if r.key == "service_temp_max_c")
+    assert (temperature.value, temperature.provenance) == ("90", "user")
+    assert [(old.value, old.sources[0].source_id) for old in temperature.superseded] == [
+        ("70", "att-1:1"),
+        ("90", "msg-1"),
+    ]
+
+
+def test_a_stated_value_replaces_an_inferred_code():
+    output = draft(load_bearing=LOAD)
+    working = WorkingCard.from_draft(output, CODES)
+    stated = sourced("load_bearing", "cyclic", "m1", "циклическая нагрузка", unit=None)
+    working.add(DraftRequirement.model_validate(stated), CODES)
+    assert (working.codes["load_bearing"].value, working.codes["load_bearing"].inferred) == (
+        "cyclic",
+        False,
+    )
+    assert "load_bearing" not in {r.key for r in working.requirements.values()}
+
+
+def test_a_code_fix_keeps_what_describes_the_same_source():
+    """Regression: a fix reset the label, conditions, mandatory flag and page of the code."""
+    temperature = {**TEMPERATURE, "conditions": "длительно", "mandatory": False, "page": 2}
+    working = WorkingCard.from_draft(draft(service_temp_max_c=temperature), CODES)
+    same = {"code": "service_temp_max_c", "value": "до 85", "unit": "°C", "source_id": "m1"}
+    working.apply(Review.model_validate({"code_fixes": [{**same, "inferred": False}]}), CODES)
+    kept = working.codes["service_temp_max_c"]
+    assert (kept.value, kept.label, kept.conditions, kept.mandatory, kept.page) == (
+        "до 85",
+        "Рабочая температура",
+        "длительно",
+        False,
+        2,
+    )
+    other = {**same, "source_id": "f1p1", "quote": "до 85", "inferred": False}
+    working.apply(Review.model_validate({"code_fixes": [other]}), CODES)
+    moved = working.codes["service_temp_max_c"]
+    assert (moved.label, moved.conditions, moved.mandatory, moved.page) == (
+        "Рабочая температура",
+        "",
+        True,
+        None,
+    )
