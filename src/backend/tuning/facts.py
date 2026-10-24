@@ -26,13 +26,8 @@ def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValu
         facts[f"req.{requirement.key}"] = requirement.value
         hard = facts.get(f"reqhard.{requirement.key}", False)
         facts[f"reqhard.{requirement.key}"] = bool(hard) or requirement.hard
-    geometry = request.geometry
     measures = {
-        "geometry.needs_repair": geometry.needs_repair,
-        "geometry.min_wall_estimate_mm": geometry.min_wall_estimate,
-        "geometry.volume_mm3": geometry.volume,
-        "geometry.surface_area_mm2": geometry.surface_area,
-        "geometry.overhang_area_fraction": geometry.overhang_fraction,
+        "geometry.overhang_area_fraction": request.geometry.overhang_fraction,
         "material.speed": material.speed,
         "material.cooling_pct": material.cooling_percent,
     }
