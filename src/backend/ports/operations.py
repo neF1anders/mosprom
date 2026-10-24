@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -28,6 +28,10 @@ class ModelReply:
     raw: dict[str, Any] = field(repr=False)
 
 
+# Each piece of the reasoning as it arrives and the attempt it belongs to, counted from one.
+Reasoning = Callable[[str, int], Awaitable[None]]
+
+
 class ModelClient(Protocol):
     async def complete(
         self,
@@ -37,6 +41,7 @@ class ModelClient(Protocol):
         agent: str,
         thinking: bool,
         budget: int | None = None,
+        on_reasoning: Reasoning | None = None,
     ) -> ModelReply: ...
 
 
