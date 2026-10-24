@@ -31,6 +31,11 @@ def catalog():
         ("extruderValues('speed_print') == [extruderValue(0, 'speed_print')]", True),
         ("math.floor(math.sqrt(10))", 3),
         ("None if False else (1, 2)", [1, 2]),
+        ("speed_print ** 2 % 7", 2),
+        ("int(2.7) + sum([1, 2]) + float('1.5')", 6.5),
+        ("any([0, 1]) and not all([0, 1])", True),
+        ("round(math.tan(math.radians(45)) + math.log(1), 6)", 1.0),
+        ("defaultExtruderPosition()", "0"),
     ],
 )
 def test_formulas_evaluate_the_slicer_expression_language(formula, value):
@@ -41,7 +46,7 @@ def test_formulas_evaluate_the_slicer_expression_language(formula, value):
     "formula",
     [
         "__import__('os').system('true')",
-        "speed_print ** 2",
+        "speed_print << 2",
         "[1][0]",
         "(lambda: 1)()",
         "math.pi",
@@ -100,6 +105,30 @@ def test_definition_carries_the_printer_limits_but_not_its_value(catalog):
     assert catalog.definition("unknown_setting") == {}
 
 
+def test_values_follow_the_stack_of_settings_of_the_slicer():
+    """A value set over the printer, else the extruder's, else the printer's, else fdmprinter's;
+    a formula reads the others the same way."""
+    stacked = Catalog(
+        printer="p",
+        digest="",
+        settings={"a": {"default_value": 1}, "b": {"value": "a * 2", "default_value": 0}},
+        printer_overrides={"a": {"default_value": 2}},
+        extruder_overrides={"0": {"a": 3}},
+        qualities={},
+        materials={},
+    )
+    assert stacked.values("classic").get("b") == 6
+    assert stacked.values("classic", {"a": 4}).get("b") == 8
+
+
+def test_fdmprinter_formulas_are_evaluated(catalog):
+    classic = catalog.values("classic")
+    assert classic.get("extruders_enabled_count") == 2
+    assert classic.get("z_seam_x") == 351 / 2
+    chosen = catalog.values("classic", {"top_bottom_thickness": 1.2, "layer_height": 0.2})
+    assert (chosen.get("bottom_thickness"), chosen.get("bottom_layers")) == (1.2, 6)
+
+
 def test_formulas_that_refer_to_each_other_are_an_error():
     looped = Catalog(
         printer="p",
@@ -126,3 +155,9 @@ def test_shared_requirement_codes_load_with_units_stage_one_understands():
     assert codes.get("temperature_max") is None
     for entry in codes.keys:
         assert entry.unit is None or dimension(entry.unit) is not None, entry.key
+
+
+def test_an_extruder_constant_value_wins_over_its_default(catalog):
+    """Regression: an extruder override with only ``value`` was loaded as None."""
+    main = catalog.extruder_overrides["0"]
+    assert (main["machine_extruder_start_pos_x"], main["machine_extruder_end_pos_x"]) == (15, 0)

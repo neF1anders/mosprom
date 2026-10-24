@@ -1,18 +1,27 @@
 """Slicing and the G-code check without STE Slicer: the plan of plugin calls, the check of a
 written G-code and the MCP adapter against the stand-in of the plugin."""
 
+import asyncio
 import json
 import math
+import time
 import zipfile
 from pathlib import Path
 
+import httpx
 import pytest
 
 from scripts.fake_ste_slicer import FakeSlicer
 from src.backend.domain.parameters import ParameterSet
 from src.backend.infrastructure.catalog import load_catalog
 from src.backend.infrastructure.files import LocalFiles
-from src.backend.infrastructure.slicer import McpSlicer, SlicerSettings, gcode_facts
+from src.backend.infrastructure.slicer import (
+    CallFailed,
+    McpSlicer,
+    SlicerSettings,
+    _rpc,
+    gcode_facts,
+)
 from src.backend.slicing import build_plan, check_gcode, read_gcode
 from src.backend.slicing.plan import euler_steps, scene_rotation
 
@@ -175,11 +184,26 @@ def test_a_layer_height_other_than_the_profile_is_an_apply_error():
     assert result.feedback.result == "ok", "applying is not stage two's fault"
 
 
-def test_a_requested_temperature_has_to_appear_in_the_gcode():
+def test_every_heating_command_sets_a_temperature_the_set_asks_for():
+    """As the original check: one command at the requested temperature is not enough. The
+    first layer may differ only when the set gives it a temperature of its own."""
     pset = parameter_set(settings={"material_print_temperature": {"value": 240, **REASON}})
+    assert checked(gcode(nozzle=240), pset).result == "ok"
     assert checked(gcode(nozzle=230), pset).result == "apply_failed"
-    first_layer = gcode(nozzle=240, extra=["M104 S235"])
-    assert checked(first_layer, pset).result == "ok"
+    cooled = checked(gcode(nozzle=240, extra=["M104 S200"]), pset)
+    assert cooled.result == "apply_failed"
+    assert [f.message for f in cooled.findings if f.level == "error"] == [
+        "температура сопла в G-code 200 °C, ожидалась 240 °C"
+    ]
+    first_layer = {
+        "material_print_temperature": {"value": 240, **REASON},
+        "material_print_temperature_layer_0": {"value": 235, **REASON},
+        "material_bed_temperature": {"value": 70, **REASON},
+    }
+    hotter_start = gcode(nozzle=235, extra=["M104 S240"])
+    assert checked(hotter_start, parameter_set(settings=first_layer)).result == "ok"
+    bed = checked(gcode(nozzle=240, extra=["M140 S50"]), parameter_set(settings=first_layer))
+    assert [f.key for f in bed.findings if f.level == "error"] == ["material_bed_temperature"]
 
 
 def test_a_model_off_the_bed_goes_back_to_selection_without_its_orientation():
@@ -221,10 +245,37 @@ def plugin(tmp_path):
     fake.stop()
 
 
-def adapter(tmp_path, folder: Path, host_folder: str = "") -> tuple[McpSlicer, LocalFiles]:
+def adapter(
+    tmp_path, folder: Path, host_folder: str = "", run_seconds: float = 60
+) -> tuple[McpSlicer, LocalFiles]:
     files = LocalFiles(tmp_path / "files")
     files.path("att").write_bytes(BOX.read_bytes())
-    return McpSlicer(files, SlicerSettings(folder, host_folder, "127.0.0.1")), files
+    settings = SlicerSettings(folder, host_folder, "127.0.0.1", run_seconds)
+    return McpSlicer(files, settings), files
+
+
+def slow_slicing(plugin, *seconds: float) -> list[tuple[str, float]]:
+    """Each slicing in the stand-in takes the next of ``seconds``, the last one from then on;
+    the moments calls arrive and slicings end."""
+    moments: list[tuple[str, float]] = []
+    original_call, original_slice = plugin.call, plugin.tool_slice_model
+    delays = list(seconds)
+
+    def call(name, arguments):
+        moments.append((name, time.monotonic()))
+        return original_call(name, arguments)
+
+    def slicing():
+        time.sleep(delays.pop(0) if len(delays) > 1 else delays[0])
+        moments.append(("sliced", time.monotonic()))
+        return original_slice()
+
+    plugin.call, plugin.tool_slice_model = call, slicing
+    return moments
+
+
+def moment(moments, name: str, nth: int = 0) -> float:
+    return [at for called, at in moments if called == name][nth]
 
 
 async def test_the_adapter_slices_and_keeps_the_gcode_and_the_project(tmp_path, plugin):
@@ -313,3 +364,74 @@ async def test_paths_go_to_the_slicer_as_it_sees_the_shared_folder(tmp_path, plu
     loaded = next(args for name, args in plugin.calls if name == "load_model")
     assert loaded["path"] == host + r"\mosprom\r\att.stl"
     assert report.status == "failed" and report.message == "Слайсер не загрузил модель"
+
+
+async def test_a_stopped_run_keeps_the_slicer_until_the_plugin_has_sliced(tmp_path, plugin):
+    """A stop or an edit ends the wait at once, but the next job's run talks to the plugin only
+    after the slicing it was busy with is over."""
+    moments = slow_slicing(plugin, 0.6, 0)
+    slicer, _ = adapter(tmp_path, plugin.folder)
+    first = asyncio.create_task(slicer.slice("a", parameter_set(), {"att": "att"}))
+    while not any(name == "slice_model" for name, _ in moments):
+        await asyncio.sleep(0.02)
+    first.cancel()
+    second = await slicer.slice("b", parameter_set(), {"att": "att"})
+    assert first.cancelled() and second.status == "sliced", second
+    assert moment(moments, "list_models", 1) > moment(moments, "sliced")
+    # The stopped run made no call after the slicing it was waiting for.
+    assert [name for name, _ in moments].count("export_gcode") == 1
+
+
+async def test_waiting_for_another_run_does_not_count_against_the_time_of_a_run(tmp_path, plugin):
+    slow_slicing(plugin, 0.4)
+    slicer, _ = adapter(tmp_path, plugin.folder, run_seconds=0.7)
+    first, second = await asyncio.gather(
+        slicer.slice("a", parameter_set(), {"att": "att"}),
+        slicer.slice("b", parameter_set(), {"att": "att"}),
+    )
+    assert (first.status, second.status) == ("sliced", "sliced"), (first, second)
+
+
+async def test_a_run_over_its_time_answers_and_keeps_the_slicer_until_it_is_free(tmp_path, plugin):
+    moments = slow_slicing(plugin, 0.6, 0)
+    slicer, _ = adapter(tmp_path, plugin.folder, run_seconds=0.2)
+    started = time.monotonic()
+    report = await slicer.slice("a", parameter_set(), {"att": "att"})
+    assert time.monotonic() - started < 0.5
+    assert (report.status, report.message, report.gcode) == (
+        "failed",
+        "Слайсер не ответил вовремя",
+        None,
+    )
+    slicer.settings = SlicerSettings(plugin.folder, "", "127.0.0.1", 5)
+    await slicer.slice("b", parameter_set(), {"att": "att"})
+    assert moment(moments, "list_models", 1) > moment(moments, "sliced")
+    assert [name for name, _ in moments].count("export_gcode") == 1
+
+
+async def test_a_model_that_cannot_reach_the_shared_folder_is_a_failed_run(tmp_path, plugin):
+    slicer, _ = adapter(tmp_path, plugin.folder)
+    report = await slicer.slice("r", parameter_set(), {"att": "missing"})
+    assert (report.status, report.message) == ("failed", "Не удалось передать модель слайсеру")
+    assert plugin.calls == []
+
+
+async def test_results_the_slicer_did_not_leave_are_a_failed_run(tmp_path, plugin):
+    plugin.tool_export_gcode = lambda path=None: {"path": path, "bytes": 0}
+    slicer, _ = adapter(tmp_path, plugin.folder)
+    report = await slicer.slice("r", parameter_set(), {"att": "att"})
+    assert (report.status, report.message, report.gcode) == (
+        "failed",
+        "Не удалось забрать G-code и проект у слайсера",
+        None,
+    )
+
+
+@pytest.mark.parametrize(
+    "body", [b"<html>busy</html>", b"[]", b'{"jsonrpc": "2.0"}', b'{"error": "down"}']
+)
+async def test_an_answer_that_is_not_json_rpc_is_a_failed_call(body):
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=body))
+    async with httpx.AsyncClient(transport=transport, base_url="http://plugin") as client:
+        with pytest.raises(CallFailed):
+            await _rpc(client, "tools/list", {})

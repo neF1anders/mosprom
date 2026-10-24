@@ -50,7 +50,8 @@ class Slicer(Protocol):
     """STE Slicer with the AI Assistant plugin, one run at a time.
 
     ``run`` names the run and its stored files; ``models`` maps an attachment id of the set
-    to its stored file. A slicer that is not running is reported, not raised.
+    to its stored file. A slicer that is not running, fails a step or runs out of time is
+    reported, not raised.
     """
 
     async def slice(
