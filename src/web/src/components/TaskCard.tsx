@@ -64,9 +64,13 @@ export function TaskCard({
   attachments = [],
   folder,
   agents = [],
+  highlighted,
+  detail,
   pending = false,
   collapsed = false,
   onRemove = () => {},
+  onHighlight,
+  onAgent,
 }: {
   job?: Job;
   onCollapse: () => void;
@@ -74,9 +78,14 @@ export function TaskCard({
   attachments?: Attachment[];
   folder?: string | null;
   agents?: AgentRow[];
+  highlighted?: string;
+  // An agent's train of thought takes the place of the agents and the card.
+  detail?: ReactNode;
   pending?: boolean;
   collapsed?: boolean;
   onRemove?: (id: string) => void;
+  onHighlight?: (id: string) => void;
+  onAgent?: (id: string) => void;
 }) {
   const sections = cardSections(job, events);
   const done = sections.filter((section) => section.state === "done").length;
@@ -95,8 +104,16 @@ export function TaskCard({
         onCollapse={onCollapse}
         onRemove={onRemove}
       />
-      <AgentsPanel agents={agents} />
-      <section className={styles.taskCard}>
+      {detail}
+      {!detail && (
+        <AgentsPanel
+          agents={agents}
+          highlighted={highlighted}
+          onHighlight={onHighlight}
+          onOpen={onAgent}
+        />
+      )}
+      <section className={styles.taskCard} hidden={!!detail}>
         <div className={styles.row}>
           <h2>Карточка задания</h2>
           <small role="status">{done} из 4 готово</small>

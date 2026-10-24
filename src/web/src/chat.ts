@@ -24,7 +24,7 @@ export function composerPlaceholder(
   if (job?.status === "completed") return "Написать правку или вопрос…";
   if (job?.status === "waiting_user")
     return job.card?.questions.some((question) => !answered(question))
-      ? "Или ответьте текстом…"
+      ? "Написать сообщение…"
       : "Можно написать сообщение…";
   if (job?.status === "running" || job?.status === "queued")
     return "Можно написать сообщение, я отвечу после текущего шага";

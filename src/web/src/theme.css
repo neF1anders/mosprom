@@ -9,6 +9,8 @@
   --agent-active: #e9e9ef;
   --code: #f1f1f5;
   --attachment: #ffffff;
+  --window: #ffffff;
+  --badge: #f5f5f7;
   --text: #13141a;
   --text-2: #6b6e7b;
   --text-3: #a5a7b3;
@@ -41,6 +43,8 @@
     --agent-active: #2a2b38;
     --code: #14151b;
     --attachment: #262733;
+    --window: #1a1b23;
+    --badge: #262733;
     --text: #f1f1f6;
     --text-2: #9b9dae;
     --text-3: #6b6d7e;

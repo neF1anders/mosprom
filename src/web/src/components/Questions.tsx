@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Question } from "../types";
 import { answered, UNKNOWN_ANSWER } from "../types";
+import { useDictation } from "../hooks/useDictation";
+import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
 export function Questions({
@@ -17,6 +19,13 @@ export function Questions({
   const [index, setIndex] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
   const question = open[Math.min(index, open.length - 1)];
+  const dictation = useDictation((spoken) => {
+    if (question)
+      setValues((v) => ({
+        ...v,
+        [question.id]: [v[question.id], spoken].filter(Boolean).join(" "),
+      }));
+  });
   if (!question) return null;
   const answer = values[question.id] || "";
   const options = [...new Set(question.options)].filter(
@@ -78,45 +87,53 @@ export function Questions({
     }
     advance();
   };
+  const highlighted = options.includes(answer)
+    ? answer
+    : !answer && question.suggested;
+  const custom =
+    options.includes(answer) || answer === UNKNOWN_ANSWER ? "" : answer;
   return (
     <section
       className={styles.question}
       aria-label="Уточняющие вопросы"
       onKeyDown={onKeyDown}
     >
-      {question.kind === "discrepancy" && (
-        <p className={styles.conflictHeading}>
-          <img src="/figma/warn.svg" alt="" />
-          Нужно ваше подтверждение
-        </p>
-      )}
-      {several && (
-        <div className={styles.row}>
-          <span className={styles.questionCounter}>
-            Вопрос {index + 1} из {open.length}
-          </span>
-          <nav
-            className={styles.steps}
-            aria-label="Номера вопросов"
-            data-native-enter
-          >
-            {open.map((q, i) => (
-              <button
-                key={q.id}
-                aria-current={index === i ? "step" : undefined}
-                onClick={() => setIndex(i)}
-              >
-                {i + 1}
-              </button>
-            ))}
+      <div className={styles.questionHead}>
+        <Icon name="help" />
+        <span>
+          {question.kind === "discrepancy"
+            ? "Нужно ваше подтверждение"
+            : "Вопрос"}
+        </span>
+        {several && (
+          <nav className={styles.pager} aria-label="Вопросы" data-native-enter>
+            <button
+              className={styles.icon}
+              aria-label="Предыдущий вопрос"
+              disabled={index === 0}
+              onClick={() => setIndex((i) => i - 1)}
+            >
+              <Icon name="chev-left" />
+            </button>
+            <span>
+              {index + 1} из {open.length}
+            </span>
+            <button
+              className={styles.icon}
+              aria-label="Следующий вопрос"
+              disabled={last}
+              onClick={() => setIndex((i) => i + 1)}
+            >
+              <Icon name="chev-right" size={14} />
+            </button>
           </nav>
-        </div>
-      )}
-      <h3>{question.title}</h3>
-      {question.impact && <p className={styles.muted}>{question.impact}</p>}
-      {question.answer && (
-        <p className={styles.muted}>Раньше вы ответили {question.answer}</p>
-      )}
+        )}
+      </div>
+      <div className={styles.questionText}>
+        <h3>{question.title}</h3>
+        {question.impact && <p>{question.impact}</p>}
+        {question.answer && <p>Раньше вы ответили {question.answer}</p>}
+      </div>
       <div className={styles.options}>
         {options.map((option, i) => (
           <button
@@ -124,7 +141,7 @@ export function Questions({
             data-option={option}
             aria-label={option}
             aria-pressed={answer === option}
-            data-suggested={!answer && question.suggested === option}
+            data-highlighted={highlighted === option}
             aria-description={
               !answer && question.suggested === option
                 ? "Предложенный вариант, требует вашего подтверждения"
@@ -141,48 +158,48 @@ export function Questions({
                 <small>Предложение, {question.basis}</small>
               )}
             </span>
+            {highlighted === option && <Icon name="arrow" size={18} />}
           </button>
         ))}
-        <div className={styles.customOption}>
-          <span aria-hidden="true" className={styles.optionNumber}>
-            {options.length + 1}
-          </span>
-          <label className={styles.srOnly} htmlFor={`answer-${question.id}`}>
-            Свой ответ
-          </label>
-          <input
-            id={`answer-${question.id}`}
-            placeholder="Напишите свой вариант"
-            value={
-              options.includes(answer) || answer === UNKNOWN_ANSWER
-                ? ""
-                : answer
-            }
-            onChange={(e) =>
-              setValues((v) => ({ ...v, [question.id]: e.target.value }))
-            }
-          />
-        </div>
       </div>
-      {question.sources.length > 0 && (
-        <details className={styles.sources}>
-          <summary>Источники</summary>
-          {question.sources.map((source, i) => (
-            <blockquote key={i}>
-              {source.quote}
-              {source.page ? <small>страница {source.page}</small> : null}
-            </blockquote>
-          ))}
-        </details>
-      )}
-      <div className={styles.actions}>
+      <div className={styles.answerRow}>
+        <Icon name="pencil" size={18} />
+        <label className={styles.srOnly} htmlFor={`answer-${question.id}`}>
+          Свой ответ
+        </label>
+        <input
+          id={`answer-${question.id}`}
+          placeholder="Или напишите свой ответ"
+          value={custom}
+          onChange={(e) =>
+            setValues((v) => ({ ...v, [question.id]: e.target.value }))
+          }
+        />
+        <button
+          className={styles.icon}
+          aria-label={
+            dictation.listening
+              ? "Остановить диктовку"
+              : "Голосовой ввод ответа"
+          }
+          disabled={!dictation.available}
+          data-native-enter
+          onClick={dictation.toggle}
+        >
+          <Icon name="mic" size={32} />
+        </button>
         {index > 0 && (
-          <button data-native-enter onClick={() => setIndex((i) => i - 1)}>
+          <button
+            className={styles.ghost}
+            data-native-enter
+            onClick={() => setIndex((i) => i - 1)}
+          >
             Назад
           </button>
         )}
         <button
-          className={styles.primary}
+          className={styles.next}
+          data-ready={!!answer.trim()}
           data-native-enter
           disabled={last && pending}
           aria-label={last ? "Отправить ответы" : undefined}

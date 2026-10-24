@@ -1152,104 +1152,283 @@ a.treeRow:hover,
   line-height: 13px;
   font-weight: 500;
 }
-/* Progress timeline; the redesigned timeline replaces these rules. */
+/* Timeline under the user's message, Figma nodes 132:395 and 132:408. */
 .timeline {
-  background: var(--surface);
-  padding: 14px 16px;
-  border-radius: 16px;
-  margin-top: -8px;
+  display: flex;
+  flex-direction: column;
 }
-.timelineRow {
+.stage {
   position: relative;
   margin: 0;
-  padding-bottom: 14px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--text-2);
+  padding-bottom: 20px;
 }
-.timelineRow:last-child {
+.stage:last-child {
   padding-bottom: 0;
 }
-.timelineRow::before {
+.stage::before {
   content: "";
   position: absolute;
-  left: 7.5px;
-  top: 20px;
+  left: 9px;
+  top: 24px;
   bottom: 0;
-  width: 1px;
-  background: var(--wait);
+  width: 2px;
+  border-radius: 1px;
+  background: var(--line);
 }
-.timelineRow:last-child::before {
+.stage:last-child::before {
   display: none;
 }
-.timelineRow[data-state="done"]::before {
-  background: var(--text);
-}
-.timelineRow summary {
+.stage > summary {
+  position: relative;
+  display: block;
+  padding-left: 34px;
   list-style: none;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-weight: 500;
 }
-.timelineRow summary::-webkit-details-marker {
+.stage > summary::-webkit-details-marker {
   display: none;
 }
-.timelineRow[data-state="done"] > summary,
-.timelineRow[data-state="run"] > summary,
-.timelineRow[data-state="warn"] > summary {
+.stageMarker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+}
+.stage[data-state="done"] .stageMarker {
+  background: var(--text);
+  color: var(--bg);
+}
+.stage[data-state="error"] .stageMarker {
+  background: var(--error);
+  color: var(--on-status);
+}
+.stage[data-state="warn"] .stageMarker {
+  background: var(--warn);
+  color: var(--on-status);
+}
+.stage[data-state="run"] .stageMarker {
+  color: var(--run);
+}
+.stage[data-state="wait"] .stageMarker {
+  color: var(--text-3);
+}
+.stageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 17px;
+}
+.stageTitle {
+  position: relative;
+  font-size: 14px;
+  line-height: 17px;
+  font-weight: 600;
+}
+.stage[data-state="wait"] .stageTitle {
+  font-weight: 400;
+  color: var(--text-3);
+}
+.stageHead small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 15px;
+}
+.stageHead small[data-tone="run"] {
+  color: var(--run);
+}
+.stageHead small[data-tone="warn"] {
+  color: var(--warn);
+}
+.stageHead small[data-tone="error"] {
+  color: var(--error);
+}
+.stageSummary {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 15px;
+  overflow-wrap: anywhere;
+}
+.tooltip {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: calc(100% + 34px);
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  animation: fade 150ms ease both;
+}
+.compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 16px;
+}
+.compact > .glyph {
   color: var(--text);
 }
-.marker {
-  width: 16px;
-  height: 16px;
-  flex: none;
+.compact > span:not(.glyph) {
+  margin-left: 2px;
 }
-.chevron {
-  width: 16px;
-  height: 16px;
-  flex: none;
-  margin-left: auto;
+.stageBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding-left: 34px;
 }
-.stepContent {
-  margin-left: 26px;
-  margin-top: 1px;
-  font-size: 11px;
-  line-height: 17px;
-  font-weight: 400;
+.action,
+.action:hover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 16px;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
-.substeps {
-  padding-top: 5px;
+button.action:hover,
+.action[data-open="true"] {
+  color: var(--text-2);
 }
-.substep {
-  padding-bottom: 8px;
-  font-size: 11px;
-  line-height: 17px;
+.action[data-state="error"] > .glyph {
+  color: var(--error);
 }
-.substep summary {
+.actionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.output {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 0 26px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--code);
+  color: var(--text);
+  font:
+    12px/16px "Roboto Mono",
+    ui-monospace,
+    monospace;
+  animation: rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.output > span:first-child {
+  color: var(--text-2);
+}
+.agentCards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+.agentCards:not([data-count="1"]) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.agentCard,
+.agentCard:hover {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
+  padding: 12px 14px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  transition: background-color 200ms ease;
+  animation: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.substep .marker {
-  width: 12px;
-  height: 12px;
+.agentCard:hover,
+.agentCard[data-highlighted="true"] {
+  background: var(--agent-active);
 }
-.substep::before {
-  left: 5.5px;
-  top: 16px;
+.agentHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 20px;
+  padding-left: 1px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 500;
 }
-.substep .stepContent {
-  margin-left: 20px;
+.agentHead > .glyph {
+  color: var(--text);
+}
+.reasoning {
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.reasoning > span {
+  color: var(--text-3);
+  transition: color 600ms ease;
+}
+.agentDone,
+.agentDone:hover {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 16px;
+  text-align: left;
+}
+button.agentDone:hover {
+  background: var(--agent-active);
+}
+.agentDone small {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 15px;
+}
+.agentDone > .glyph:last-child {
+  color: var(--text-3);
 }
 .cardSummary {
-  background: var(--raised);
+  margin-top: 0;
+  padding: 10px 12px 12px;
   border-radius: 16px;
-  padding: 12px;
-  margin-top: 6px;
+  background: var(--surface);
   color: var(--text);
 }
 .cardSummary > p {
-  font-size: 11px;
   color: var(--text-2);
+  font-size: 11px;
+  line-height: 17px;
+  font-weight: 500;
 }
 .cardSummary dl {
   margin: 0;
@@ -1258,7 +1437,7 @@ a.treeRow:hover,
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr);
   gap: 10px;
-  padding: 6px 0;
+  padding: 7px 0;
   border-bottom: 1px solid var(--line);
 }
 .cardSummary dl > div:last-child {
@@ -1268,6 +1447,7 @@ a.treeRow:hover,
 .cardSummary dt {
   color: var(--text-2);
   font-size: 11px;
+  line-height: 18px;
 }
 .cardSummary dd {
   margin: 0;
@@ -1280,144 +1460,241 @@ a.treeRow:hover,
 .cardSummary dd details > span {
   display: block;
 }
+.cardSummary dd details {
+  margin: 0;
+}
 .cardSummary dd summary {
   cursor: pointer;
   color: var(--text-2);
 }
 
-/* Question window; the redesigned window replaces these rules. */
-.question {
-  background: var(--surface);
-  border-radius: 16px;
-  padding: 16px;
-}
-.question > .row {
-  min-height: 20px;
-}
-.questionCounter {
-  color: var(--text-2);
-  font-weight: 500;
-  font-size: 12px;
-  line-height: 18px;
-}
-.steps {
+/* An agent's train of thought in the right panel, Figma screen 18. */
+.agentDetail {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 16px 8px 0;
+  border-top: 1px solid var(--line);
 }
-.steps button {
+.back,
+.back:hover {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
   padding: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 16px;
+}
+.agentTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 6px;
+}
+.agentTitle > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+.agentTitle h2 {
+  font-size: 14px;
+  line-height: 17px;
+}
+.agentTitle small {
+  font-size: 12px;
+  line-height: 15px;
+}
+.agentTitle small[data-tone="run"] {
+  color: var(--run);
+}
+.agentDetail h3 {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 500;
+}
+.thoughts {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+.thoughts li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 8px;
+}
+.thoughts time {
+  padding-top: 2px;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 14px;
+}
+.thoughts p {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 145%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.thoughts li[data-age="recent"] p {
+  color: var(--text-2);
+}
+.thoughts li[data-age="now"] p {
+  color: var(--text);
+}
+.detailActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Question window above the composer, Figma screens 05–07. */
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--window);
+}
+.questionHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 16px;
+}
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 12px;
+  line-height: 15px;
+}
+.pager .icon,
+.pager .icon:hover {
+  min-width: 20px;
   width: 20px;
   height: 20px;
-  font-size: 11px;
-  line-height: 17px;
-  color: var(--text-2);
-  background: var(--raised);
+  color: var(--text);
 }
-.steps button[aria-current="step"] {
-  background: var(--text);
-  color: var(--bg);
+.pager .icon:disabled {
+  opacity: 1;
+  color: var(--placeholder);
 }
-.question h3 {
+.questionText h3 {
   font-size: 14px;
-  line-height: 21px;
-  font-weight: 600;
-  margin-top: 3px;
-}
-.question p {
-  margin-top: 0;
-  font-size: 11px;
   line-height: 17px;
+  font-weight: 500;
 }
-.question .options {
+.questionText p {
+  margin-top: 1px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 15px;
+}
+.options {
   display: grid;
-  gap: 6px;
-  margin: 12px 0;
+  gap: 4px;
 }
 .options button {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 36px;
-  padding: 9px 14px;
-  background: var(--raised);
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: transparent;
   text-align: left;
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
+  font-size: 14px;
+  line-height: 17px;
 }
-.options button[aria-pressed="true"],
-.options button[data-suggested="true"] {
-  background: var(--text);
-  color: var(--bg);
+.options button:hover,
+.options button[data-highlighted="true"] {
+  background: var(--bubble);
+}
+.options button > .glyph {
+  margin-left: auto;
+  color: var(--text-2);
 }
 .optionNumber {
-  color: var(--text-2);
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  flex: none;
-}
-.options small {
-  font-size: 11px;
-  line-height: 17px;
-  margin-top: 2px;
-  font-weight: 400;
-}
-.options button[aria-pressed="true"] small,
-.options button[aria-pressed="true"] .optionNumber,
-.options button[data-suggested="true"] small,
-.options button[data-suggested="true"] .optionNumber {
-  color: var(--text-3);
-}
-.customOption {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: var(--raised);
-  border-radius: 16px;
-  padding-left: 14px;
-}
-.customOption input {
-  width: 100%;
-  padding: 9px 14px 9px 0;
-  font-size: 12px;
-  line-height: 18px;
-  background: transparent;
-}
-.customOption input::placeholder {
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--wait);
+  border-radius: 7px;
+  background: var(--badge);
   color: var(--text-2);
-}
-.question .actions {
-  margin-top: 12px;
-  justify-content: flex-end;
-  gap: 6px;
-}
-.question .actions button {
-  background: var(--raised);
-  padding: 5px 12px;
   font-size: 12px;
-  line-height: 16px;
-  font-weight: 500;
-  min-height: 26px;
-  border-radius: 13px;
-  transition: background-color 150ms ease;
+  line-height: 15px;
 }
-.conflictHeading {
+.options small {
+  margin-top: 1px;
+  font-size: 12px;
+  line-height: 15px;
+}
+.answerRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-2);
-  margin-bottom: 14px !important;
+  padding-left: 12px;
 }
-.conflictHeading img {
-  width: 16px;
-  height: 16px;
-}
-.question .sources {
-  font-size: 11px;
+.answerRow > .glyph {
   color: var(--text-2);
-  margin-top: 10px;
+}
+.answerRow input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 0 0 4px;
+  background: transparent;
+  font-size: 14px;
+  line-height: 17px;
+}
+.answerRow input::placeholder {
+  color: var(--placeholder);
+}
+.next,
+.next:hover,
+.ghost,
+.ghost:hover {
+  flex: none;
+  height: 28px;
+  padding: 5px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.next,
+.next:hover {
+  background: var(--button-off);
+  color: var(--button-off-text);
+}
+.next[data-ready="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+.ghost,
+.ghost:hover {
+  border: 1px solid var(--line);
+  background: transparent;
 }
 
 /* Soft appearance of new rows; transform and opacity only. */

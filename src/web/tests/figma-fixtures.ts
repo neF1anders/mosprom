@@ -124,6 +124,7 @@ export async function designFixture(page: Page, state: DesignState) {
   if (waiting) card.readiness = "blocked";
   const job: Job = {
     id: "design",
+    active_stl: "mesh",
     title: state === "start" ? "Новое задание" : "Корпус подшипника",
     revision: card.revision,
     status:
@@ -172,6 +173,21 @@ export async function designFixture(page: Page, state: DesignState) {
     status: "completed",
     data: {},
   };
+  const introductions: Record<string, string> = {
+    questions:
+      "Анализ закончен, нужно уточнить 3 вещи, остальное я допустил, допущения видны справа:",
+    conflict:
+      "Размер детали в ТЗ и модели не совпадает, подтвердите, какое значение верно",
+    done: "Вот как я понял задачу, если всё верно, я перейду к подбору параметров",
+    selected:
+      "Параметры подобраны, но выполнены не все требования. Режим 3D, профиль Fine, материал PETG, изменено 2 настройки",
+    files: "Проверяю файлы перед анализом",
+    defect:
+      "В korpus.stl нашлись дублирующиеся грани, из-за них площадь и объём модели точно не посчитать, габариты и масштаб в порядке",
+    error: "Модель не отвечает, анализ не завершён",
+    revision:
+      "Длину участка A поменял со 100 на 90 мм, пересчитываю то, что от неё зависит",
+  };
   const events: ProgressEvent[] =
     state === "start"
       ? []
@@ -206,7 +222,7 @@ export async function designFixture(page: Page, state: DesignState) {
       ...base,
       event_id: 4,
       type: "stage1.completed",
-      message: "Карточка подготовлена",
+      message: introductions[state] || "Карточка подготовлена",
     });
   if (state === "selected")
     events.push(
@@ -225,6 +241,61 @@ export async function designFixture(page: Page, state: DesignState) {
         data: { iteration: 1 },
       },
     );
+  // The interpreter at work, as on Figma screens 03 and 12; times count from the first event.
+  const call = "run1:interpreter:1";
+  if (["analysis", "offline", "revision"].includes(state))
+    events.push(
+      {
+        ...base,
+        event_id: 10,
+        type: "agent.started",
+        status: "running",
+        message: "Разбор задания, работает",
+        data: { agent: "interpreter", title: "Разбор задания", call },
+      },
+      {
+        ...base,
+        event_id: 11,
+        type: "agent.thinking",
+        status: "running",
+        message: "Разбор задания, рассуждает",
+        data: {
+          agent: "interpreter",
+          call,
+          attempt: 1,
+          text: "В ТЗ сказано про эксплуатацию в помещении, значит рабочая температура, скорее всего, до 60 градусов. ",
+        },
+      },
+      {
+        ...base,
+        event_id: 12,
+        type: "agent.thinking",
+        status: "running",
+        message: "Разбор задания, рассуждает",
+        data: {
+          agent: "interpreter",
+          call,
+          attempt: 1,
+          text: "Прямого числа нет, поэтому это пока допущение, и я вынесу его на вопрос. Проверяю, нет ли требований по нагрузке на посадочное место",
+        },
+      },
+      {
+        ...base,
+        event_id: 13,
+        type: "tool.called",
+        status: "running",
+        message: "Разбор задания, смотрит страницу крупнее",
+        data: {
+          agent: "interpreter",
+          call,
+          tool: "view_page",
+          arguments: { source_id: "spec:2" },
+        },
+      },
+    );
+  events.forEach((event, index) => {
+    event.created_at = new Date(Date.now() - (14 - index) * 1000).toISOString();
+  });
   const parameters: ParameterSet = {
     iteration: 1,
     settings: {
@@ -294,21 +365,6 @@ export async function designFixture(page: Page, state: DesignState) {
         artifacts: [],
       },
     );
-  const introductions: Record<string, string> = {
-    questions:
-      "Анализ закончен, нужно уточнить 3 вещи, остальное я допустил, допущения видны справа:",
-    conflict:
-      "Размер детали в ТЗ и модели не совпадает, подтвердите, какое значение верно",
-    done: "Вот как я понял задачу, если всё верно, я перейду к подбору параметров",
-    selected:
-      "Параметры подобраны, но выполнены не все требования. Режим 3D, профиль Fine, материал PETG, изменено 2 настройки",
-    files: "Проверяю файлы перед анализом",
-    defect:
-      "В korpus.stl нашлись дублирующиеся грани, из-за них площадь и объём модели точно не посчитать, габариты и масштаб в порядке",
-    error: "Модель не отвечает, анализ не завершён",
-    revision:
-      "Длину участка A поменял со 100 на 90 мм, пересчитываю то, что от неё зависит",
-  };
   const snapshot: Snapshot = {
     job,
     messages:
