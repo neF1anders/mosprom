@@ -25,7 +25,7 @@ test("T12 refresh preserves messages and questions", async ({ page }) => {
     page.getByText("TEST_QUESTIONS Шестерня привода", { exact: true }).first(),
   ).toBeVisible();
   await expect(window).toBeVisible();
-  await expect(window.getByText("Вопрос 1 из 2")).toBeVisible();
+  await expect(window.getByText("1 из 2")).toBeVisible();
 });
 for (const [name, expected] of [
   ["empty.txt", "Файл пуст"],
@@ -167,11 +167,10 @@ for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
       const card = page.getByRole("complementary", {
         name: "Карточка задания",
       });
-      await expect(
-        card.getByText(
-          "Не удалось уточнить · Источники расходятся, Длина детали",
-        ),
-      ).toBeVisible();
+      await card
+        .getByRole("button", { name: /Допущения и неизвестные/ })
+        .click();
+      await expect(card.getByText("не удалось уточнить").first()).toBeVisible();
       await expect(
         card.getByText(
           "Источники расходятся, Длина детали, принято без ответа",
@@ -197,13 +196,16 @@ test("T08 a model that disagrees with the specification asks which is right", as
   await answered(page, "Длина в ТЗ 100 мм, в модели 30 мм", "Верна модель STL");
   await pipelineDone(page);
 });
-test("T09 tool call is visible in the journal", async ({ page }) => {
+test("T09 tool call is visible in the timeline", async ({ page }) => {
   await task(page, "TEST_TOOL Перевести дюймы");
   await settled(page);
-  await page.getByLabel("Показать журнал вызовов", { exact: true }).click();
-  await expect(
-    page.getByText("Разбор задания, переводит единицы", { exact: true }),
-  ).toBeVisible();
+  const timeline = page.getByRole("region", { name: "Ход работы" });
+  const stage = timeline.locator("details").filter({
+    has: page.getByText("Интерпретация задания", { exact: true }),
+  });
+  if ((await stage.getAttribute("open")) === null)
+    await stage.locator("summary").click();
+  await expect(timeline.getByText(/^Перев(ожу|ёл) /)).toBeVisible();
 });
 for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
   test(`T10 ${message}`, async ({ page }) => {

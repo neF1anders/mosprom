@@ -1,18 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Attachments, type DraftFile } from "./Attachments";
 import { Icon } from "./Icon";
+import { useDictation } from "../hooks/useDictation";
 import styles from "../App.module.css";
 
-type Recognition = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: { results: { transcript: string }[][] }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-};
 export function Composer({
   onSend,
   onFiles,
@@ -39,7 +30,6 @@ export function Composer({
   // Attached files wait for an explicit send, with or without a message.
   const sending = useRef(false);
   const [text, setText] = useState("");
-  const [listening, setListening] = useState(false);
   // A send without connection waits in the field and goes out once the stream is back.
   const [waiting, setWaiting] = useState(false);
   const form = useRef<HTMLFormElement>(null);
@@ -58,41 +48,9 @@ export function Composer({
     element.style.height = `${element.scrollHeight}px`;
   }, [text]);
   const uploading = files.some((file) => file.uploading);
-  const recognizer = useRef<Recognition | null>(null);
-  const Speech =
-    (
-      window as unknown as {
-        SpeechRecognition?: new () => Recognition;
-        webkitSpeechRecognition?: new () => Recognition;
-      }
-    ).SpeechRecognition ||
-    (window as unknown as { webkitSpeechRecognition?: new () => Recognition })
-      .webkitSpeechRecognition;
-  useEffect(
-    () => () => {
-      recognizer.current?.stop();
-    },
-    [],
+  const dictation = useDictation((spoken) =>
+    setText((t) => [t, spoken].filter(Boolean).join(" ")),
   );
-  function dictate() {
-    if (listening) {
-      recognizer.current?.stop();
-      return;
-    }
-    if (!Speech) return;
-    const recognition = new Speech();
-    recognizer.current = recognition;
-    recognition.lang = "ru-RU";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.onresult = (event) =>
-      setText((t) =>
-        [t, event.results[0][0].transcript].filter(Boolean).join(" "),
-      );
-    recognition.onerror = recognition.onend = () => setListening(false);
-    recognition.start();
-    setListening(true);
-  }
   return (
     <form
       ref={form}
@@ -173,14 +131,16 @@ export function Composer({
           <button
             type="button"
             className={styles.icon}
-            aria-label={listening ? "Остановить диктовку" : "Голосовой ввод"}
-            disabled={!Speech}
+            aria-label={
+              dictation.listening ? "Остановить диктовку" : "Голосовой ввод"
+            }
+            disabled={!dictation.available}
             title={
-              Speech
+              dictation.available
                 ? "Голосовой ввод"
                 : "Голосовой ввод недоступен в этом браузере"
             }
-            onClick={dictate}
+            onClick={dictation.toggle}
           >
             <Icon name="mic" size={32} />
           </button>

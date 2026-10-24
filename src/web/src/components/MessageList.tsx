@@ -45,24 +45,31 @@ function UserMessage({ message, job }: { message: Message; job?: Job }) {
   );
 }
 // The chat as sent; the files are in the project tree of the right panel.
+// A reply the timeline already shows as a stage summary is not repeated here.
 export function MessageList({
   messages,
   job,
+  hidden = new Set(),
 }: {
   messages: Message[];
   job?: Job;
+  hidden?: Set<string>;
 }) {
   return (
     <>
-      {messages.map((message) =>
-        message.role === "user" ? (
-          <UserMessage key={message.id} message={message} job={job} />
-        ) : (
-          <article key={message.id} className={styles.agentMessage}>
-            <p>{message.text}</p>
-          </article>
-        ),
-      )}
+      {messages
+        .filter(
+          (message) => message.role === "user" || !hidden.has(message.text),
+        )
+        .map((message) =>
+          message.role === "user" ? (
+            <UserMessage key={message.id} message={message} job={job} />
+          ) : (
+            <article key={message.id} className={styles.agentMessage}>
+              <p>{message.text}</p>
+            </article>
+          ),
+        )}
     </>
   );
 }

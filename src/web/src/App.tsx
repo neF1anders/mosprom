@@ -20,7 +20,10 @@ import type { DraftFile } from "./components/Attachments";
 import { MessageList } from "./components/MessageList";
 import { forget } from "./preview";
 import { Questions } from "./components/Questions";
-import { Progress } from "./components/Progress";
+import { Timeline } from "./components/Timeline";
+import { AgentDetail } from "./components/AgentDetail";
+import { buildTimeline, summaries } from "./timeline";
+import { useNow } from "./hooks/useNow";
 import { TaskCard } from "./components/TaskCard";
 import { Icon } from "./components/Icon";
 import styles from "./App.module.css";
@@ -67,7 +70,13 @@ export function App() {
   const [error, setError] = useState("");
   const creating = useRef<Promise<string> | null>(null);
   const { threadRef, away, toBottom, onScroll, follow } = useFollow();
-  const { events, connected } = useJobEvents(selected, !!session.data);
+  const { events, thoughts, connected } = useJobEvents(
+    selected,
+    !!session.data,
+  );
+  // The agent whose train of thought is open, and the one pointed at in the panel.
+  const [agentView, setAgentView] = useState("");
+  const [highlighted, setHighlighted] = useState("");
   const jobs = useInfiniteQuery({
     queryKey: ["jobs"],
     initialPageParam: null as string | null,
@@ -255,6 +264,27 @@ export function App() {
   // A reply that started no work keeps the timeline of the work before it.
   const current = events.filter((e) => e.revision >= (job?.work_revision ?? 0));
   const asking = asksQuestions(job);
+  const now = useNow(running);
+  const stages = buildTimeline({
+    events: current,
+    job,
+    attachments: sent,
+    thoughts,
+    now,
+    connected,
+  });
+  const agents = (stages || []).flatMap((stage) => stage.agents);
+  const working = agents.filter(
+    (agent) => agent.state === "run" && !agent.code,
+  );
+  const viewed = agents.find((agent) => agent.id === agentView);
+  // A click in the panel brings the agent's card into view, Figma screen 22.
+  function point(id: string) {
+    setHighlighted(id);
+    document
+      .querySelector(`[data-agent="${id}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
   if (session.isError)
     return (
       <main className={styles.locked}>
@@ -378,23 +408,17 @@ export function App() {
                   Предыдущие сообщения
                 </button>
               )}
-              <MessageList messages={messages} job={job} />
-              <Progress
-                events={current}
+              <MessageList
+                messages={messages}
                 job={job}
-                compact={job?.status === "waiting_user"}
+                hidden={summaries(stages)}
               />
-              {job?.card && asking && (
-                <Questions
-                  key={`questions-${job.revision}-${job.card.questions.map((q) => q.id).join()}`}
-                  questions={job.card.questions}
-                  pending={answer.isPending}
-                  onAnswer={(values) => {
-                    toBottom("smooth");
-                    answer.mutate(values);
-                  }}
-                />
-              )}
+              <Timeline
+                stages={stages}
+                job={job}
+                highlighted={highlighted}
+                onAgent={setAgentView}
+              />
               {job?.status === "stopped" && (
                 <button onClick={() => control.mutate("retry")}>
                   Продолжить
@@ -444,6 +468,17 @@ export function App() {
               Соединение потеряно, переподключаюсь
             </p>
           )}
+          {job?.card && asking && (
+            <Questions
+              key={`questions-${job.revision}-${job.card.questions.map((q) => q.id).join()}`}
+              questions={job.card.questions}
+              pending={answer.isPending}
+              onAnswer={(values) => {
+                toBottom("smooth");
+                answer.mutate(values);
+              }}
+            />
+          )}
           <Composer
             onSend={(text) => {
               toBottom("smooth");
@@ -485,9 +520,22 @@ export function App() {
             attachments={sent}
             folder={capability.data?.project_folder}
             pending={detach.isPending}
+            agents={working}
+            highlighted={highlighted}
+            detail={
+              viewed && (
+                <AgentDetail
+                  agent={viewed}
+                  now={now}
+                  onBack={() => setAgentView("")}
+                />
+              )
+            }
             collapsed={!right}
             onCollapse={() => setRight(false)}
             onRemove={(id) => detach.mutate(id)}
+            onHighlight={setHighlighted}
+            onAgent={point}
           />
         </div>
       </div>

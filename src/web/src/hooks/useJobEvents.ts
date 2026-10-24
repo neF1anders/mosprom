@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { addThought, type CallThoughts } from "../timeline";
 import type { ProgressEvent } from "../types";
 
 // Events that change the snapshot or the chat list; progress and tool calls do not.
@@ -10,6 +11,8 @@ const STATE_EVENTS =
 export function useJobEvents(selected: string, enabled: boolean) {
   const client = useQueryClient();
   const [events, setEvents] = useState<ProgressEvent[]>([]);
+  // Reasoning comes in many pieces; it is kept per model call, apart from the timeline events.
+  const [thoughts, setThoughts] = useState<Record<string, CallThoughts>>({});
   const [connected, setConnected] = useState(true);
   const [epoch, setEpoch] = useState(0);
   useEffect(() => {
@@ -25,6 +28,8 @@ export function useJobEvents(selected: string, enabled: boolean) {
   useEffect(() => {
     if (!selected || !enabled) return;
     setEvents([]);
+    setThoughts({});
+    const seen = new Set<number>();
     setConnected(navigator.onLine);
     const source = new EventSource(`/api/v1/jobs/${selected}/events`);
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -35,10 +40,16 @@ export function useJobEvents(selected: string, enabled: boolean) {
     };
     source.onmessage = (message) => {
       const update: ProgressEvent = JSON.parse(message.data);
+      if (update.type === "agent.thinking") {
+        if (seen.has(update.event_id)) return;
+        seen.add(update.event_id);
+        setThoughts((previous) => addThought(previous, update));
+        return;
+      }
       setEvents((previous) =>
         previous.some((e) => e.event_id === update.event_id)
           ? previous
-          : [...previous, update].slice(-200),
+          : [...previous, update].slice(-1000),
       );
       // Several state events in a burst cost one refetch.
       if (STATE_EVENTS.test(update.type) && !timer)
@@ -54,5 +65,5 @@ export function useJobEvents(selected: string, enabled: boolean) {
       clearTimeout(timer);
     };
   }, [selected, enabled, client, epoch]);
-  return { events, connected };
+  return { events, thoughts, connected };
 }
