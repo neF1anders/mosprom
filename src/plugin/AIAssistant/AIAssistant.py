@@ -10,6 +10,8 @@ from .agent.server import AssistantServer
 
 NO_CONFIG = ("Приложение StereotechAI ещё не настроено. В папке проекта запустите "
              "python scripts\\bootstrap.py и docker compose up -d, затем откройте пункт меню снова")
+NO_SERVER = ("Сервер плагина не запустился, поэтому слайсер не сможет нарезать модели из приложения. "
+             "Подробности в журнале STE Slicer. Откройте пункт меню снова, чтобы попробовать ещё раз")
 
 
 class AIAssistant(Extension):
@@ -28,20 +30,31 @@ class AIAssistant(Extension):
         app.engineCreatedSignal.connect(self._ensureServer)
 
     def _ensureServer(self):
+        """The running server, or None when it could not start; the next call tries again."""
         if self._server is None:
-            self._server = AssistantServer()
-            self._server.start()
-            Logger.log("i", "AI Assistant listening on %s", self._server.url())
+            server = AssistantServer()
+            try:
+                server.start()
+            except Exception:
+                Logger.logException("e", "AI Assistant server did not start")
+                return None
+            self._server = server
+            Logger.log("i", "AI Assistant listening on %s", server.url())
         return self._server
 
     def showApp(self):
-        self._ensureServer()
+        if self._ensureServer() is None:
+            Message(text=NO_SERVER, title="AI Assistant").show()
         url = launch.app_url()
         if url is None:
-            Logger.log("w", "AI Assistant has no %s, the app link cannot be built", launch.config_path())
+            Logger.log("w", "AI Assistant has no %s, the app link cannot be built", launch.CONFIG_NAME)
             Message(text=NO_CONFIG, title="AI Assistant").show()
             return
         webbrowser.open(url)
 
     def showChat(self):
-        webbrowser.open(self._ensureServer().url())
+        server = self._ensureServer()
+        if server is None:
+            Message(text=NO_SERVER, title="AI Assistant").show()
+            return
+        webbrowser.open(server.url())

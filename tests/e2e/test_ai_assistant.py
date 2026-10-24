@@ -1,8 +1,12 @@
 """End-to-end checks of the AI Assistant plugin against a running STE Slicer.
 
 Start the slicer with the plugin installed (its server starts with the slicer), wait until
-Documents/STE_AIAssistant/server.json appears, then run:  python -m unittest tests.e2e.test_ai_assistant -v
-The chat test talks to a fake OpenAI-compatible server, so no real API key is needed or changed.
+Documents/STE_AIAssistant/server.json appears, then run:
+    AIASSISTANT_E2E=1 python -m unittest tests.e2e.test_ai_assistant -v
+Without AIASSISTANT_E2E=1 the tests are skipped, in CI and in a plain pytest run too: they clear the
+slicer's plate and change its printer and settings, so they must not meet a job of the app.
+The chat test talks to a fake OpenAI-compatible server and forgets its session settings afterwards,
+so no real API key is needed or changed.
 """
 import base64
 import http.client
@@ -15,6 +19,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 SERVER_JSON = os.path.join(os.path.expanduser("~"), "Documents", "STE_AIAssistant", "server.json")
+ENABLED = os.environ.get("AIASSISTANT_E2E") == "1" and os.path.isfile(SERVER_JSON)
 REQUIRED_TOOLS = {
     "get_state", "list_printers", "set_printer", "list_materials", "set_material", "list_quality_profiles",
     "set_quality_profile", "save_profile", "set_print_mode", "search_settings", "get_setting", "set_setting",
@@ -108,6 +113,7 @@ def call(call_id, name, arguments):
     return {"id": call_id, "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
 
 
+@unittest.skipUnless(ENABLED, "needs AIASSISTANT_E2E=1 and a running STE Slicer with the plugin")
 class AssistantE2E(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -198,6 +204,7 @@ class AssistantE2E(unittest.TestCase):
                 after = data["next"]
         finally:
             fake.close()
+            self.client.json("POST", "/api/config", {"forget_session": True})
         kinds = [e["type"] for e in events]
         self.assertIn("done", kinds, events)
         self.assertEqual([e["name"] for e in events if e["type"] == "tool_call"], ["get_state", "set_setting"])

@@ -3,7 +3,8 @@
 Ported from ``tools/slicing/apply_parameter_set.py`` (FedorSolodkin), whose order of calls,
 axes and offsets were checked on STE Slicer 7.10.12 under Windows on 24.10.2026. The plan
 starts from an empty plate; the slicer's own settings left by an earlier run are reset by the
-caller when the plugin can do it.
+caller when the plugin can do it. The material is set before the quality profile, since the
+slicer offers the profiles of the material and may switch the profile when the material changes.
 """
 
 from __future__ import annotations
@@ -37,14 +38,6 @@ def build_plan(
                 "reason": parameter_set.printing_mode.why,
             },
         ),
-        SlicerCall(
-            step="set_quality_profile",
-            tool="set_quality_profile",
-            args={
-                "quality_type": parameter_set.quality.quality_type,
-                "reason": parameter_set.quality.why,
-            },
-        ),
     ]
     unsupported = []
     for position, material in parameter_set.materials.items():
@@ -61,6 +54,17 @@ def build_plan(
                 args={"material_id": material.id, "reason": material.why},
             )
         )
+    # The slicer offers the quality profiles of the material, so the profile comes after it.
+    calls.append(
+        SlicerCall(
+            step="set_quality_profile",
+            tool="set_quality_profile",
+            args={
+                "quality_type": parameter_set.quality.quality_type,
+                "reason": parameter_set.quality.why,
+            },
+        )
+    )
     for key, setting in parameter_set.settings.items():
         step = f"set_setting[{key}]"
         if key == "printing_mode" or key.startswith("machine_"):
