@@ -1,7 +1,5 @@
-import { Fragment } from "react";
 import { answerPairs } from "../chat";
-import type { Attachment, Job, Message } from "../types";
-import { Files } from "./Files";
+import type { Job, Message } from "../types";
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
@@ -46,53 +44,25 @@ function UserMessage({ message, job }: { message: Message; job?: Job }) {
     </article>
   );
 }
-// Sent files follow the last user message once read; until then they wait below the thread.
+// The chat as sent; the files are in the project tree of the right panel.
 export function MessageList({
   messages,
   job,
-  attachments,
-  running,
-  pending,
-  onRemove,
 }: {
   messages: Message[];
   job?: Job;
-  attachments: Attachment[];
-  running: boolean;
-  pending: boolean;
-  onRemove: (id: string) => void;
 }) {
-  const ready =
-    attachments.length > 0 &&
-    attachments.every((file) => file.status === "completed");
-  const lastUserId = messages.reduce(
-    (last, message) => (message.role === "user" ? message.id : last),
-    "",
-  );
-  const files = (
-    <Files
-      attachments={attachments}
-      jobId={job?.id || ""}
-      running={running}
-      pending={pending}
-      onRemove={onRemove}
-    />
-  );
   return (
     <>
-      {messages.map((message) => (
-        <Fragment key={message.id}>
-          {message.role === "user" ? (
-            <UserMessage message={message} job={job} />
-          ) : (
-            <article className={styles.agentMessage}>
-              <p>{message.text}</p>
-            </article>
-          )}
-          {ready && message.id === lastUserId && files}
-        </Fragment>
-      ))}
-      {(!ready || !lastUserId) && files}
+      {messages.map((message) =>
+        message.role === "user" ? (
+          <UserMessage key={message.id} message={message} job={job} />
+        ) : (
+          <article key={message.id} className={styles.agentMessage}>
+            <p>{message.text}</p>
+          </article>
+        ),
+      )}
     </>
   );
 }

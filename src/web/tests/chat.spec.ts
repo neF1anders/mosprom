@@ -346,7 +346,7 @@ test("T13 a ready card goes through every stage to a project", async ({
   const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
   expect(project.status()).toBe(200);
   await expect(
-    page.getByRole("link", { name: "Скачать карточку JSON" }),
+    page.getByRole("link", { name: "карточка_задания.json" }),
   ).toBeVisible();
 });
 test("T18 a model larger than the printer asks for attention", async ({
@@ -371,7 +371,7 @@ test("T16 the parameter set downloads as the server keeps it", async ({
 }) => {
   await task(page, "Кронштейн датчика");
   await pipelineDone(page);
-  const link = page.getByRole("link", { name: "Скачать параметры JSON" });
+  const link = page.getByRole("link", { name: "параметры.json" });
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     link.click(),
