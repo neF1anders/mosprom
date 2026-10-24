@@ -88,7 +88,12 @@ class Printable:
         """
         wanted = name.strip().lower()
         found = next(
-            (m for m in allowed.values() if wanted in (m.id.lower(), m.label.lower())), None
+            (
+                material
+                for material in allowed.values()
+                if wanted in (material.id.lower(), material.label.lower())
+            ),
+            None,
         )
         unprintable = [
             material

@@ -86,13 +86,17 @@ def render(selection: Selection) -> ParameterSet:
         assumptions=assumptions,
         status="infeasible" if selection.infeasible else "proposed",
         unsatisfied=[
-            Unsatisfied(requirement_id=u.requirement_id, why=u.why, conflicts_with=u.conflicts_with)
-            for u in selection.unmet
+            Unsatisfied(
+                requirement_id=unmet.requirement_id,
+                why=unmet.why,
+                conflicts_with=unmet.conflicts_with,
+            )
+            for unmet in selection.unmet
         ],
         warnings=list(selection.warnings),
         applied_constraints=None
         if results is None
-        else [AppliedConstraint(id=r.id, result=r.result, why=r.why) for r in results],
+        else [AppliedConstraint(id=item.id, result=item.result, why=item.why) for item in results],
     )
 
 
@@ -116,16 +120,18 @@ def _material(choice: MaterialChoice) -> Material:
         id=choice.material.id,
         why=choice.why,
         source=choice.source,
-        alternatives=[AlternativeModel(id=a.id, why=a.why) for a in choice.alternatives],
+        alternatives=[
+            AlternativeModel(id=other.id, why=other.why) for other in choice.alternatives
+        ],
         checks=[
             MaterialCheck(
-                requirement_id=c.requirement_id,
-                key=c.key,
-                hard=c.hard,
-                status=c.status,
-                detail=c.detail,
+                requirement_id=check.requirement_id,
+                key=check.key,
+                hard=check.hard,
+                status=check.status,
+                detail=check.detail,
             )
-            for c in choice.checks
+            for check in choice.checks
         ],
     )
 

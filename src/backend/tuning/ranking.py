@@ -59,13 +59,6 @@ def _threshold(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
     return check
 
 
-def _hydrophobic(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
-    if not required:
-        return None
-    level = material.traits.hygroscopic
-    return _scale(level, {"low": "ok", "medium": "warn", "high": "fail"}), f"hygroscopic={level}"
-
-
 def _uv(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
     if not required:
         return None
@@ -84,7 +77,7 @@ def _stems_of(item: str) -> list[str]:
         return stems[item]
     word = item.lower().replace("ё", "е")
     return next(
-        (stems[code] for code in sorted(stems) if any(s in word for s in stems[code])), [word]
+        (stems[code] for code in sorted(stems) if any(stem in word for stem in stems[code])), [word]
     )
 
 
@@ -145,7 +138,7 @@ def _unverifiable(material: Candidate, required: Any, flags: TextFlags) -> Verdi
 _CHECKS: dict[str, Callable[[Candidate, Any, TextFlags], Verdict]] = {
     "tg_min_c": _threshold("tg_c"),
     "service_temp_max_c": _threshold("service_max_c"),
-    "hydrophobic": _hydrophobic,
+    "hydrophobic": _level("hygroscopic", {"low": "ok", "medium": "warn", "high": "fail"}),
     "uv_stable": _uv,
     "chemical_resistance": _chemicals,
     "flexible": _flexible,
@@ -193,4 +186,6 @@ def rank_materials(
         if material.id.startswith(_POOL_PREFIXES) and _SUPPORT_ONLY_MARKER not in material.id
     ]
     evaluations = [evaluate(material, requirements) for material in pool]
-    return sorted(evaluations, key=lambda e: (e.hard_failures, -e.score, e.material.id))
+    return sorted(
+        evaluations, key=lambda found: (found.hard_failures, -found.score, found.material.id)
+    )

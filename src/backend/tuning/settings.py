@@ -138,7 +138,9 @@ def _discrete_setting(
     banned = plan.banned.get(item.id, ())
     if value in banned or (allowed is not None and value not in allowed):
         options = [
-            c for c in item.candidates if c not in banned and (allowed is None or c in allowed)
+            candidate
+            for candidate in item.candidates
+            if candidate not in banned and (allowed is None or candidate in allowed)
         ]
         if not options:
             return Unmet(f"discrete:{item.id}", "все допустимые значения запрещены")

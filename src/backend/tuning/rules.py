@@ -7,7 +7,7 @@ pick discrete values, vote for a printing mode or mark a requirement unmet.
 from __future__ import annotations
 
 import operator
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -171,8 +171,8 @@ def _compares(comparison: Comparison, facts: Facts) -> bool:
     return _COMPARISONS[comparison.op](left, comparison.value)
 
 
-def fired_rules(facts: Facts, rules: Sequence[Rule] = RULES) -> list[Rule]:
-    return [rule for rule in rules if holds(rule.when, facts)]
+def fired_rules(facts: Facts) -> list[Rule]:
+    return [rule for rule in RULES if holds(rule.when, facts)]
 
 
 def vote_mode(spec: str | FactRef, facts: Facts) -> str:
