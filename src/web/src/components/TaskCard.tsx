@@ -73,6 +73,9 @@ function Field({
     </section>
   );
 }
+// Stages after the card: the chat says it was handed over until the pipeline ends.
+const handedOver = new Set(["parameters", "validation", "slicing", "gcode"]);
+
 export function TaskCard({
   job,
   onCollapse,
@@ -247,7 +250,7 @@ export function TaskCard({
             ))}
           </details>
         )}
-        {(job?.stage === "parameters" || job?.stage === "validation") && (
+        {job && handedOver.has(job.stage) && (
           <p>Карточка передана на подбор параметров</p>
         )}
       </Field>
@@ -266,6 +269,22 @@ export function TaskCard({
         >
           Скачать параметры JSON
         </a>
+      )}
+      {job?.stage === "done" && job.result?.sliced && (
+        <>
+          <a
+            href={`/api/v1/jobs/${job.id}/result/project`}
+            download="project.3mf"
+          >
+            Скачать проект 3MF
+          </a>
+          <a
+            href={`/api/v1/jobs/${job.id}/result/gcode`}
+            download="result.gcode"
+          >
+            Скачать G-code
+          </a>
+        </>
       )}
     </aside>
   );

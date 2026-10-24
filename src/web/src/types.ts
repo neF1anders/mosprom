@@ -80,8 +80,16 @@ export interface Job {
   files_changed: boolean;
   answers?: Record<string, { title: string; value: string }>;
   // Between stages the job is queued; it completes after the last one.
-  stage: "understanding" | "parameters" | "validation" | "done";
+  stage:
+    | "understanding"
+    | "parameters"
+    | "validation"
+    | "slicing"
+    | "gcode"
+    | "done";
   parameters: ParametersSummary | null;
+  // The last slicing of the current pass, once STE Slicer was asked.
+  result?: ResultSummary | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +102,16 @@ export interface ParametersSummary {
   unsatisfied: number;
   status: "proposed" | "infeasible";
   check: "pending" | "ok" | "attention";
+}
+export interface ResultSummary {
+  iteration: number;
+  sliced: boolean;
+  message: string;
+  gcode_check: "pending" | "ok" | "attention";
+  folder: string | null;
+  print_time_seconds: number | null;
+  material_grams: number | null;
+  material_meters: number | null;
 }
 interface Reasoned {
   why: string;
@@ -159,14 +177,25 @@ export function answered(question: Question) {
 // What the chat shows for a job: the status, refined by the stage and the result.
 export function jobStatus(job?: Job | null) {
   if (!job) return statusLabel.draft;
-  if (job.status === "completed" && job.parameters?.check === "attention")
-    return "Параметры требуют внимания";
+  if (job.status === "completed") return outcome(job);
   if (job.status !== "running") return statusLabel[job.status];
   return stageLabel[job.stage] || statusLabel.running;
+}
+function outcome(job: Job) {
+  if (job.parameters?.check === "attention")
+    return "Параметры требуют внимания";
+  // Jobs finished before slicing joined the pipeline have no result.
+  if (!job.result) return statusLabel.completed;
+  if (!job.result.sliced) return "Проект не создан";
+  return job.result.gcode_check === "ok"
+    ? "Проект готов"
+    : "Проект требует внимания";
 }
 const stageLabel: Partial<Record<Job["stage"], string>> = {
   parameters: "Подбираю параметры",
   validation: "Проверяю параметры",
+  slicing: "Нарезаю в STE Slicer",
+  gcode: "Проверяю G-code",
 };
 const ACTIVE = new Set(["running", "queued", "stopping"]);
 export function isRunning(job?: Job | null) {

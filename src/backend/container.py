@@ -15,6 +15,7 @@ from .infrastructure.files import LocalFiles
 from .infrastructure.notifier import PostgresNotifier
 from .infrastructure.queue import queue_app
 from .infrastructure.qwen import QwenClient
+from .infrastructure.slicer import McpSlicer, SlicerSettings, gcode_facts
 from .pipeline.parameters import ParameterPipeline, PipelineSettings
 from .services.answers import AnswerService
 from .services.artifacts import ArtifactService
@@ -24,6 +25,7 @@ from .services.jobs import JobService
 from .services.messages import MessageService
 from .services.sessions import SessionService
 from .services.uploads import UploadService
+from .slicing import check_gcode
 from .tuning.select import select_parameters
 from .validation import check
 
@@ -70,15 +72,32 @@ class Container:
         return load_catalog(self.settings.build_dir, self.settings.printer)
 
     @cached_property
+    def slicer(self) -> McpSlicer:
+        settings = self.settings
+        return McpSlicer(
+            self.files,
+            SlicerSettings(
+                settings.slicer_folder, settings.slicer_host_folder, settings.slicer_host
+            ),
+        )
+
+    @cached_property
     def pipeline(self) -> ParameterPipeline:
-        """Parameter selection and its check, bound to the build catalog and the codes."""
-        catalog, keys = self.catalog, self.requirement_keys
+        """Selection, its check, slicing and the G-code check, bound to the build catalog."""
+        catalog, keys, files = self.catalog, self.requirement_keys, self.files
         return ParameterPipeline(
             self.uow,
             catalog,
             lambda card, feedback: select_parameters(card, catalog, keys, feedback),
             lambda parameter_set: check(parameter_set, catalog),
-            PipelineSettings(timeout_seconds=self.settings.parameters_timeout_seconds),
+            self.slicer,
+            lambda key, parameter_set, iteration: check_gcode(
+                gcode_facts(files, key), parameter_set, catalog, iteration
+            ),
+            PipelineSettings(
+                timeout_seconds=self.settings.parameters_timeout_seconds,
+                slicing_timeout_seconds=self.settings.slicing_timeout_seconds,
+            ),
         )
 
     async def close(self) -> None:

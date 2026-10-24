@@ -75,7 +75,8 @@ export async function answered(page: Page, question: string, value: string) {
   await expect(pair.getByRole("definition")).toHaveText(value);
 }
 // The pipeline ended: parameters are selected and checked, with or without remarks.
-export const PIPELINE_DONE = /Параметры подобраны|Параметры требуют внимания/;
+export const PIPELINE_DONE =
+  /Проект готов|Проект требует внимания|Проект не создан|Параметры требуют внимания/;
 export async function pipelineDone(page: Page) {
   await expect(
     page.getByRole("status").filter({ hasText: PIPELINE_DONE }),

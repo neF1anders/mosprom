@@ -3,6 +3,7 @@ import type { Job, ProgressEvent } from "../types";
 import { isRunning } from "../types";
 import { CardSummary } from "./CardSummary";
 import { ParameterSummary } from "./ParameterSummary";
+import { ResultSummary } from "./ResultSummary";
 import styles from "../App.module.css";
 
 type State = "wait" | "run" | "done" | "warn";
@@ -16,8 +17,9 @@ const icons: Record<State, string> = {
 const stages = [
   { title: "Подбор параметров", prefix: "parameters.", pass: "Заход" },
   { title: "Валидация", prefix: "validation.", pass: "Проверка" },
+  { title: "Слайсинг", prefix: "slicing.", pass: "Нарезка" },
+  { title: "Подготовка результата", prefix: "gcode.", pass: "Проверка G-code" },
 ];
-const later = ["Слайсинг", "Подготовка результата"];
 function TimelineRow({
   title,
   state,
@@ -142,11 +144,6 @@ export function Progress({
             ended={ended}
           />
         ))}
-        {later.map((title) => (
-          <TimelineRow key={title} title={title} state="wait">
-            Этап ещё не начат
-          </TimelineRow>
-        ))}
       </div>
     </section>
   );
@@ -177,8 +174,13 @@ function StageRow({
         {waitingText(prefix, job)}
       </TimelineRow>
     );
-  const finished = job?.stage === "done" && prefix === "parameters.";
-  const summary = finished ? job?.parameters : null;
+  // The first stage shows what was selected, the last one the project once it was made.
+  const done = job?.stage === "done";
+  const finished =
+    done &&
+    ((prefix === "parameters." && !!job?.parameters) ||
+      (prefix === "gcode." && !!job?.result?.sliced));
+  const summary = done && prefix === "parameters." ? job?.parameters : null;
   const unmet = !!summary?.unsatisfied || summary?.status === "infeasible";
   return (
     <TimelineRow
@@ -189,7 +191,7 @@ function StageRow({
       expanded={state !== "done" || finished}
     >
       {finished && job ? (
-        <ParameterSummary job={job} />
+        <StageSummary prefix={prefix} job={job} />
       ) : (
         <div className={styles.substeps}>
           {iterations(passes).map((iteration) => {
@@ -211,14 +213,20 @@ function StageRow({
     </TimelineRow>
   );
 }
+function StageSummary({ prefix, job }: { prefix: string; job: Job }) {
+  if (prefix === "parameters.") return <ParameterSummary job={job} />;
+  return <ResultSummary job={job} />;
+}
 function iterations(events: ProgressEvent[]) {
   return [...new Set(events.map((e) => Number(e.data.iteration)))];
 }
 function waitingText(prefix: string, job?: Job) {
   if (prefix === "parameters." && job?.stage === "parameters")
     return "Задание передано, ждёт подбора параметров";
+  if (job?.stage !== "done") return "Этап ещё не начат";
+  // Without a project there is no G-code to check.
+  if (prefix === "gcode." && job.result && !job.result.sliced)
+    return "Не проводилась, проект не создан";
   // An infeasible selection is not checked: nothing in it can be printed as it is.
-  if (job?.stage === "done")
-    return "Не проводилась, параметры подобрать не удалось";
-  return "Этап ещё не начат";
+  return "Не проводилась, параметры подобрать не удалось";
 }

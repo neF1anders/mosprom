@@ -83,14 +83,20 @@ def test_feedback_constraints_are_well_formed():
     [
         (FIRST_STEP, None, Step("validation", 1)),
         (FIRST_STEP, "infeasible", None),
-        (Step("validation", 1), "ok", None),
+        (Step("validation", 1), "ok", Step("slicing", 1)),
         (Step("validation", 1), "needs_changes", Step("parameters", 2)),
         (Step("parameters", 2), None, Step("validation", 2)),
-        (Step("validation", 2), "needs_changes", None),
-        (Step("validation", 2), "ok", None),
+        # The last pass is sliced with what the check left.
+        (Step("validation", 2), "needs_changes", Step("slicing", 2)),
+        (Step("validation", 2), "ok", Step("slicing", 2)),
+        (Step("slicing", 1), "ok", Step("gcode", 1)),
+        (Step("slicing", 1), "failed", None),
+        (Step("gcode", 1), "ok", None),
+        (Step("gcode", 1), "needs_changes", Step("parameters", 2)),
+        (Step("gcode", 2), "needs_changes", None),
     ],
 )
-def test_selection_is_checked_and_revised_at_most_once(step, check, after):
+def test_selection_is_checked_sliced_and_revised_at_most_once(step, check, after):
     assert next_step(step, check) == after
 
 
