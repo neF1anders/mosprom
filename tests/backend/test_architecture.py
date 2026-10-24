@@ -64,12 +64,15 @@ def test_A01_worker_runs_the_shared_stage_one():
 
 
 def test_A01_application_branch_nesting_at_most_two():
-    def visit(node, depth=0):
+    """Statements nest at most two deep; a conditional expression never holds another one."""
+
+    def visit(node, depth=0, inline=False):
         current = depth + isinstance(node, ast.If)
         assert current <= 2, (path, node.lineno)
+        assert not (inline and isinstance(node, ast.IfExp)), (path, node.lineno)
         for child in ast.iter_child_nodes(node):
-            visit(child, current)
+            visit(child, current, inline or isinstance(node, ast.IfExp))
 
-    for folder in ["domain", "services", "agents"]:
+    for folder in ["domain", "services", "agents", "api", "api/routes", "infrastructure"]:
         for path in (ROOT / folder).glob("*.py"):
             visit(ast.parse(path.read_text()))

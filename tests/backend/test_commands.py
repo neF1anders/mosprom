@@ -104,22 +104,44 @@ async def test_answers_require_current_questions(http):
     assert response.status_code == 409
 
 
-async def test_new_stl_resets_units_and_detaching_it_too(pg, http):
+async def test_an_unsent_stl_never_displaces_the_model_in_use(pg, http):
+    """Regression: removing an unsent STL dropped the sent one and its confirmed scale."""
     job_id = await new_job(http)
     first = (await upload(http, job_id, "box.stl")).json()
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     async with pg.uow() as uow:
         job = await uow.jobs.get(job_id, lock=True)
         job.units = "mm"
         await uow.jobs.save(job)
         await uow.commit()
     second = (await upload(http, job_id, "box.stl")).json()
+    third = (await upload(http, job_id, "box.stl")).json()
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
-    assert snapshot["job"]["active_stl"] == second["id"] != first["id"]
-    assert snapshot["job"]["units"] == "unknown"
-    response = await http.post(
-        f"/api/v1/jobs/{job_id}/attachments/{second['id']}/detach", json={"request_id": rid()}
+    assert (snapshot["job"]["active_stl"], snapshot["job"]["units"]) == (first["id"], "mm")
+    # A newer unsent STL replaces the unsent one before it.
+    assert [a["id"] for a in snapshot["attachments"]] == sorted([first["id"], third["id"]])
+    assert second["id"] not in {a["id"] for a in snapshot["attachments"]}
+    detached = await http.post(
+        f"/api/v1/jobs/{job_id}/attachments/{third['id']}/detach", json={"request_id": rid()}
     )
-    assert response.json()["active_stl"] is None
+    assert (detached.json()["active_stl"], detached.json()["units"]) == (first["id"], "mm")
+    fourth = (await upload(http, job_id, "box.stl")).json()
+    sent = await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
+    assert (sent.json()["active_stl"], sent.json()["units"]) == (fourth["id"], "unknown")
+    snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
+    assert [a["id"] for a in snapshot["attachments"]] == [fourth["id"]]
+
+
+async def test_removing_the_sent_stl_takes_effect_on_send(pg, http):
+    job_id = await new_job(http)
+    first = (await upload(http, job_id, "box.stl")).json()
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
+    detached = await http.post(
+        f"/api/v1/jobs/{job_id}/attachments/{first['id']}/detach", json={"request_id": rid()}
+    )
+    assert detached.json()["active_stl"] == first["id"] and detached.json()["files_changed"]
+    sent = await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
+    assert sent.json()["active_stl"] is None
 
 
 async def test_files_wait_for_an_explicit_send(pg, http):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import traceback
 from pathlib import Path
 
 from ..domain.errors import AppError
@@ -64,6 +65,8 @@ def main() -> None:
     except AppError as exc:
         result = {"error": exc.message, "code": exc.code, "status": exc.status}
     except Exception as exc:
+        # The parent logs stderr: the traceback is how an unexpected failure gets fixed.
+        traceback.print_exc()
         result = {
             "error": "Обработка не завершена",
             "code": "process_error",

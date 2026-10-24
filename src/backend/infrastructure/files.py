@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import re
 import sys
 from collections.abc import AsyncIterator
@@ -12,6 +13,10 @@ from uuid import uuid4
 
 from ..domain.errors import AppError, NotFound
 from ..domain.limits import InputLimits
+
+logger = logging.getLogger(__name__)
+# Enough of a traceback to find the failing line without flooding the log.
+STDERR_TAIL = 4000
 
 
 class LocalFiles:
@@ -59,13 +64,18 @@ class LocalFiles:
         await asyncio.to_thread(self.path(key).unlink, missing_ok=True)
 
     async def inspect(self, key: str, kind: str) -> dict[str, Any]:
-        return await self._run(
-            "document",
-            key,
-            kind,
-            str(uuid4()) + ".json",
-            self.limits.pdf_pages * self.limits.page_seconds if kind == "pdf" else self.timeout,
-        )
+        """The parse result lives in the database; its temporary JSON is removed."""
+        output = str(uuid4()) + ".json"
+        try:
+            return await self._run(
+                "document",
+                key,
+                kind,
+                output,
+                self.limits.pdf_pages * self.limits.page_seconds if kind == "pdf" else self.timeout,
+            )
+        finally:
+            await self.remove(output)
 
     async def analyze(self, key: str, units: str, cache_key: str) -> dict[str, Any]:
         return await self._run("mesh", key, units, cache_key + ".json", self.timeout)
@@ -84,16 +94,26 @@ class LocalFiles:
                 str(self.path(output_key)),
                 self.limits.model_dump_json(),
                 stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
             )
             try:
-                await asyncio.wait_for(process.wait(), timeout)
+                _, stderr = await asyncio.wait_for(process.communicate(), timeout)
             except (TimeoutError, asyncio.CancelledError) as exc:
                 process.kill()
                 await process.wait()
                 if isinstance(exc, asyncio.CancelledError):
                     raise
+                logger.warning("%s of %s exceeded %ss", mode, key, timeout)
                 return await self._partial(output_key, "timeout")
+            if stderr:
+                logger.log(
+                    logging.WARNING if process.returncode else logging.INFO,
+                    "%s of %s exited with %s\n%s",
+                    mode,
+                    key,
+                    process.returncode,
+                    stderr.decode(errors="replace")[-STDERR_TAIL:],
+                )
             if process.returncode:
                 return await self._partial(output_key, "process_crash")
             result = json.loads(await self.read(output_key))

@@ -93,7 +93,7 @@ def answer_sources(answers: dict[str, Answer]) -> list[Source]:
 
 
 class ContentBuilder:
-    """Encodes each image once per run and assembles the input of every agent.
+    """Encodes each image once per run, all at once, and assembles the input of every agent.
 
     An agent gets only the blocks it depends on: answers, STL facts, the STL report and the
     knowledge base are opt-in, so its cached result survives changes to the rest.
@@ -108,7 +108,7 @@ class ContentBuilder:
     ):
         self.files, self.inputs, self.ctx = files, inputs, ctx
         self.knowledge = knowledge or []
-        self._encoded: dict[str, str] = {}
+        self._encoded: dict[str, asyncio.Future[str]] = {}
 
     def use_answers(self, answers: dict[str, Answer]) -> None:
         self.inputs = replace(self.inputs, answers=answer_sources(answers))
@@ -138,28 +138,34 @@ class ContentBuilder:
         if knowledge:
             blocks.append(self._knowledge())
         blocks.extend(f"<{name}>\n{_json(value)}\n</{name}>" for name, value in extra.items())
-        parts: list[dict[str, Any]] = [{"type": "text", "text": "\n\n".join(blocks)}]
-        for source in self.inputs.documents:
-            if source.image:
-                label = (
-                    f"Изображение источника {source.id}, {source.filename}, страница {source.page}"
-                )
-                parts.extend(await self.image(source.image, label))
+        images = [
+            (s.image, f"Изображение источника {s.id}, {s.filename}, страница {s.page}")
+            for s in self.inputs.documents
+            if s.image
+        ]
         if stl and self.inputs.preview:
             label = "Проекции STL XY, XZ и YZ в единицах файла, только для формы"
-            parts.extend(await self.image(self.inputs.preview, label))
+            images.append((self.inputs.preview, label))
+        parts: list[dict[str, Any]] = [{"type": "text", "text": "\n\n".join(blocks)}]
+        for encoded in await asyncio.gather(*(self.image(*item) for item in images)):
+            parts.extend(encoded)
         return parts
 
     async def image(self, artifact: str, label: str) -> list[dict[str, Any]]:
         if artifact not in self._encoded:
-            content = await self.files.read(artifact)
-            url = await asyncio.to_thread(crop, content, REGIONS["full"], REQUEST_PIXELS)
-            self._encoded[artifact] = url
-            self.ctx.images[url] = artifact
+            self._encoded[artifact] = asyncio.ensure_future(self._encode(artifact))
+        # Agents building at the same time share one encoding; one cancelled keeps it alive.
+        url = await asyncio.shield(self._encoded[artifact])
         return [
             {"type": "text", "text": label},
-            {"type": "image_url", "image_url": {"url": self._encoded[artifact]}},
+            {"type": "image_url", "image_url": {"url": url}},
         ]
+
+    async def _encode(self, artifact: str) -> str:
+        content = await self.files.read(artifact)
+        url = await asyncio.to_thread(crop, content, REGIONS["full"], REQUEST_PIXELS)
+        self.ctx.images[url] = artifact
+        return url
 
     def _messages(self) -> str:
         lines = [
@@ -215,8 +221,9 @@ def _data(text: str) -> str:
 
 
 def _json(value: Any) -> str:
+    """Sorted keys: a report read back from JSONB gives the same text and the same cache key."""
     if hasattr(value, "model_dump"):
         value = value.model_dump()
     if isinstance(value, list):
         value = [v.model_dump() if hasattr(v, "model_dump") else v for v in value]
-    return json.dumps(value, ensure_ascii=False, indent=1, default=str)
+    return json.dumps(value, ensure_ascii=False, indent=1, default=str, sort_keys=True)

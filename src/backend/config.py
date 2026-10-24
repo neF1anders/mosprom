@@ -18,7 +18,8 @@ class Settings(BaseSettings):
     qwen_api_key: str = ""
     qwen_max_tokens: int = Field(default=32768, ge=1024, le=131072)
     judge_threshold: float = Field(default=0.7, ge=0, le=1)
-    stage1_timeout_seconds: float = Field(default=3600, gt=0)
+    # Stage one targets five minutes; a run three times longer is stuck, not slow.
+    stage1_timeout_seconds: float = Field(default=900, gt=0)
     worker_concurrency: int = Field(default=2, ge=1, le=32)
     app_origin: str = "http://localhost:8000"
     session_secret: str = ""

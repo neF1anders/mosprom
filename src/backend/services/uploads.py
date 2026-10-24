@@ -11,12 +11,6 @@ from ..ports.persistence import UnitOfWork, UowFactory
 from .commands import Commands, attached
 
 
-def reset_units(job: Job) -> None:
-    """A different STL needs its scale confirmed again."""
-    job.units = "unknown"
-    job.answers.pop("units", None)
-
-
 class UploadService:
     def __init__(self, commands: Commands, files: Files, uow: UowFactory, limits: InputLimits):
         self.commands, self.files, self.uow, self.limits = commands, files, uow, limits
@@ -47,7 +41,7 @@ class UploadService:
         )
 
         async def apply(uow: UnitOfWork, job: Job):
-            existing = await uow.jobs.attachments(job_id)
+            existing = await uow.attachments.list(job_id)
             companions = sum(a.kind != "stl" and a.active for a in existing)
             if kind != "stl" and companions >= self.limits.companions:
                 raise AppError(
@@ -55,10 +49,12 @@ class UploadService:
                     "attachment_limit",
                     413,
                 )
-            await uow.jobs.attachment(attachment)
-            if kind == "stl":
-                job.active_stl = attachment.id
-                reset_units(job)
+            # One model per job: a newer unsent STL replaces the unsent one before it.
+            for draft in existing:
+                if kind == "stl" and draft.kind == "stl" and draft.draft and draft.active:
+                    draft.active, draft.draft = False, False
+                    await uow.attachments.save(draft)
+            await uow.attachments.save(attachment)
             await attached(uow, job, "Файл прикреплён")
             return attachment.model_dump()
 
@@ -74,7 +70,7 @@ class UploadService:
 
     async def detach(self, user_id: str, job_id: str, request_id: str, attachment_id: str):
         async def apply(uow: UnitOfWork, job: Job):
-            attachments = await uow.jobs.attachments(job_id)
+            attachments = await uow.attachments.list(job_id)
             attachment = next((a for a in attachments if a.id == attachment_id), None)
             if attachment is None:
                 raise AppError("Вложение не найдено", "not_found", 404)
@@ -82,10 +78,7 @@ class UploadService:
                 attachment.active = False
                 # An unsent upload simply disappears; removing a sent file waits for the next send.
                 attachment.draft = not attachment.draft
-                await uow.jobs.attachment(attachment)
-            if job.active_stl == attachment_id:
-                job.active_stl = None
-                reset_units(job)
+                await uow.attachments.save(attachment)
             await attached(uow, job, "Файл убран из задания", any(a.draft for a in attachments))
             return job.model_dump(mode="json")
 

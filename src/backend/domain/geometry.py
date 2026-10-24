@@ -57,4 +57,5 @@ def summarize(report: dict[str, Any], units: str, report_id: str) -> Geometry:
 
 
 def _partial(report: dict[str, Any]) -> list[str]:
-    return [f"Не завершена проверка {name}" for name in report.get("partial_errors", {})]
+    # Sorted: JSONB does not keep key order, and the summary is part of agent cache keys.
+    return [f"Не завершена проверка {name}" for name in sorted(report.get("partial_errors", {}))]

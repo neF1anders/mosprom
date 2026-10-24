@@ -55,6 +55,13 @@ class Draft(Output):
     questions: list[DraftQuestion] = Field(default_factory=list)
 
 
+class Gate(Output):
+    """Whether the latest chat message belongs to the print job; a reply only when it does not."""
+
+    task: bool = True
+    reply: str = ""
+
+
 class TriageField(Output):
     field: str
     value: str = ""

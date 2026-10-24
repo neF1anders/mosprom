@@ -57,5 +57,19 @@ export async function answer(page: Page, option: string) {
   // Sending without a choice records "Не знаю".
   if (option !== "Не знаю")
     await window.getByRole("button", { name: option, exact: true }).click();
-  await window.getByRole("button", { name: "Отправить ответы" }).click();
+  // The other open questions are left for later: moving on records "Не знаю" for them.
+  const submit = window.getByRole("button", { name: "Отправить ответы" });
+  while (!(await submit.isVisible()))
+    await window.getByRole("button", { name: "Далее", exact: true }).click();
+  await submit.click();
+}
+// Answers appear in the thread as question and answer pairs.
+export async function answered(page: Page, question: string, value: string) {
+  const pair = page
+    .locator("dl > div")
+    .filter({
+      has: page.getByRole("term").getByText(question, { exact: true }),
+    })
+    .last();
+  await expect(pair.getByRole("definition")).toHaveText(value);
 }

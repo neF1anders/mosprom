@@ -83,7 +83,7 @@ async def run_example(container: Container, folder: Path, units: str) -> dict:
             await connection.execute(
                 text(
                     "SELECT count(*), coalesce(sum((response->'usage'->>'total_tokens')::int), 0) "
-                    "FROM agent_calls WHERE job_id = :job"
+                    "FROM agent_calls WHERE job_id = :job AND NOT cached"
                 ),
                 {"job": job["id"]},
             )

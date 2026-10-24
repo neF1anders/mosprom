@@ -1,9 +1,16 @@
 import { useState, type ReactNode } from "react";
 import type { Job, ProgressEvent } from "../types";
+import { isRunning } from "../types";
 import { CardSummary } from "./CardSummary";
 import styles from "../App.module.css";
 
 type State = "wait" | "run" | "done" | "warn";
+const icons: Record<State, string> = {
+  wait: "wait",
+  run: "run",
+  done: "done",
+  warn: "error",
+};
 const labels = [
   "Подбор параметров",
   "Валидация",
@@ -24,7 +31,7 @@ function TimelineRow({
   expanded?: boolean;
 }) {
   const [open, setOpen] = useState(expanded);
-  const icon = small ? `${state}-small` : state === "warn" ? "error" : state;
+  const icon = small ? `${state}-small` : icons[state];
   return (
     <details
       className={`${styles.timelineRow} ${small ? styles.substep : ""}`}
@@ -78,6 +85,11 @@ function stateFor(events: ProgressEvent[], prefix: string): State {
   if (["failed", "warning"].includes(event.status)) return "warn";
   return event.status === "completed" ? "done" : "run";
 }
+// A stopped or failed run ends its open steps; without a job the events alone decide.
+function halted(job?: Job): State | undefined {
+  if (!job || isRunning(job)) return undefined;
+  return job.status === "failed" ? "warn" : "wait";
+}
 export function Progress({
   events,
   job,
@@ -92,8 +104,8 @@ export function Progress({
   );
   if (!operations.length || compact) return null;
   const finished = events.some((e) => e.type === "stage1.completed");
-  const state: State =
-    job?.status === "failed" ? "warn" : finished ? "done" : "run";
+  const ended = halted(job);
+  const state: State = finished ? "done" : ended || "run";
   return (
     <section aria-label="Ход работы">
       <div className={styles.timeline}>
@@ -103,7 +115,8 @@ export function Progress({
           ) : (
             <div className={styles.substeps}>
               {steps.map((step) => {
-                const current = stateFor(events, step.prefix);
+                const found = stateFor(events, step.prefix);
+                const current = found === "run" && ended ? ended : found;
                 return (
                   <TimelineRow
                     key={step.title}

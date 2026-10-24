@@ -1,4 +1,7 @@
-"""Read-only tools agents may call. Every argument is validated; STL analysis is not a tool."""
+"""Read-only tools agents may call. Every argument is validated.
+
+The STL report and the knowledge base travel in the request, so no tool repeats them.
+"""
 
 from __future__ import annotations
 
@@ -10,17 +13,13 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from ..domain.errors import AppError
-from ..domain.geometry import REPORT_SECTIONS
-from ..domain.models import Source
 from ..domain.units import convert, plain
 from ..ports.operations import Files
-from ..services.knowledge import KnowledgeService
 from .runner import RunContext
 
-Section = Literal[REPORT_SECTIONS]  # type: ignore[valid-type]
 Region = Literal[
     "full",
     "top",
@@ -52,18 +51,6 @@ class Args(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class SearchArgs(Args):
-    query: str = Field(max_length=500)
-    material_id: str | None = None
-    property: str | None = None
-    conditions: str = ""
-    offset: int = Field(default=0, ge=0, le=1000)
-
-
-class ReportArgs(Args):
-    section: Section
-
-
 class PageArgs(Args):
     source_id: str
     region: Region = "full"
@@ -84,25 +71,9 @@ class Tool:
 
 
 class ToolBox:
-    def __init__(self, knowledge: KnowledgeService, files: Files):
-        self.knowledge, self.files = knowledge, files
+    def __init__(self, files: Files):
+        self.files = files
         self.registry = {
-            "search_knowledge": Tool(
-                "ищет в базе материалов",
-                "Поиск по базе KB-001. В ней только профили материалов Stereotech из STE Slicer "
-                "с плотностью и описанием и сведения о профиле принтера Hybrid 530. "
-                "Механических и тепловых свойств марок в базе нет. Отсутствие записи не "
-                "доказывает непригодность. Цитируй source_id записи.",
-                SearchArgs,
-                self._search,
-            ),
-            "read_stl_report": Tool(
-                "читает отчёт STL",
-                "Раздел полного отчёта анализа STL, уже выполненного кодом. "
-                f"Разделы {', '.join(REPORT_SECTIONS)}.",
-                ReportArgs,
-                self._report,
-            ),
             "view_page": Tool(
                 "смотрит страницу крупнее",
                 "Изображение страницы или фото в полном разрешении либо его области, "
@@ -141,28 +112,6 @@ class ToolBox:
         except ValidationError as exc:
             raise AppError("Неверные аргументы инструмента", "tool_arguments") from exc
         return await tool.handler(args, ctx)
-
-    async def _search(self, args: SearchArgs, ctx: RunContext) -> dict[str, Any]:
-        result = await self.knowledge.search(
-            args.query, args.material_id, args.property, args.conditions, args.offset
-        )
-        for record in result["records"]:
-            # Returned records become citable sources for the evidence check.
-            source = Source(
-                id="kb:" + record["id"],
-                ref="kb:" + record["id"],
-                kind="knowledge",
-                text=f"{record['text']} {record['property']} {record['value']} "
-                f"{record.get('unit') or ''}",
-            )
-            ctx.sources[source.id] = source
-            record["source_id"] = source.id
-        return result
-
-    async def _report(self, args: ReportArgs, ctx: RunContext) -> dict[str, Any]:
-        if ctx.stl_report is None:
-            return {"error": "STL не приложен или не проанализирован"}
-        return {"section": args.section, "data": ctx.stl_report.get(args.section)}
 
     async def _page(self, args: PageArgs, ctx: RunContext) -> dict[str, Any]:
         source = ctx.sources.get(args.source_id)

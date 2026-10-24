@@ -14,7 +14,7 @@ class MessageService:
             if job.title_source == "auto" and job.title == "Новое задание":
                 job.title = text[:80]
             await changed(uow, job, "Сообщение принято")
-            await uow.jobs.message(
+            await uow.messages.add(
                 Message(job_id=job.id, revision=job.revision, role="user", text=text)
             )
             return job.model_dump(mode="json")

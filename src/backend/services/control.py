@@ -45,7 +45,7 @@ async def name_from_files(uow: UnitOfWork, job: Job) -> None:
     if job.title_source != "auto" or job.title != "Новое задание":
         return
     files = sorted(
-        (a for a in await uow.jobs.attachments(job.id) if a.active), key=lambda a: a.kind == "stl"
+        (a for a in await uow.attachments.list(job.id) if a.active), key=lambda a: a.kind == "stl"
     )
     if files:
         job.title = PurePath(files[0].filename).stem[:80] or job.title

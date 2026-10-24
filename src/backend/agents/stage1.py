@@ -1,8 +1,9 @@
 """Stage one: files and STL by code, interpretation by agents, readiness by deterministic gates.
 
-The path the user waits on is kept short. A quick triage without reasoning asks the main
-questions within seconds; the deep reading runs meanwhile and does not wait for the answers,
-which only the consolidation reads. Agents that read the same data reuse their result.
+The path the user waits on is kept short. The STL analysis, the quick triage and the deep
+reading start together; the triage asks the main questions within seconds and the deep
+reading never waits for the answers, which only the consolidation reads. Agents that read
+the same data reuse their result.
 """
 
 from __future__ import annotations
@@ -10,98 +11,78 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import re
 from collections.abc import Awaitable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from typing import Any
 
 from ..domain.errors import AppError, OperationCancelled
-from ..domain.evidence import (
-    apply_decision,
-    check_citations,
-    digest,
-    display,
-    normalize_text,
-    reconcile,
-    reference,
-    same_quantity,
-    verify_question,
-)
 from ..domain.fields import BY_KEY, FIELDS, triage_questions
-from ..domain.geometry import bind_analysis, summarize
+from ..domain.hashing import digest
 from ..domain.models import (
-    DOCUMENT_VERSION,
     Assumption,
     Attachment,
-    Event,
-    Evidence,
-    Geometry,
     Job,
-    Knowledge,
-    Message,
     Question,
-    Requirement,
     SourceFile,
     Status,
-    StlAnalysis,
     TaskCard,
     Verdict,
     identifier,
 )
-from ..domain.rules import RULES_VERSION, assess, known, purpose_question, units_question
+from ..domain.rules import RULES_VERSION, assess, known
 from ..domain.transitions import transition
 from ..ports.operations import Files
 from ..ports.persistence import UowFactory
-from ..services.commands import fingerprint
-from .context import ContentBuilder, Inputs, collect
+from .card import (
+    apply_patch,
+    card_questions,
+    cited,
+    discrepancy,
+    first_questions,
+    numbered,
+    stable_references,
+    summary,
+    to_question,
+    view,
+)
+from .concurrency import together
+from .context import ContentBuilder, collect
 from .runner import AgentRunner, AgentSpec, RunContext, prompt
 from .schemas import (
     Discrepancies,
     DomainReading,
     Draft,
     DraftQuestion,
-    DraftRequirement,
+    Gate,
     JudgeVerdict,
     Patch,
-    SecondReading,
     Triage,
-    TriageField,
 )
+from .sources import ANALYZER_VERSION, Sources, StlFacts
+from .store import RunStore
+from .verification import SECOND_READER, Verifier
 
-ANALYZER_VERSION = "1.2-partial"
-ALL_TOOLS = ("search_knowledge", "read_stl_report", "view_page", "convert_units")
 READING = ("view_page", "convert_units")
 # Budgets sit near the 90th percentile of traced reasoning: they cut runaway tails only.
+GATE = AgentSpec("gate", "Проверка темы", Gate, max_steps=1, thinking=False)
 TRIAGE = AgentSpec("triage", "Главные вопросы", Triage, max_steps=1, thinking=False)
 INTERPRETER = AgentSpec("interpreter", "Разбор ТЗ", Draft, READING, budget=9000)
 ANALYSTS = (
     AgentSpec("analyst_loads", "Разбор нагрузок", DomainReading, READING, budget=8000),
     AgentSpec("analyst_environment", "Разбор среды", DomainReading, READING, budget=8000),
-    AgentSpec(
-        "analyst_production",
-        "Разбор производства",
-        DomainReading,
-        ("view_page", "search_knowledge", "convert_units"),
-        budget=8000,
-    ),
+    AgentSpec("analyst_production", "Разбор производства", DomainReading, READING, budget=8000),
 )
-GEOMETRY = AgentSpec(
-    "analyst_geometry",
-    "Разбор геометрии",
-    DomainReading,
-    ("view_page", "read_stl_report", "convert_units"),
-    budget=8000,
-)
+GEOMETRY = AgentSpec("analyst_geometry", "Разбор геометрии", DomainReading, READING, budget=8000)
 CONSOLIDATOR = AgentSpec("consolidator", "Сводка", Patch, READING, budget=9000)
-SECOND_READER = AgentSpec("second_reading", "Второе чтение", SecondReading, max_steps=1)
 DISCREPANCIES = AgentSpec(
-    "discrepancies", "Поиск несоответствий", Discrepancies, ALL_TOOLS, max_steps=3, budget=4000
+    "discrepancies", "Поиск несоответствий", Discrepancies, READING, max_steps=3, budget=4000
 )
 JUDGE = AgentSpec(
     "judge", "Итоговая оценка", JudgeVerdict, ("view_page",), max_steps=3, budget=6000
 )
 AGENTS = (
+    GATE,
     TRIAGE,
     INTERPRETER,
     *ANALYSTS,
@@ -112,58 +93,154 @@ AGENTS = (
     JUDGE,
 )
 UNITS_POLL_SECONDS = 2
-QUOTE_PARTS = re.compile(r"\.{3}|…|(?<=[.!?;])\s+|\n")
+# How often a running stage checks for a stop or a newer revision, even mid model call.
+CHECK_SECONDS = 2
+OFF_TOPIC = "Я помогаю подготовить задание на 3D печать. Приложите STL модель и ТЗ или опишите деталь"
 
 
 @dataclass(frozen=True)
 class Stage1Settings:
     model: str
     judge_threshold: float = 0.7
-    timeout_seconds: float = 3600
+    timeout_seconds: float = 900
     job_images: int = 150
 
 
-@dataclass(frozen=True)
-class StlFacts:
-    attachment: Attachment
-    report: dict[str, Any]
-    analysis: StlAnalysis
-    geometry: Geometry
+@dataclass
+class Early:
+    """What the user sees before the deep reading ends: the STL scale and the triage gaps."""
+
+    card: TaskCard
+    attachments: list[Attachment]
+    asked: list[Question] = field(default_factory=list)
+    title: str = ""
+
+    def publish(self, job: Job) -> None:
+        """Runs under the job lock, so the later of two publishers writes the fuller card."""
+        card = self.card.model_copy(deep=True)
+        card.questions = first_questions(card, self.asked, values(job))
+        assess(card, failed(self.attachments))
+        # Answers given from now on join this run instead of starting a new revision.
+        job.card, job.phase = card, "deep"
+        if job.title_source == "auto" and 2 < len(self.title) <= 60:
+            job.title = self.title
 
 
 class Stage1:
     def __init__(
         self, uow: UowFactory, files: Files, runner: AgentRunner, settings: Stage1Settings
     ):
-        self.uow, self.files, self.runner, self.settings = uow, files, runner, settings
+        self.store, self.files, self.runner, self.settings = RunStore(uow), files, runner, settings
+        self.sources, self.verifier = Sources(self.store, files), Verifier(runner)
 
     async def run(self, job_id: str, revision: int) -> None:
         ctx = RunContext(
             job_id=job_id,
             revision=revision,
             run_id=identifier(),
-            check=partial(self._check, job_id, revision),
-            event=partial(self._event, job_id, revision),
+            check=partial(self.store.check, job_id, revision),
+            event=partial(self.store.event, job_id, revision),
         )
         try:
-            await asyncio.wait_for(self._run(ctx), self.settings.timeout_seconds)
+            await asyncio.wait_for(self._guarded(ctx), self.settings.timeout_seconds)
         except OperationCancelled:
-            await self._cancel(job_id)
+            await self.store.cancel(job_id)
         except TimeoutError:
-            await self._fail(ctx, "Обработка заняла слишком много времени", "stage1_timeout")
+            await self.store.fail(ctx, "Обработка заняла слишком много времени", "stage1_timeout")
         except AppError as exc:
-            await self._fail(ctx, exc.message, exc.code)
+            await self.store.fail(ctx, exc.message, exc.code)
         except Exception:
             # A bug must not leave the job running forever; the queue still records the failure.
-            await self._fail(ctx, "Внутренняя ошибка обработки, попробуйте ещё раз", "internal")
+            await self.store.fail(ctx, "Внутренняя ошибка обработки, попробуйте ещё раз", "internal")
             raise
 
+    async def _guarded(self, ctx: RunContext) -> None:
+        """A stop or a newer revision interrupts the run at once, even inside a model call."""
+        work = asyncio.ensure_future(self._run(ctx))
+        try:
+            while not work.done():
+                await asyncio.wait({work}, timeout=CHECK_SECONDS)
+                if not work.done():
+                    await ctx.check()
+        except BaseException:
+            work.cancel()
+            await asyncio.gather(work, return_exceptions=True)
+            raise
+        work.result()
+
     async def _run(self, ctx: RunContext) -> None:
-        job = await self._start(ctx)
-        attachments = await self._prepare(job, ctx)
-        stl = await self._stl(job, attachments, ctx)
-        failed = [a.filename for a in attachments if a.status == "failed"]
-        card = TaskCard(
+        job = await self.store.update(ctx, _started)
+        attachments = _active(job, await self.store.attachments(job.id))
+        messages = await self.store.messages(job.id)
+        if await self._off_topic(job, attachments, messages, ctx):
+            return
+        await self.sources.prepare(attachments, ctx)
+        inputs = collect(messages, attachments, job.answers, None)
+        if inputs.images() > self.settings.job_images:
+            raise AppError(
+                f"В задании больше {self.settings.job_images} страниц и изображений, "
+                "уберите лишние файлы",
+                "too_many_pages",
+                413,
+            )
+        ctx.sources.update(inputs.sources())
+        content = ContentBuilder(self.files, inputs, ctx, await self.store.knowledge())
+        early = Early(self._card(job, attachments, None), attachments)
+        stl = asyncio.ensure_future(self._scale(job, attachments, early, ctx))
+        try:
+            asked, (draft, readings, facts) = await together(
+                self._triage(job, content, early, ctx),
+                self._read(job, attachments, stl, content, ctx),
+            )
+        finally:
+            # Settled either way, so a failure of the analysis is never left unretrieved.
+            stl.cancel()
+            await asyncio.gather(stl, return_exceptions=True)
+        card = self._card(job, attachments, facts)
+        if facts is not None and facts.geometry.units == "unknown":
+            # Only the geometry needs the scale; the rest is read and cached meanwhile.
+            card.questions = first_questions(card, asked, values(await self.store.job(job.id)))
+            await self.store.finish(
+                ctx,
+                assess(card, failed(attachments)),
+                "Уточните единицы STL, чтобы сверить размеры",
+            )
+            return
+        job = await self.store.update(ctx, partial(_enter, "consolidate"))
+        card = await self._interpret(job, draft, readings, asked, card, content, ctx)
+        await self.store.finish(ctx, assess(card, failed(attachments)), summary(card))
+
+    async def _off_topic(
+        self, job: Job, attachments: list[Attachment], messages: list[dict], ctx: RunContext
+    ) -> bool:
+        """A message outside the print job gets a short reply and the card stays as it was.
+
+        Only a revision started by that message alone is checked: new files always count.
+        """
+        chat = [m for m in messages if m["role"] == "user" and m.get("kind", "chat") == "chat"]
+        files = {a.id for a in attachments}
+        if not chat or chat[-1]["revision"] != ctx.revision or files != _card_files(job.card):
+            return False
+        gate = await self.runner.run(GATE, _gate_input(job, attachments, messages, chat), ctx)
+        if gate.task:
+            return False
+        card = job.card.model_copy(update={"revision": ctx.revision}) if job.card else None
+        reply = " ".join(gate.reply.split()) or OFF_TOPIC
+        await self.store.finish(ctx, card, reply, offtopic=chat[-1]["id"])
+        return True
+
+    async def _scale(
+        self, job: Job, attachments: list[Attachment], early: Early, ctx: RunContext
+    ) -> StlFacts | None:
+        async def ready(facts: StlFacts) -> None:
+            # The scale question is shown as soon as the extents are known.
+            early.card = self._card(job, attachments, facts)
+            await self.store.update(ctx, early.publish)
+
+        return await self.sources.stl(job, attachments, ctx, ready)
+
+    def _card(self, job: Job, attachments: list[Attachment], stl: StlFacts | None) -> TaskCard:
+        return TaskCard(
             job_id=job.id,
             revision=job.revision,
             geometry=stl.geometry if stl else None,
@@ -174,181 +251,47 @@ class Stage1:
             ],
             versions={"rules": RULES_VERSION, "analyzer": ANALYZER_VERSION},
         )
-        inputs = await self._inputs(job, attachments, stl, ctx)
-        content = ContentBuilder(self.files, inputs, ctx, await self._knowledge())
-        asked = await self._triage(job, card, failed, content, ctx)
-        draft, readings, stl = await self._read(job, attachments, stl, content, ctx)
-        if stl is not None:
-            card.geometry, card.stl_analysis = stl.geometry, stl.analysis
-        if stl is not None and stl.geometry.units == "unknown":
-            # Only the geometry needs the scale; the rest is read and cached meanwhile.
-            async with self.uow() as uow:
-                answers = (await uow.jobs.get(ctx.job_id)).answers
-            card.questions = _first_questions(card, asked, answers)
-            await self._finish(
-                ctx, assess(card, failed), "Уточните единицы STL, чтобы сверить размеры"
-            )
-            return
-        job = await self._enter(ctx, "consolidate")
-        card = await self._interpret(job, draft, readings, asked, card, content, ctx)
-        await self._finish(ctx, assess(card, failed), _summary(card))
-
-    async def _start(self, ctx: RunContext) -> Job:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            if job.revision != ctx.revision or job.status in {Status.STOPPING, Status.STOPPED}:
-                raise OperationCancelled()
-            job.status = transition(job.status, Status.RUNNING)
-            job.phase = "triage"
-            await uow.jobs.save(job)
-            await uow.commit()
-        return job
-
-    async def _prepare(self, job: Job, ctx: RunContext) -> list[Attachment]:
-        async with self.uow() as uow:
-            attachments = await uow.jobs.attachments(job.id)
-        active = [
-            a
-            for a in attachments
-            if a.active and not a.draft and (a.kind != "stl" or a.id == job.active_stl)
-        ]
-        await ctx.event("files.started", "Читаю файлы")
-        for attachment in active:
-            if attachment.kind == "stl" or not _outdated(attachment):
-                continue
-            await ctx.check()
-            try:
-                result = await self.files.inspect(attachment.id, attachment.kind)
-                attachment.fragments, attachment.artifacts = (
-                    result["fragments"],
-                    result["artifacts"],
-                )
-                attachment.status, attachment.error = "completed", None
-                attachment.parser_version = DOCUMENT_VERSION
-            except AppError as exc:
-                attachment.status, attachment.error = "failed", exc.message
-            await self._save(attachment)
-        failed = [a.filename for a in active if a.status == "failed" and a.kind != "stl"]
-        await ctx.event(
-            "files.failed" if failed else "files.completed",
-            "Не все файлы прочитаны" if failed else "Файлы прочитаны",
-            "failed" if failed else "completed",
-            failed=failed,
-        )
-        return active
-
-    async def _stl(self, job: Job, active: list[Attachment], ctx: RunContext) -> StlFacts | None:
-        attachment = next((a for a in active if a.id == job.active_stl), None)
-        if attachment is None:
-            return None
-        await ctx.check()
-        await ctx.event("stl.started", "Анализирую STL")
-        key = fingerprint([attachment.sha256, job.units, ANALYZER_VERSION, 128])
-        try:
-            async with self.uow() as uow:
-                report = await uow.jobs.cache(key)
-            if report is None:
-                report = await self.files.analyze(attachment.id, job.units, key)
-                async with self.uow() as uow:
-                    await uow.jobs.cache_put(key, report)
-                    await uow.commit()
-            analysis = bind_analysis(attachment, job.units, report)
-        except AppError as exc:
-            attachment.status, attachment.error = "failed", exc.message
-            await self._save(attachment)
-            await ctx.event("stl.failed", exc.message, "failed")
-            return None
-        geometry = summarize(report, job.units, key)
-        attachment.status, attachment.error = "completed", None
-        attachment.artifacts = list(
-            dict.fromkeys(
-                [*attachment.artifacts, key + ".json", *filter(None, [geometry.preview_id])]
-            )
-        )
-        await self._save(attachment)
-        status = "warning" if geometry.defects else "completed"
-        await ctx.event(
-            "stl.completed", "STL проанализирован", status, geometry=geometry.model_dump()
-        )
-        return StlFacts(attachment, report, analysis, geometry)
-
-    async def _inputs(
-        self, job: Job, attachments: list[Attachment], stl: StlFacts | None, ctx: RunContext
-    ) -> Inputs:
-        messages: list[dict[str, Any]] = []
-        before = None
-        while True:
-            async with self.uow() as uow:
-                page = await uow.jobs.messages(job.id, before, 100)
-            messages = page + messages
-            if len(page) < 100:
-                break
-            before = page[0]["seq"]
-        inputs = collect(messages, attachments, job.answers, stl.geometry if stl else None)
-        if inputs.images() > self.settings.job_images:
-            raise AppError(
-                f"В задании больше {self.settings.job_images} страниц и изображений, "
-                "уберите лишние файлы",
-                "too_many_pages",
-                413,
-            )
-        ctx.sources.update(inputs.sources())
-        ctx.stl_report = stl.report if stl else None
-        return inputs
-
-    async def _knowledge(self) -> list[Knowledge]:
-        async with self.uow() as uow:
-            return await uow.knowledge.all()
 
     async def _triage(
-        self, job: Job, card: TaskCard, failed: list[str], content: ContentBuilder, ctx: RunContext
+        self, job: Job, content: ContentBuilder, early: Early, ctx: RunContext
     ) -> list[Question]:
         """Fields that no source covers become the first questions, shown within seconds.
 
-        The triage only picks questions; its readings never reach the card.
+        The triage only picks questions; its readings never reach the card. A field answered
+        with "Не знаю" is asked again.
         """
         await ctx.event("triage.started", "Ищу главные вопросы")
         fields = [{"field": f.key, "что искать": f.hint} for f in FIELDS]
         result = await self.runner.run(
             TRIAGE, await content.build(answers=False, stl=False, fields=fields), ctx
         )
-        found = {f.field for f in result.fields if f.value.strip() and _cited(f, ctx)}
-        missing = [f.key for f in FIELDS if f.key not in found and f.question_id not in job.answers]
+        answers = values(job)
+        found = {f.field for f in result.fields if f.value.strip() and cited(f, ctx)}
+        missing = [
+            f.key for f in FIELDS if f.key not in found and not known(answers.get(f.question_id))
+        ]
         proposals = {
             p.field: {"options": p.options, "suggested": p.suggested, "basis": p.basis}
             for p in result.questions
             if p.field in BY_KEY
         }
-        asked = triage_questions(missing, proposals)
-        provisional = card.model_copy(deep=True)
-        provisional.questions = _first_questions(provisional, asked, job.answers)
-        assess(provisional, failed)
-        async with self.uow() as uow:
-            current = await uow.jobs.get(ctx.job_id, lock=True)
-            if current.revision != ctx.revision or current.status in {
-                Status.STOPPING,
-                Status.STOPPED,
-            }:
-                raise OperationCancelled()
-            current.card, current.phase = provisional, "deep"
-            title = " ".join(result.title.split())
-            if current.title_source == "auto" and 2 < len(title) <= 60:
-                current.title = title
-            await uow.jobs.save(current)
-            await uow.commit()
-        open_questions = [q for q in provisional.questions if not known(q.answer)]
+        early.asked = triage_questions(missing, proposals)
+        early.title = " ".join(result.title.split())
+        published = await self.store.update(ctx, early.publish)
+        assert published.card is not None
+        open_questions = sum(not known(q.answer) for q in published.card.questions)
         await ctx.event(
             "triage.completed",
-            f"Главных вопросов {len(open_questions)}" if open_questions else "Главных вопросов нет",
+            f"Главных вопросов {open_questions}" if open_questions else "Главных вопросов нет",
             "completed",
         )
-        return asked
+        return early.asked
 
     async def _read(
         self,
         job: Job,
         attachments: list[Attachment],
-        stl: StlFacts | None,
+        stl: Awaitable[StlFacts | None],
         content: ContentBuilder,
         ctx: RunContext,
     ) -> tuple[Draft, dict[str, DomainReading], StlFacts | None]:
@@ -364,7 +307,7 @@ class Stage1:
 
         async def others() -> list:
             try:
-                return await _together(
+                return await together(
                     self.runner.run(INTERPRETER, base, ctx),
                     self.runner.run(ANALYSTS[0], base, ctx),
                     self.runner.run(ANALYSTS[1], base, ctx),
@@ -374,16 +317,15 @@ class Stage1:
                 done.set()
 
         async def geometry() -> tuple[StlFacts | None, DomainReading | None]:
-            facts = stl
+            facts = await stl
             while facts is not None and facts.geometry.units == "unknown":
                 finished = done.is_set()
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(done.wait(), UNITS_POLL_SECONDS)
-                units = await self._units(ctx.job_id)
+                units = (await self.store.job(ctx.job_id)).units
                 if units != "unknown":
-                    facts = await self._stl(
-                        job.model_copy(update={"units": units}), attachments, ctx
-                    )
+                    scaled = job.model_copy(update={"units": units})
+                    facts = await self.sources.stl(scaled, attachments, ctx)
                 elif finished:
                     return facts, None
             if facts is None:
@@ -395,7 +337,7 @@ class Stage1:
             )
             return facts, reading
 
-        (draft, loads, environment, production_reading), (facts, shape) = await _together(
+        (draft, loads, environment, production_reading), (facts, shape) = await together(
             others(), geometry()
         )
         readings = {
@@ -412,21 +354,6 @@ class Stage1:
         )
         return draft, readings, facts
 
-    async def _units(self, job_id: str) -> str:
-        async with self.uow() as uow:
-            return (await uow.jobs.get(job_id)).units
-
-    async def _enter(self, ctx: RunContext, phase: str) -> Job:
-        """From here answers given later need a new revision; earlier ones are read now."""
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            if job.revision != ctx.revision or job.status in {Status.STOPPING, Status.STOPPED}:
-                raise OperationCancelled()
-            job.phase = phase  # type: ignore[assignment]
-            await uow.jobs.save(job)
-            await uow.commit()
-        return job
-
     async def _consolidate(
         self,
         draft: Draft,
@@ -439,7 +366,7 @@ class Stage1:
         patch = await self.runner.run(
             CONSOLIDATOR,
             await content.build(
-                draft=_numbered(draft),
+                draft=numbered(draft),
                 readings={name: r.model_dump() for name, r in readings.items()},
                 asked=[{"title": q.title, "answer": q.answer} for q in asked],
                 **extra,
@@ -459,35 +386,28 @@ class Stage1:
         content: ContentBuilder,
         ctx: RunContext,
     ) -> TaskCard:
-        answers = {key: answer.value for key, answer in job.answers.items()}
+        answers = values(job)
         content.use_answers(job.answers)
         for question in asked:
             question.answer = answers.get(question.id)
         await ctx.event("consolidation.started", "Свожу прочтения в карточку")
         final = await self._consolidate(draft, readings, asked, content, ctx)
-        requirements, questions = await self._check_requirements(final, answers, content, ctx)
+        requirements, questions = await self.verifier.check(final, answers, content, ctx)
         await ctx.event(
             "consolidation.completed", f"Требований в карточке {len(requirements)}", "completed"
         )
-        await self._enter(ctx, "verify")
+        await self.store.update(ctx, partial(_enter, "verify"))
         await ctx.event("discrepancies.started", "Ищу несоответствия")
         await ctx.event("judge.started", "Проверяю итоговую интерпретацию")
-        view = _view(final, requirements, questions)
-        found, verdict = await _together(
+        current = view(final, requirements, questions)
+        found, verdict = await together(
             self.runner.run(
-                DISCREPANCIES, await content.build(card=view, report=True, knowledge=True), ctx
+                DISCREPANCIES, await content.build(card=current, report=True, knowledge=True), ctx
             ),
-            self.runner.run(JUDGE, await content.build(card=view), ctx),
+            self.runner.run(JUDGE, await content.build(card=current), ctx),
         )
-        discrepancies = [_discrepancy(item) for item in found.discrepancies]
-        # An answered triage question stays and is not asked again. An open one gives way to
-        # the consolidation's sharper question about the same field; a blocking one stays.
-        reasked = {_drafted(q).id for q in final.questions}
-        asked = [
-            q
-            for q in asked
-            if q.answer is not None or (q.blocking and q.id != "purpose" and q.id not in reasked)
-        ]
+        discrepancies = [discrepancy(item) for item in found.discrepancies]
+        asked = _still_asked(asked, final.questions)
         await ctx.event(
             "discrepancies.completed",
             f"Несоответствий {len(discrepancies)}",
@@ -498,9 +418,9 @@ class Stage1:
             final = await self._consolidate(
                 final, readings, asked, content, ctx, remarks=verdict.remarks
             )
-            requirements, questions = await self._check_requirements(final, answers, content, ctx)
-            view = _view(final, requirements, questions + discrepancies)
-            verdict = await self.runner.run(JUDGE, await content.build(card=view), ctx)
+            requirements, questions = await self.verifier.check(final, answers, content, ctx)
+            current = view(final, requirements, questions + discrepancies)
+            verdict = await self.runner.run(JUDGE, await content.build(card=current), ctx)
         passed = verdict.score >= self.settings.judge_threshold
         await ctx.event(
             "judge.completed",
@@ -520,365 +440,71 @@ class Stage1:
             reworked=reworked,
             remarks=[r.model_dump() for r in verdict.remarks],
         )
-        card.questions = self._questions(
+        card.questions = card_questions(
             card, final.questions, asked + questions + discrepancies, answers
         )
         card.versions.update(
             {f"prompt.{a.name}": digest(prompt(a.name)) for a in AGENTS},
             model=self.settings.model,
         )
-        _stable_references(card, ctx)
+        stable_references(card, ctx)
         return card
 
-    async def _check_requirements(
-        self, draft: Draft, answers: dict[str, str], content: ContentBuilder, ctx: RunContext
-    ) -> tuple[list[Requirement], list[Question]]:
-        checked, questions, pending = [], [], []
-        for requirement in map(_requirement, draft.requirements):
-            question_id = "verify." + reference(requirement)
-            if known(answers.get(question_id)):
-                questions.append(verify_question(requirement, "Значение подтверждено вами", []))
-                checked.append(
-                    apply_decision(requirement, question_id, answers[question_id], [requirement])
-                )
-                continue
-            status = check_citations(requirement, ctx.sources)
-            requirement.verified = status == "verified"
-            if status == "vision":
-                pending.append(requirement)
-            elif status == "rejected" and requirement.mandatory:
-                impact = "Значение не найдено в источнике дословно"
-                questions.append(verify_question(requirement, impact, [display(requirement)]))
-            checked.append(requirement)
-        for requirement, reading in await self._second_reading(pending, content, ctx):
-            if requirement.mandatory:
-                impact = "Значение прочитано с изображения по-разному"
-                questions.append(
-                    verify_question(requirement, impact, [display(requirement), reading])
-                )
-        merged, conflicts = reconcile(checked, ctx.sources, answers)
-        return merged, questions + conflicts
-
-    async def _second_reading(
-        self, pending: list[Requirement], content: ContentBuilder, ctx: RunContext
-    ) -> list[tuple[Requirement, str]]:
-        """Image readings count only when an independent reading of the page agrees."""
-        by_source: dict[str, list[Requirement]] = {}
-        for requirement in pending:
-            for evidence in requirement.sources:
-                if evidence.method == "vision":
-                    by_source.setdefault(evidence.source_id, []).append(requirement)
-        mismatches: dict[int, tuple[Requirement, str]] = {}
-        for source_id, requirements in by_source.items():
-            readings = await self._read_page(source_id, requirements, content, ctx)
-            for requirement in requirements:
-                reading = readings.get(requirement.key)
-                agrees = (
-                    reading is not None
-                    and reading.legible
-                    and same_quantity(requirement, reading.value, reading.unit or requirement.unit)
-                )
-                if not agrees:
-                    mismatches[id(requirement)] = (requirement, _reading(reading))
-        for requirement in pending:
-            requirement.verified = id(requirement) not in mismatches
-        return list(mismatches.values())
-
-    async def _read_page(self, source_id, requirements, content, ctx) -> dict[str, Any]:
-        source = ctx.sources[source_id]
-        items = [
-            {"key": r.key, "label": r.label, "conditions": r.conditions, "unit": r.unit}
-            for r in requirements
-        ]
-        key = fingerprint(["second-reading", digest(prompt("second_reading")), source.image, items])
-        async with self.uow() as uow:
-            cached = await uow.jobs.cache(key)
-        if cached is None:
-            text = "<items>\n" + json.dumps(items, ensure_ascii=False, indent=1) + "\n</items>"
-            parts = [{"type": "text", "text": text}]
-            parts.extend(await content.image(source.image or "", f"Страница {source.id}"))
-            reading = await self.runner.run(SECOND_READER, parts, ctx)
-            cached = reading.model_dump()
-            async with self.uow() as uow:
-                await uow.jobs.cache_put(key, cached)
-                await uow.commit()
-        return {r.key: r for r in SecondReading.model_validate(cached).readings}
-
-    def _questions(
-        self,
-        card: TaskCard,
-        drafted: list[DraftQuestion],
-        derived: list[Question],
-        answers: dict[str, str],
-    ) -> list[Question]:
-        questions: list[Question] = []
-        if card.geometry is not None:
-            questions.append(units_question(card.geometry))
-        if not card.purpose.strip() or "purpose" in answers:
-            questions.append(purpose_question())
-        questions.extend(derived)
-        questions.extend(_drafted(q) for q in drafted)
-        unique: dict[str, Question] = {}
-        for question in questions:
-            unique.setdefault(question.id, question)
-        for question in unique.values():
-            question.answer = answers.get(question.id)
-        return list(unique.values())
-
-    async def _finish(self, ctx: RunContext, card: TaskCard, text: str) -> None:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            if job.revision != ctx.revision or job.status in {Status.STOPPING, Status.STOPPED}:
-                raise OperationCancelled()
-            # Files attached during the run are not in this card, so it is not handed over.
-            if job.files_changed:
-                text = "Файлы изменились, отправьте задание, чтобы я их учёл"
-            blocked = card.readiness == "blocked" or job.files_changed
-            job.card, job.error, job.phase = card, None, None
-            job.status = transition(job.status, Status.WAITING if blocked else Status.COMPLETED)
-            if not blocked:
-                await uow.queue.stage2(job.id, job.revision)
-                job.next_stage = "queued"
-            await uow.jobs.save(job)
-            await uow.jobs.message(
-                Message(job_id=job.id, revision=job.revision, role="assistant", text=text)
-            )
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="stage1.completed",
-                    status=job.status,
-                    message=text,
-                    data={"readiness": card.readiness},
-                )
-            )
-            await uow.commit()
-
-    async def _check(self, job_id: str, revision: int) -> None:
-        async with self.uow() as uow:
-            head = await uow.jobs.head(job_id)
-        if head.revision != revision or head.status in {Status.STOPPING, Status.STOPPED}:
-            raise OperationCancelled()
-
-    async def _event(
-        self, job_id: str, revision: int, type: str, message: str, status: str = "running", **data
-    ) -> None:
-        async with self.uow() as uow:
-            await uow.events.append(
-                Event(
-                    job_id=job_id,
-                    revision=revision,
-                    type=type,
-                    status=status,
-                    message=message,
-                    data=data,
-                )
-            )
-            await uow.commit()
-
-    async def _save(self, attachment: Attachment) -> None:
-        async with self.uow() as uow:
-            await uow.jobs.attachment(attachment)
-            await uow.commit()
-
-    async def _cancel(self, job_id: str) -> None:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(job_id, lock=True)
-            if job.status == Status.STOPPING:
-                job.status = transition(job.status, Status.STOPPED)
-                job.phase = None
-                await uow.jobs.save(job)
-                await uow.commit()
-
-    async def _fail(self, ctx: RunContext, message: str, code: str) -> None:
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            if job.revision != ctx.revision:
-                return
-            if job.status in {Status.STOPPING, Status.STOPPED}:
-                job.status = Status.STOPPED
-            else:
-                job.status, job.error = transition(job.status, Status.FAILED), message
-            job.phase = None
-            await uow.jobs.save(job)
-            await uow.events.append(
-                Event(
-                    job_id=job.id,
-                    revision=job.revision,
-                    type="operation.failed",
-                    status=job.status,
-                    message=message,
-                    data={"code": code},
-                )
-            )
-            await uow.commit()
+def values(job: Job) -> dict[str, str]:
+    return {key: answer.value for key, answer in job.answers.items()}
 
 
-async def _together(*steps: Awaitable[Any]) -> list[Any]:
-    """Runs steps at once; the first failure cancels the rest and is raised as it is."""
-    try:
-        async with asyncio.TaskGroup() as group:
-            tasks: list[asyncio.Task[Any]] = [
-                group.create_task(step)  # type: ignore[arg-type]
-                for step in steps
-            ]
-    except BaseExceptionGroup as group_error:
-        raise group_error.exceptions[0] from None
-    return [task.result() for task in tasks]
+def failed(attachments: list[Attachment]) -> list[str]:
+    return [a.filename for a in attachments if a.status == "failed"]
 
 
-def _first_questions(card: TaskCard, asked: list[Question], answers: dict) -> list[Question]:
-    """Questions shown before the deep reading: the STL scale and the triage gaps."""
-    questions = [units_question(card.geometry)] if card.geometry is not None else []
-    unique: dict[str, Question] = {}
-    for question in questions + [q.model_copy() for q in asked]:
-        unique.setdefault(question.id, question)
-    for question in unique.values():
-        answer = answers.get(question.id)
-        question.answer = answer.value if answer is not None else None
-    return list(unique.values())
+def _started(job: Job) -> None:
+    job.status = transition(job.status, Status.RUNNING)
+    job.phase = "triage"
 
 
-def _cited(field: TriageField, ctx: RunContext) -> bool:
-    """A triage reading counts only with a quote the source really contains."""
-    source = ctx.sources.get(field.source_id or "")
-    if source is None or field.field not in BY_KEY:
-        return False
-    if source.image is not None:
-        return True
-    # A quick reading joins sentences from several places; each one must be verbatim.
-    text = normalize_text(source.text)
-    parts = [normalize_text(p).rstrip(".") for p in re.split(QUOTE_PARTS, field.quote)]
-    parts = [p for p in parts if len(p) >= 3]
-    return bool(parts) and all(p in text for p in parts)
+def _enter(phase: str, job: Job) -> None:
+    """From here answers given later need a new revision; earlier ones are read now."""
+    job.phase = phase  # type: ignore[assignment]
 
 
-def _numbered(draft: Draft) -> dict[str, Any]:
-    """The consolidator edits requirements by these ids, so its answer stays short."""
-    view = draft.model_dump()
-    view["requirements"] = [
-        {"id": f"r{index}", **requirement}
-        for index, requirement in enumerate(view["requirements"], 1)
+def _active(job: Job, attachments: list[Attachment]) -> list[Attachment]:
+    return [
+        a
+        for a in attachments
+        if a.active and not a.draft and (a.kind != "stl" or a.id == job.active_stl)
     ]
-    return view
 
 
-def apply_patch(draft: Draft, patch: Patch, questions: list[DraftQuestion]) -> Draft:
-    """Applies the consolidator's edit; ids it does not know are ignored."""
-    ids = {f"r{index}": r for index, r in enumerate(draft.requirements, 1)}
-    removed = {item.id for item in patch.remove}
-    changed = {
-        item.id: DraftRequirement(**item.model_dump(exclude={"id"}))
-        for item in patch.change
-        if item.id in ids
+def _card_files(card: TaskCard | None) -> set[str]:
+    return {f.id for f in card.files} if card else set()
+
+
+def _still_asked(asked: list[Question], drafted: list[DraftQuestion]) -> list[Question]:
+    """An answered triage question stays and is not asked again. An open one gives way to
+    the consolidation's sharper question about the same field; a blocking one stays."""
+    reasked = {to_question(q).id for q in drafted}
+    return [
+        q
+        for q in asked
+        if q.answer is not None or (q.blocking and q.id != "purpose" and q.id not in reasked)
+    ]
+
+
+def _gate_input(
+    job: Job, attachments: list[Attachment], messages: list[dict], chat: list[dict]
+) -> list[dict[str, Any]]:
+    """Only the chat around the latest message: the gate must answer in a second or two."""
+    assistant = next((m["text"] for m in reversed(messages) if m["role"] == "assistant"), "")
+    blocks = {
+        "messages": [m["text"] for m in chat[-6:-1]],
+        "assistant": assistant,
+        "files": [a.filename for a in attachments],
+        "purpose": job.card.purpose if job.card else "",
+        "latest": chat[-1]["text"],
     }
-    kept = [changed.get(key, r) for key, r in ids.items() if key not in removed]
-    return Draft(
-        purpose=draft.purpose if patch.purpose is None else patch.purpose,
-        requirements=kept + patch.add,
-        preferences=draft.preferences if patch.preferences is None else patch.preferences,
-        production_constraints=draft.production_constraints
-        if patch.production_constraints is None
-        else patch.production_constraints,
-        assumptions=draft.assumptions if patch.assumptions is None else patch.assumptions,
-        unknowns=draft.unknowns if patch.unknowns is None else patch.unknowns,
-        questions=_unique_questions(questions) if patch.questions is None else patch.questions,
+    text = "\n\n".join(
+        f"<{name}>\n{json.dumps(value, ensure_ascii=False)}\n</{name}>"
+        for name, value in blocks.items()
     )
-
-
-def _unique_questions(questions: list[DraftQuestion]) -> list[DraftQuestion]:
-    unique: dict[str, DraftQuestion] = {}
-    for question in questions:
-        unique.setdefault(question.field or normalize_text(question.title), question)
-    return list(unique.values())
-
-
-def _drafted(question: DraftQuestion) -> Question:
-    """A question about a triage field keeps the field's id, so its answer is never lost."""
-    field = BY_KEY.get(question.field or "")
-    return Question(
-        id=field.question_id if field else "clarify." + digest(normalize_text(question.title)),
-        kind="clarify",
-        title=question.title,
-        impact=question.impact,
-        options=question.options,
-        suggested=question.suggested if question.basis else None,
-        basis=question.basis,
-        blocking=question.blocking,
-    )
-
-
-def _outdated(attachment: Attachment) -> bool:
-    return attachment.status == "pending" or (
-        attachment.status == "completed" and attachment.parser_version != DOCUMENT_VERSION
-    )
-
-
-def _requirement(draft: DraftRequirement) -> Requirement:
-    return Requirement(
-        **draft.model_dump(exclude={"sources"}),
-        sources=[Evidence(**c.model_dump()) for c in draft.sources],
-    )
-
-
-def _discrepancy(item) -> Question:
-    anchor = item.requirement_key or normalize_text(item.title)
-    return Question(
-        id=f"{item.kind}." + digest(anchor),
-        kind="discrepancy",
-        title=item.title,
-        impact=item.impact,
-        options=item.options,
-        suggested=item.suggested if item.basis else None,
-        basis=item.basis,
-        sources=[Evidence(**c.model_dump()) for c in item.sources],
-        requirement_key=item.requirement_key,
-    )
-
-
-def _view(draft: Draft, requirements: list[Requirement], questions: list[Question]) -> dict:
-    return {
-        "purpose": draft.purpose,
-        "requirements": [r.model_dump(exclude={"superseded"}) for r in requirements],
-        "preferences": draft.preferences,
-        "production_constraints": draft.production_constraints,
-        "assumptions": [a.model_dump() for a in draft.assumptions],
-        "unknowns": draft.unknowns,
-        "questions": [q.model_dump() for q in questions]
-        + [q.model_dump() for q in draft.questions],
-    }
-
-
-def _stable_references(card: TaskCard, ctx: RunContext) -> None:
-    """Agents cite short run-local ids; the card keeps references that outlive the run."""
-    evidences = [e for r in card.requirements for e in r.sources]
-    evidences += [e for r in card.requirements for s in r.superseded for e in s.sources]
-    evidences += [e for q in card.questions for e in q.sources]
-    for evidence in evidences:
-        source = ctx.sources.get(evidence.source_id)
-        if source is not None:
-            evidence.source_id = source.ref
-
-
-def _summary(card: TaskCard) -> str:
-    open_questions = [q for q in card.questions if not known(q.answer)]
-    text = (
-        "Задание разобрано, передаю на подбор параметров"
-        if card.readiness != "blocked"
-        else f"Задание разобрано, нужны ответы на вопросы, всего {len(open_questions)}"
-        if open_questions
-        else "Задание разобрано, но подбор параметров пока заблокирован"
-    )
-    remarks = (
-        [r.text for r in card.verdict.remarks if r.severity != "minor"] if card.verdict else []
-    )
-    if remarks:
-        text += ". Проверка отметила " + ". ".join(remarks)
-    return text
-
-
-def _reading(reading: Any) -> str:
-    if reading is None or not reading.value:
-        return ""
-    return f"{reading.value} {reading.unit or ''}".strip()
+    return [{"type": "text", "text": text}]

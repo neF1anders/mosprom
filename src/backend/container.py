@@ -8,6 +8,7 @@ from .agents.tools import ToolBox
 from .config import Settings
 from .infrastructure.database import database
 from .infrastructure.files import LocalFiles
+from .infrastructure.notifier import PostgresNotifier
 from .infrastructure.queue import queue_app
 from .infrastructure.qwen import QwenClient
 from .services.answers import AnswerService
@@ -15,7 +16,6 @@ from .services.artifacts import ArtifactService
 from .services.commands import Commands
 from .services.control import ControlService
 from .services.jobs import JobService
-from .services.knowledge import KnowledgeService
 from .services.messages import MessageService
 from .services.sessions import SessionService
 from .services.uploads import UploadService
@@ -33,15 +33,16 @@ class Container:
             settings.qwen_api_key,
             max_tokens=settings.qwen_max_tokens,
         )
+        self.notifier = PostgresNotifier(settings.database_url)
         commands = Commands(self.uow)
-        self.jobs = JobService(self.uow)
+        self.jobs = JobService(self.uow, self.notifier)
         self.sessions = SessionService(self.uow, settings.session_secret)
         self.messages = MessageService(commands)
         self.answers = AnswerService(commands)
         self.control = ControlService(commands)
         self.uploads = UploadService(commands, self.files, self.uow, settings.limits)
         self.artifacts = ArtifactService(self.uow, self.files)
-        tools = ToolBox(KnowledgeService(self.uow), self.files)
+        tools = ToolBox(self.files)
         self.stage1 = Stage1(
             self.uow,
             self.files,
@@ -55,5 +56,6 @@ class Container:
         )
 
     async def close(self) -> None:
+        await self.notifier.close()
         await self.model.close()
         await self.engine.dispose()

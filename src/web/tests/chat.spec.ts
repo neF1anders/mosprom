@@ -1,5 +1,13 @@
 import { test, expect } from "@playwright/test";
-import { answer, attach, open, send, settled, upload } from "./helpers";
+import {
+  answer,
+  answered,
+  attach,
+  open,
+  send,
+  settled,
+  upload,
+} from "./helpers";
 
 test.beforeEach(async ({ page }) => open(page));
 
@@ -128,9 +136,7 @@ for (const option of ["mm", "cm", "m", "inch", "Не знаю"]) {
       page.getByRole("heading", { name: "В каких единицах создан STL" }),
     ).toBeVisible();
     await answer(page, option);
-    await expect(
-      page.getByText(`В каких единицах создан STL, ${option}`, { exact: true }),
-    ).toBeVisible();
+    await answered(page, "В каких единицах создан STL", option);
     await settled(page);
     if (option === "Не знаю")
       await expect(page.getByText("Раньше вы ответили Не знаю")).toBeVisible();
@@ -147,11 +153,7 @@ for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
       await window.getByLabel("Свой ответ").fill(choice);
       await window.getByRole("button", { name: "Отправить ответы" }).click();
     } else await answer(page, choice);
-    await expect(
-      page.getByText(`Источники расходятся, Длина детали, ${choice}`, {
-        exact: true,
-      }),
-    ).toBeVisible();
+    await answered(page, "Источники расходятся, Длина детали", choice);
     await settled(page);
   });
 }
@@ -188,6 +190,26 @@ for (const text of [
     await expect(page.getByText(text, { exact: true }).first()).toBeVisible();
   });
 }
+test("T15 off-topic message gets a short reply without a run", async ({
+  page,
+}) => {
+  await send(page, "TEST_OFFTOPIC Какая погода");
+  // The reply is in the thread; the card journal repeats it as an event.
+  await expect(
+    page
+      .getByRole("main")
+      .getByText("Я помогаю только с подготовкой задания на печать"),
+  ).toBeVisible();
+  await settled(page);
+  const card = page.getByRole("complementary", { name: "Карточка задания" });
+  await expect(card.getByText("Нет данных").first()).toBeVisible();
+  // The declined message never reaches the agents, so the purpose comes from the new one.
+  await send(page, "Шестерня привода");
+  await settled(page);
+  await expect(
+    card.getByText("Шестерня привода", { exact: true }),
+  ).toBeVisible();
+});
 for (const width of [390, 600, 800, 1100, 1440]) {
   test(`T14 viewport ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

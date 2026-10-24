@@ -27,17 +27,18 @@ export function Questions({
   // Moving on without an answer records "Не знаю": the question stays open for later.
   const settle = () =>
     answer.trim() ? values : { ...values, [question.id]: UNKNOWN_ANSWER };
-  const advance = () => {
-    const next = settle();
-    if (!last) {
-      setValues(next);
-      setIndex((i) => i + 1);
-      return;
-    }
+  // A field typed into and cleared again is not an answer, whichever way the window closes.
+  const submit = (next: Record<string, string>) => {
     if (pending) return;
     onAnswer(
       Object.fromEntries(Object.entries(next).filter(([, v]) => v.trim())),
     );
+  };
+  const advance = () => {
+    const next = settle();
+    if (last) return submit(next);
+    setValues(next);
+    setIndex((i) => i + 1);
   };
   const advanceRef = useRef(advance);
   advanceRef.current = advance;
@@ -71,8 +72,8 @@ export function Questions({
     if (option !== undefined) {
       const next = { ...values, [question.id]: option };
       setValues(next);
-      if (!last) setIndex((i) => i + 1);
-      else if (!pending) onAnswer(next);
+      if (last) submit(next);
+      else setIndex((i) => i + 1);
       return;
     }
     advance();

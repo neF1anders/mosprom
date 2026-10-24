@@ -1,3 +1,4 @@
+import { modelSize } from "../format";
 import type { Card } from "../types";
 import styles from "../App.module.css";
 export function CardSummary({ card }: { card: Card }) {
@@ -11,12 +12,7 @@ export function CardSummary({ card }: { card: Card }) {
         .map((r) => `${r.label || r.key} ${r.value} ${r.unit || ""}`.trim())
         .join(" · ") || "Нет подтверждённых требований",
     ],
-    [
-      "Геометрия",
-      geometry?.extents.length
-        ? `${geometry.extents.map((v) => Number(v.toFixed(3))).join(" × ")} ${geometry.units === "unknown" ? "в единицах файла" : geometry.units}`
-        : "Модели нет",
-    ],
+    ["Геометрия", modelSize(geometry) || "Модели нет"],
     [
       "Допущения",
       card.assumptions.map((a) => a.text).join(" · ") || "Нет допущений",

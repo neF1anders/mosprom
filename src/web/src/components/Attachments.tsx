@@ -19,6 +19,10 @@ const icons: Record<string, string> = {
   txt: "document",
   md: "document",
 };
+function uploadState(file: DraftFile) {
+  if (file.uploading) return "uploading";
+  return file.error ? "failed" : "ready";
+}
 // Files wait in the composer until the message is sent, as on Figma screen 11.
 export function Attachments({
   files,
@@ -43,7 +47,7 @@ function AttachmentCard({
   file: DraftFile;
   onRemove: (file: DraftFile) => void;
 }) {
-  const state = file.uploading ? "uploading" : file.error ? "failed" : "ready";
+  const state = uploadState(file);
   const shown = usePreview(state === "ready" ? file : undefined);
   return (
     <li

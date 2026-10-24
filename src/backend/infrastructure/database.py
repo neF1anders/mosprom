@@ -6,7 +6,16 @@ from procrastinate import App
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from .queue import ProcrastinateQueue
-from .repositories import EventRepository, JobRepository, KnowledgeRepository, TraceRepository
+from .repositories import (
+    AttachmentRepository,
+    CacheRepository,
+    EventRepository,
+    JobRepository,
+    KnowledgeRepository,
+    MessageRepository,
+    ReceiptRepository,
+    TraceRepository,
+)
 
 
 class PostgresUnitOfWork:
@@ -16,6 +25,10 @@ class PostgresUnitOfWork:
     async def __aenter__(self) -> "PostgresUnitOfWork":
         self._session = self._factory()
         self.jobs = JobRepository(self._session)
+        self.messages = MessageRepository(self._session)
+        self.attachments = AttachmentRepository(self._session)
+        self.receipts = ReceiptRepository(self._session)
+        self.cache = CacheRepository(self._session)
         self.events = EventRepository(self._session)
         self.queue = ProcrastinateQueue(self._session, self._app)
         self.knowledge = KnowledgeRepository(self._session)

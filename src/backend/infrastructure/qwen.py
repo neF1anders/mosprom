@@ -36,7 +36,7 @@ class QwenClient:
         transport: httpx.AsyncBaseTransport | None = None,
         retry_delay: float = 1,
         silence_seconds: float = 120,
-        call_seconds: float = 900,
+        call_seconds: float = 600,
     ):
         self.model, self.api_key, self.retry_delay = model, api_key, retry_delay
         self.max_tokens, self.call_seconds = max_tokens, call_seconds

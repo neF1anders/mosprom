@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from datetime import datetime, timezone
 from typing import Literal
 
+from .hashing import digest
 from .models import Evidence, Question, Requirement, Source, Superseded
 from .rules import known
 from .units import numbers, plain, quantity_key
@@ -19,10 +19,6 @@ Citation = Literal["verified", "vision", "rejected"]
 
 def normalize_text(text: str) -> str:
     return " ".join(text.casefold().translate(_DASHES).split())
-
-
-def digest(*parts: str) -> str:
-    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:12]
 
 
 def reference(requirement: Requirement) -> str:

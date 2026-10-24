@@ -1,6 +1,19 @@
 import type { Attachment } from "../types";
 import { statusLabel } from "../types";
 import styles from "../App.module.css";
+
+function fileStatus(file: Attachment, running: boolean) {
+  if (file.error) return file.error;
+  if (file.status === "completed")
+    return file.kind === "stl" ? "Готов к анализу" : "Текст прочитан";
+  if (running && file.status === "pending") return "Проверяю";
+  return statusLabel[file.status] || file.status;
+}
+function fileIcon(file: Attachment, running: boolean) {
+  if (file.status === "completed") return "done";
+  if (file.status === "failed") return "error";
+  return running ? "run" : "wait";
+}
 export function Files({
   attachments,
   jobId,
@@ -46,17 +59,10 @@ export function Files({
                 {file.filename}
               </a>
               <span className={styles.fileStatus}>
-                {file.error ||
-                  (file.status === "completed"
-                    ? file.kind === "stl"
-                      ? "Готов к анализу"
-                      : "Текст прочитан"
-                    : running && file.status === "pending"
-                      ? "Проверяю"
-                      : statusLabel[file.status] || file.status)}
+                {fileStatus(file, running)}
               </span>
               <img
-                src={`/figma/${file.status === "completed" ? "done" : file.status === "failed" ? "error" : running ? "run" : "wait"}.svg`}
+                src={`/figma/${fileIcon(file, running)}.svg`}
                 alt={statusLabel[file.status] || file.status}
               />
             </div>
