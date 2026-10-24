@@ -23,7 +23,7 @@ from ..domain.parameters import (
 from .material_choice import MaterialChoice
 from .mode import ModeChoice
 from .notes import ConstraintResult, SettingChoice, Unmet
-from .placement import ORIENTATION_ASSUMPTION, ORIENTATION_CANDIDATE, Placement
+from .placement import ORIENTATION_CANDIDATE, Placement
 from .quality import QualityChoice
 
 STAGE1_BASIS = "карточка этапа 1"
@@ -80,7 +80,7 @@ def render(selection: Selection) -> ParameterSet:
                     rotation=_IDENTITY, position=list(placement.position), scale=_UNSCALED
                 ),
                 why=placement.why,
-                source=f"assumption:{ids[ORIENTATION_ASSUMPTION]}",
+                source=f"assumption:{ids[placement.orientation_assumption]}",
             )
         ],
         assumptions=assumptions,

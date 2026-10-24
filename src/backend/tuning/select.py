@@ -94,7 +94,8 @@ def select_parameters(
             mode=mode_choice,
             quality=quality,
             material=material_choice,
-            settings=settings.settings,
+            # A value the check demands stays over the one taken from the bore.
+            settings={**placement.settings, **settings.settings},
             placement=placement,
             card_assumptions=request.assumptions,
             assumptions=[

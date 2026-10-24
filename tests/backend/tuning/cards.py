@@ -10,9 +10,16 @@ from src.backend.domain.parameters import Feedback
 SHA = "0" * 64
 
 
-def report(size=(20.0, 20.0, 20.0), coordinate_unit="unknown", volume=8000.0) -> dict[str, Any]:
-    """Only the report fields stage two reads, in the layout of ``src/mesh_analysis.py``."""
-    return {
+def report(
+    size=(20.0, 20.0, 20.0),
+    coordinate_unit="unknown",
+    volume=8000.0,
+    overhang_fraction=None,
+    bore=None,
+) -> dict[str, Any]:
+    """Only the report fields stage two reads, in the layout of ``src/mesh_analysis.py``; the
+    sections ``overhangs`` and ``revolution`` of the stage-one contract only when asked for."""
+    payload = {
         "schema_version": "1.0",
         "file": {"sha256": SHA, "triangles": 12, "encoding": "binary"},
         "units": {
@@ -38,6 +45,22 @@ def report(size=(20.0, 20.0, 20.0), coordinate_unit="unknown", volume=8000.0) ->
             "Self-intersections and intersections/nesting between shells are not checked."
         ],
     }
+    if overhang_fraction is not None:
+        payload["overhangs"] = {
+            "critical_angle_deg": 45,
+            "bed_band_mm": 0.2,
+            "area_mm2": round(2400.0 * overhang_fraction, 3),
+            "area_fraction": overhang_fraction,
+            "bed_contact_area_mm2": 400.0,
+            "method": "synthetic",
+        }
+    if bore is not None:
+        payload["revolution"] = {
+            "is_revolution": True,
+            "bore": {"through": True, "diameter_mm": bore, "length_mm": size[2]},
+            "method": "synthetic",
+        }
+    return payload
 
 
 def requirement(
