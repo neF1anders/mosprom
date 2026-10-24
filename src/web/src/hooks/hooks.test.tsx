@@ -47,13 +47,14 @@ describe("event stream", () => {
     act(() => {
       FakeSource.last.emit(1, "tool.called");
       FakeSource.last.emit(2, "interpretation.started");
+      FakeSource.last.emit(3, "checking.started");
       vi.advanceTimersByTime(200);
     });
-    expect(result.current.events).toHaveLength(2);
+    expect(result.current.events).toHaveLength(3);
     expect(refetch).not.toHaveBeenCalled();
     act(() => {
-      FakeSource.last.emit(3, "triage.completed");
-      FakeSource.last.emit(4, "stage1.completed");
+      FakeSource.last.emit(4, "files.completed");
+      FakeSource.last.emit(5, "stage1.completed");
       vi.advanceTimersByTime(200);
     });
     // A burst of state events costs one refetch of the job and the chat list.

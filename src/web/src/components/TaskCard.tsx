@@ -104,15 +104,12 @@ export function TaskCard({
   const size = modelSize(geometry);
   const unresolved = card?.questions.filter((q) => !answered(q)).length || 0;
   const defects = geometry?.defects.map((d) => defectLabels[d] || d) || [];
-  const remarks =
-    card?.verdict?.remarks.filter((r) => r.severity !== "minor") || [];
   const unknowns = card
     ? [
         ...card.assumptions.map((a) =>
           a.basis ? `${a.text}, основание ${a.basis}` : a.text,
         ),
         ...card.unknowns,
-        ...remarks.map((r) => r.text),
       ]
     : [];
   const blockers = [
