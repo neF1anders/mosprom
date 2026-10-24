@@ -120,7 +120,7 @@ def test_stage_two_bugs_stop_the_pipeline_instead_of_feedback(name, kinds, catal
 
 
 def test_notes_for_people_are_not_passed_on(catalog):
-    feedback, issues = feedback_for("extra_formula_unknown", catalog)
+    feedback, issues = feedback_for("extra_condition_outside_the_language", catalog)
     assert [issue.kind for issue in issues] == ["formula_unknown"]
     assert feedback.model_dump() == build_feedback([], 1).model_dump()
     assert stage_two_errors(issues) == []

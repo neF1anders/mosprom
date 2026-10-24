@@ -26,7 +26,6 @@ args: {"job_id": "...", "revision": 7}
 | `questions[]` | все вопросы с ответами пользователя |
 | `geometry` | сводка анализа STL (габариты, дефекты, объём только когда он достоверен) |
 | `stl_analysis` | полный отчёт анализатора активного STL без сокращений, `attachment_id`, `sha256`; с версии отчёта 1.2 в нём есть нависания, кандидаты ориентации и ось вращения ([STL_ANALYSIS.md](STL_ANALYSIS.md)) |
-| `verdict` | всегда `null`: судьи больше нет, поле оставлено ради совместимости |
 | `readiness` | `ready`, `preliminary` (есть допущения, неизвестные или дефекты) или `blocked` |
 | `allowed_actions`, `blocked_actions` | `select_parameters` и причины блокировки |
 | `files[]`, `versions` | исходные файлы с sha256; версии правил, анализатора, словаря кодов (`requirement_keys`), модели и промптов `gate`, `interpreter`, `checker` |

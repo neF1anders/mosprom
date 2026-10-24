@@ -131,6 +131,9 @@ def _food(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
 
 
 def _unverifiable(material: Candidate, required: Any, flags: TextFlags) -> Verdict:
+    """The catalog has no data for it: told to the user, the same for every material."""
+    if required is False:
+        return None
     return "unknown", "cannot be checked from the catalog"
 
 
@@ -144,11 +147,20 @@ _CHECKS: dict[str, Callable[[Candidate, Any, TextFlags], Verdict]] = {
     "flexible": _flexible,
     "density_max_g_cm3": _density,
     "low_friction": _level("friction", {"low": "ok", "medium": "warn", "high": "fail"}),
+    "high_friction": _level("friction", {"high": "ok", "medium": "warn", "low": "fail"}),
     "abrasion_resistant": _level("abrasion", {"good": "ok", "fair": "warn", "poor": "fail"}),
     "high_stiffness": _level("stiffness", {"high": "ok", "medium": "warn", "low": "fail"}),
     "food_safe": _food,
     "esd": _unverifiable,
+    "no_conductive_fillers": _unverifiable,
+    "service_temp_peak_c": _unverifiable,
+    "heat_deflection_min_c": _unverifiable,
+    "tensile_modulus_min_mpa": _unverifiable,
+    "tensile_strength_min_mpa": _unverifiable,
+    "elongation_min_pct": _unverifiable,
+    "water_absorption_max_pct": _unverifiable,
 }
+CHECKED_CODES = frozenset(_CHECKS)
 
 
 def _text_flags(material: Candidate) -> dict[str, bool]:

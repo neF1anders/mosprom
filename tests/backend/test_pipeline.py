@@ -134,7 +134,7 @@ class Steps:
         return gcode_verdict(iteration, iteration >= self.gcode_from)
 
 
-def pipeline(pg, steps, select=None, timeout: float = 5, slicer=None, slicing: float = 5):
+def pipeline(pg, steps, select=None, timeout: float = 5, slicer=None):
     return ParameterPipeline(
         pg.uow,
         CATALOG,
@@ -142,7 +142,7 @@ def pipeline(pg, steps, select=None, timeout: float = 5, slicer=None, slicing: f
         steps.check,
         slicer or steps,
         steps.check_gcode,
-        PipelineSettings(timeout, slicing),
+        PipelineSettings(timeout),
     )
 
 
@@ -200,7 +200,7 @@ async def test_a_ready_card_goes_through_every_step_to_a_project(pg, http):
     steps = Steps()
     await pipeline(pg, steps).run(job_id, 1)
     done = await job(pg, job_id)
-    assert (done.status, done.stage) == (Status.COMPLETED, "done")
+    assert (done.status, done.stage, done.outcome) == (Status.COMPLETED, "done", "ready")
     assert done.parameters.model_dump() == {
         "iteration": 1,
         "printing_mode": "3D",
@@ -273,6 +273,8 @@ async def test_problems_left_after_the_last_pass_ask_for_attention(pg, http):
     done = await job(pg, job_id)
     assert (done.status, done.parameters.check) == (Status.COMPLETED, "attention")
     assert done.result.sliced and done.result.gcode_check == "ok"
+    # The chat shows the server's verdict: the parameters ask for attention first.
+    assert done.outcome == "parameters_attention"
     assert ("pipeline.completed", "attention") in await events(pg, job_id)
 
 
@@ -385,14 +387,22 @@ async def test_a_refused_card_fails_the_job_with_the_reason(pg, http):
     assert (failed.status, failed.error) == (Status.FAILED, "Модель не помещается на стол")
 
 
-async def test_the_parameter_set_of_the_current_revision_is_served(pg, http, other):
+async def test_the_parameter_set_of_the_current_work_is_served(pg, http, other):
     job_id = await ready_job(http, pg)
     assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 409
     await pipeline(pg, Steps(passing_from=2)).run(job_id, 1)
     served = (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json()
     assert served["iteration"] == 2 and served["version"] == "0.2"
     assert (await other.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 404
+    # A message alone keeps the finished project; only work started on it replaces the set.
     await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
+    assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json() == served
+
+    async def nothing(*args, **kwargs):
+        return None
+
+    ctx = RunContext(job_id=job_id, revision=2, run_id="r", check=nothing, event=nothing)
+    await RunStore(pg.uow).begin(ctx)
     assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 409
 
 
@@ -509,20 +519,6 @@ async def test_a_stop_during_slicing_ends_it_without_waiting_for_the_slicer(pg, 
     assert time.monotonic() - started < 5
     assert (await job(pg, job_id)).status == Status.STOPPED
     assert steps.gcode == [] and (1, "slicing", 1) not in await results(pg, job_id)
-
-
-async def test_a_slicer_that_does_not_answer_in_time_leaves_the_parameters(pg, http):
-    job_id = await ready_job(http, pg)
-    steps = Steps()
-
-    class Silent:
-        async def slice(self, run, parameter_set, models):
-            await asyncio.sleep(30)
-
-    await pipeline(pg, steps, slicer=Silent(), slicing=0.2).run(job_id, 1)
-    done = await job(pg, job_id)
-    assert (done.status, done.result.sliced) == (Status.COMPLETED, False)
-    assert done.result.message == "Слайсер не ответил вовремя"
 
 
 async def test_a_redelivered_task_does_not_slice_again(pg, http):

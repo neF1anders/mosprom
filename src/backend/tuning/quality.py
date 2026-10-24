@@ -53,7 +53,7 @@ def choose_quality(
     )
     profile = qualities[name]
     if not inside:
-        layer = axis.quantize(target)
+        layer = axis.value_at(t, entry.low, entry.high)
         why = f"ни один профиль не укладывается в ограничения: {reason(rule_id)}"
         setting = SettingChoice(layer, why, source_of(rule_id), "mm")
         return _nearest(profile, rule_id, layer, setting)

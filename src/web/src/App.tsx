@@ -248,7 +248,8 @@ export function App() {
     ...uploads,
   ];
   const running = isRunning(job);
-  const current = events.filter((e) => e.revision === job?.revision);
+  // A reply that started no work keeps the timeline of the work before it.
+  const current = events.filter((e) => e.revision >= (job?.work_revision ?? 0));
   const asking = asksQuestions(job);
   if (session.isError)
     return (

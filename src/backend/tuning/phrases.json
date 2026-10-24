@@ -1,21 +1,20 @@
 {
-  "note": "Free text of the stage-1 task card that parameter selection reads. Requirement codes, kinds and units come from knowledge/requirement_keys.json. Phrases are lowercase substrings of free text; load_phrases is checked in order, first match wins. material_answers are ids of stage-1 questions whose answer names the material.",
+  "note": "Free text of the stage-1 task card that parameter selection reads. Requirement codes, kinds and units come from knowledge/requirement_keys.json. Phrases are regular expressions searched in lowercase free text; \\b marks a word boundary, so a stem matches only at the start of a word. load_phrases is checked in order, first match wins.",
   "booleans": {
     "true": ["true", "да", "yes", "требуется", "обязательно"],
     "false": ["false", "нет", "no", "не требуется"]
   },
-  "material_answers": ["material_choice"],
   "load_phrases": [
-    ["none", ["не несёт", "не несет", "без нагруз", "не рассчитан"]],
-    ["impact", ["удар"]],
-    ["cyclic", ["циклич", "вибрац", "знакоперемен"]],
-    ["static", ["статич"]]
+    ["none", ["\\bне несёт", "\\bне несет", "\\bбез нагруз", "\\bне рассчитан"]],
+    ["impact", ["\\bудар"]],
+    ["cyclic", ["\\bциклич", "\\bвибрац", "\\bзнакоперемен"]],
+    ["static", ["\\bстатич"]]
   ],
   "priority_phrases": {
-    "strength": ["прочн"],
-    "accuracy": ["точн", "допуск"],
-    "speed": ["быстр", "срочн"],
-    "cost": ["дешев", "дёшев", "эконом"]
+    "strength": ["\\bпрочн"],
+    "accuracy": ["\\bточн", "\\bдопуск(?:и|а|у|ом|е|ов|ам|ами|ах)?\\b"],
+    "speed": ["\\bбыстр", "\\bсрочн"],
+    "cost": ["\\bдешев", "\\bдёшев", "\\bэконом"]
   },
-  "supports_forbidden_phrases": ["без поддерж", "без опор", "без следов поддерж"]
+  "supports_forbidden_phrases": ["\\bбез поддерж", "\\bбез опор", "\\bбез следов поддерж"]
 }

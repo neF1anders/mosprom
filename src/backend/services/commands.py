@@ -5,21 +5,25 @@ from typing import Any
 
 from ..domain.hashing import fingerprint
 from ..domain.models import Attachment, Event, Job, Status, now
+from ..domain.pipeline import restart
 from ..domain.transitions import transition
 from ..ports.persistence import UnitOfWork, UowFactory
 
 
-async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
-    """A new revision and its stage-one job commit together with the change itself."""
+async def changed(uow: UnitOfWork, job: Job, message: str, start: bool = False) -> None:
+    """A new revision and its stage-one job commit together with the change itself.
+
+    A finished project stays until stage one starts the work again, so a reply in the chat
+    that starts nothing leaves it as it was; unfinished work starts over. ``start`` skips
+    the gate's decision.
+    """
     job.updated_at = now()
     job.revision += 1
     job.status = transition(job.status, Status.QUEUED)
     job.error = None
     job.files_changed = False
-    job.stage = "understanding"
-    job.parameters = None
-    job.result = None
-    job.phase = None
+    if job.stage != "done":
+        restart(job)
     attachments = await uow.attachments.list(job.id)
     for attachment in attachments:
         if attachment.draft:
@@ -28,7 +32,7 @@ async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
     await apply_stl(uow, job, attachments)
     await uow.jobs.save(job)
     await uow.queue.cancel_pending(job.id)
-    await uow.queue.stage1(job.id, job.revision)
+    await uow.queue.stage1(job.id, job.revision, start)
     await uow.events.append(
         Event(
             job_id=job.id,
@@ -40,16 +44,10 @@ async def changed(uow: UnitOfWork, job: Job, message: str) -> None:
     )
 
 
-def reset_units(job: Job) -> None:
-    """A different STL needs its scale confirmed again."""
-    job.units = "unknown"
-    job.answers.pop("units", None)
-
-
 async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) -> None:
     """A sent STL replaces the previous one; until the send, the previous one stays in use.
 
-    Removing an unsent STL therefore leaves the earlier model and its confirmed scale intact.
+    Removing an unsent STL therefore leaves the earlier model intact.
     """
     stls = [a for a in attachments if a.active and a.kind == "stl"]
     new = next((a for a in stls if a.id != job.active_stl), None)
@@ -59,10 +57,8 @@ async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) ->
             current.active = False
             await uow.attachments.save(current)
         job.active_stl = new.id
-        reset_units(job)
     elif current is None and job.active_stl is not None:
         job.active_stl = None
-        reset_units(job)
 
 
 async def attached(uow: UnitOfWork, job: Job, message: str, files_changed: bool = True) -> None:

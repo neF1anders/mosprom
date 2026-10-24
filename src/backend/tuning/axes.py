@@ -6,6 +6,7 @@ from the printer mode and the material once both are chosen.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -13,6 +14,7 @@ from typing import Literal
 from pydantic import Field
 
 from ..domain.models import Value
+from .notes import EPSILON
 
 LAYER_AXIS = "layer_height"
 # Numbers an axis end or a rule limit may refer to, see AxisContext.
@@ -143,23 +145,49 @@ class Axis:
     def step(self) -> float:
         return self.spec.step
 
-    def value_at(self, t: float) -> float:
-        return self.quantize(self.v0 + t * (self.v1 - self.v0))
+    def value_at(self, t: float, low: float = 0.0, high: float = 1.0) -> float:
+        """The step value nearest to t that stays inside the hard interval [low, high] of t.
+
+        A step past a limit gives way to the nearest step inside: a maximum rounds down and a
+        minimum up. When no step lies inside, the limit itself is the value; an empty interval
+        has no such value, its middle t is snapped as it is.
+        """
+        raw = self.v0 + t * (self.v1 - self.v0)
+        if low > high + EPSILON:
+            return self._snapped(raw)
+        bottom, top = sorted(self.v0 + bound * (self.v1 - self.v0) for bound in (low, high))
+        snapped = round(raw / self.step) * self.step
+        if snapped > top + EPSILON:
+            snapped = math.floor(round(top / self.step, 6)) * self.step
+        if snapped < bottom - EPSILON:
+            snapped = math.ceil(round(bottom / self.step, 6)) * self.step
+        if not bottom - EPSILON <= snapped <= top + EPSILON:
+            snapped = min(max(raw, bottom), top)
+        return self._typed(snapped)
 
     def t_of(self, value: float) -> float:
         return (value - self.v0) / (self.v1 - self.v0)
 
+    def reachable(self, limit: float, is_minimum: bool) -> float:
+        """The limit an integer axis can meet: a minimum rounds up to a step, a maximum down."""
+        if self.spec.kind != "int":
+            return limit
+        steps = round(limit / self.step, 6)
+        return (math.ceil(steps) if is_minimum else math.floor(steps)) * self.step
+
     def clamped_t_of(self, value: float) -> float:
         return min(max(self.t_of(value), 0.0), 1.0)
 
-    def quantize(self, value: float) -> float:
+    def _snapped(self, value: float) -> float:
         """Snap to the step inside the axis; an integer axis gives an ``int``."""
         low, high = sorted((self.v0, self.v1))
         snapped = round(value / self.step) * self.step
-        snapped = min(max(snapped, low), high)
+        return self._typed(min(max(snapped, low), high))
+
+    def _typed(self, value: float) -> float:
         if self.spec.kind == "int":
-            return int(round(snapped))
-        return round(snapped, 4)
+            return int(round(value))
+        return round(value, 4)
 
 
 def build_axes(context: AxisContext) -> dict[str, Axis]:
@@ -177,7 +205,7 @@ def t_interval_for_limits(
     for limit, is_minimum in ((minimum, True), (maximum, False)):
         if limit is None:
             continue
-        t_limit = axis.t_of(limit)
+        t_limit = axis.t_of(axis.reachable(limit, is_minimum))
         # With v1 > v0 a value minimum raises t; with v1 < v0 it lowers t.
         if is_minimum == (axis.v1 > axis.v0):
             low = max(low, t_limit)

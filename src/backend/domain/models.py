@@ -129,19 +129,6 @@ class StlAnalysis(Value):
     report: dict[str, Any]
 
 
-class Remark(Value):
-    severity: Literal["critical", "major", "minor"]
-    text: str
-    requirement_key: str | None = None
-
-
-class Verdict(Value):
-    score: float = Field(ge=0, le=1)
-    passed: bool
-    reworked: bool = False
-    remarks: list[Remark] = Field(default_factory=list)
-
-
 class SourceFile(Value):
     id: str
     filename: str
@@ -162,7 +149,6 @@ class TaskCard(Value):
     questions: list[Question] = Field(default_factory=list)
     geometry: Geometry | None = None
     stl_analysis: StlAnalysis | None = None
-    verdict: Verdict | None = None
     readiness: Literal["ready", "preliminary", "blocked"] = "blocked"
     allowed_actions: list[str] = Field(default_factory=list)
     blocked_actions: dict[str, list[str]] = Field(default_factory=dict)
@@ -178,6 +164,9 @@ class Answer(Value):
 
 
 Stage = Literal["understanding", "parameters", "validation", "slicing", "gcode", "done"]
+# How a finished pipeline ended: a project ready to print, a project or parameters that need
+# the user's attention, or no project at all.
+Outcome = Literal["ready", "attention", "parameters_attention", "not_sliced"]
 
 
 class ParametersSummary(Value):
@@ -217,7 +206,6 @@ class Job(Value):
     deleted: bool = False
     revision: int = 0
     status: Status = Status.DRAFT
-    units: str = "unknown"
     active_stl: str | None = None
     card: TaskCard | None = None
     answers: dict[str, Answer] = Field(default_factory=dict)
@@ -225,10 +213,12 @@ class Job(Value):
     files_changed: bool = False
     # Between stages the job is queued; it is completed only after the last stage.
     stage: Stage = "understanding"
+    # The revision whose work the card, the timeline and the results come from. A reply in
+    # the chat that starts no work opens a revision of its own and leaves them as they are.
+    work_revision: int = 0
     parameters: ParametersSummary | None = None
     result: ResultSummary | None = None
-    # Stage-one step of earlier versions; no longer written, kept so old rows still load.
-    phase: Literal["triage", "deep", "consolidate", "verify"] | None = None
+    outcome: Outcome | None = None
     error: str | None = None
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)

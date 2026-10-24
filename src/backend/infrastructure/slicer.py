@@ -31,6 +31,7 @@ EXCHANGE = "mosprom"
 SLICE_SECONDS = 330
 CALL_SECONDS = 60
 RESET_TOOL = "reset_settings"
+OVERRUN = "Слайсер не ответил вовремя"
 # What the chat says when a call fails; the plugin's own error stays in the report.
 FAILED = {
     "list_models": "Слайсер не очистил стол",
@@ -49,6 +50,8 @@ class SlicerSettings:
     folder: Path
     host_folder: str
     host: str
+    # How long a run may hold the slicer; waiting for another job's run is not counted.
+    run_seconds: float
 
 
 class SlicerUnavailable(Exception):
@@ -64,21 +67,79 @@ class McpSlicer:
         self.files, self.settings = files, settings
         # One slicer, one scene: runs of different jobs wait for each other.
         self._lock = asyncio.Lock()
+        # Runs a caller stopped waiting for, kept until the plugin is done with them.
+        self._runs: set[asyncio.Task[None]] = set()
 
     async def slice(
         self, run: str, parameter_set: ParameterSet, models: dict[str, str]
     ) -> SliceReport:
+        """The caller waits until the run ends, overruns ``run_seconds`` once it holds the
+        slicer, or is cancelled by a stop or an edit. The run itself keeps the slicer until
+        the call the plugin is busy with returns, so the next run never meets a busy plugin."""
+        answer: asyncio.Future[SliceReport] = asyncio.get_running_loop().create_future()
+        stop = asyncio.Event()
+        task = asyncio.create_task(self._exclusive(run, parameter_set, models, answer, stop))
+        self._runs.add(task)
+        task.add_done_callback(self._runs.discard)
+        try:
+            return await asyncio.shield(answer)
+        finally:
+            stop.set()
+            answer.cancel()
+
+    async def _exclusive(
+        self,
+        run: str,
+        parameter_set: ParameterSet,
+        models: dict[str, str],
+        answer: asyncio.Future[SliceReport],
+        stop: asyncio.Event,
+    ) -> None:
         async with self._lock:
+            if stop.is_set():
+                return
+            session = asyncio.create_task(self._session(run, parameter_set, models, stop))
+            done, _ = await asyncio.wait({session}, timeout=self.settings.run_seconds)
+            if not done:
+                stop.set()
+                _settle(answer, SliceReport(status="failed", message=OVERRUN))
             try:
-                port, token = await asyncio.to_thread(self._server)
-                folder = self.settings.folder / EXCHANGE / run
-                await asyncio.to_thread(self._place_models, folder, models)
-                headers = {"Authorization": f"Bearer {token}", "Host": f"127.0.0.1:{port}"}
-                base = f"http://{self.settings.host}:{port}"
-                async with httpx.AsyncClient(base_url=base, headers=headers) as client:
-                    return await self._run(client, run, folder, parameter_set, models)
+                _settle(answer, await session)
+            except Exception as exc:
+                if answer.done():
+                    logger.exception("Slicer run %s failed after its caller left", run)
+                else:
+                    answer.set_exception(exc)
+
+    async def _session(
+        self, run: str, parameter_set: ParameterSet, models: dict[str, str], stop: asyncio.Event
+    ) -> SliceReport:
+        try:
+            port, token = await asyncio.to_thread(self._server)
+        except SlicerUnavailable as exc:
+            return SliceReport(status="unavailable", message=str(exc))
+        folder = self.settings.folder / EXCHANGE / run
+        try:
+            await asyncio.to_thread(self._place_models, folder, models)
+        except OSError as exc:
+            logger.warning("Models of %s did not reach %s: %r", run, folder, exc)
+            return SliceReport(status="failed", message="Не удалось передать модель слайсеру")
+        async with self._client(port, token) as client:
+            try:
+                return await self._run(client, run, folder, parameter_set, models, stop)
             except SlicerUnavailable as exc:
                 return SliceReport(status="unavailable", message=str(exc))
+
+    async def call(self, name: str, arguments: dict[str, Any]) -> Any:
+        """One tool of the plugin outside a run, for a check by hand."""
+        port, token = await asyncio.to_thread(self._server)
+        async with self._lock, self._client(port, token) as client:
+            return await self._tool(client, name, arguments)
+
+    def _client(self, port: int, token: str) -> httpx.AsyncClient:
+        # The plugin checks the Host header, which in Docker is not its own address.
+        headers = {"Authorization": f"Bearer {token}", "Host": f"127.0.0.1:{port}"}
+        return httpx.AsyncClient(base_url=f"http://{self.settings.host}:{port}", headers=headers)
 
     def _server(self) -> tuple[int, str]:
         path = self.settings.folder / "server.json"
@@ -87,7 +148,7 @@ class McpSlicer:
             return int(server["port"]), str(server["token"])
         except FileNotFoundError:
             raise SlicerUnavailable("STE Slicer с плагином AI Assistant не запущен") from None
-        except (ValueError, KeyError, TypeError) as exc:
+        except (OSError, ValueError, KeyError, TypeError) as exc:
             logger.warning("server.json of the plugin is unreadable: %s", exc)
             raise SlicerUnavailable("Не удалось подключиться к STE Slicer") from None
 
@@ -104,14 +165,15 @@ class McpSlicer:
         folder: Path,
         parameter_set: ParameterSet,
         models: dict[str, str],
+        stop: asyncio.Event,
     ) -> SliceReport:
         try:
             tools = {tool["name"] for tool in (await _rpc(client, "tools/list", {}))["tools"]}
         except httpx.TransportError as exc:
             logger.warning("STE Slicer at %s does not answer: %r", client.base_url, exc)
             raise SlicerUnavailable("STE Slicer не отвечает") from None
-        except CallFailed as exc:
-            logger.warning("The plugin did not list its tools: %s", exc)
+        except (CallFailed, KeyError, TypeError) as exc:
+            logger.warning("The plugin did not list its tools: %r", exc)
             raise SlicerUnavailable("Плагин AI Assistant не отвечает") from None
         host_models = {a: self._host(run, f"{a}.stl") for a in models}
         try:
@@ -139,6 +201,9 @@ class McpSlicer:
                 "которых нет в наборе, остались в слайсере"
             )
         for call in [*prelude, *calls]:
+            if stop.is_set():
+                report.status, report.message = "failed", OVERRUN
+                return report
             try:
                 result = await self._call(client, call)
             except (CallFailed, httpx.TransportError) as exc:
@@ -152,7 +217,15 @@ class McpSlicer:
                 return report
             report.steps.append(CallOutcome(step=call.step, tool=call.tool, ok=True))
             _note(report, call, result)
-        report.gcode, report.project = await asyncio.to_thread(self._keep, run, folder)
+        try:
+            report.gcode, report.project = await asyncio.to_thread(self._keep, run, folder)
+        except OSError as exc:
+            logger.warning("The results of %s are not in %s: %r", run, folder, exc)
+            report.status, report.message = (
+                "failed",
+                "Не удалось забрать G-code и проект у слайсера",
+            )
+            return report
         report.message = "G-code и проект сохранены"
         return report
 
@@ -208,10 +281,23 @@ async def _rpc(
     response = await client.post("/mcp", json=body, timeout=timeout)
     if response.status_code != 200:
         raise CallFailed(f"HTTP {response.status_code}")
-    reply = response.json()
+    try:
+        reply = response.json()
+    except ValueError:
+        raise CallFailed("ответ плагина не JSON") from None
+    if not isinstance(reply, dict):
+        raise CallFailed("ответ плагина не объект JSON-RPC")
     if "error" in reply:
-        raise CallFailed(reply["error"].get("message", "ошибка JSON-RPC"))
+        error = reply["error"]
+        raise CallFailed(str(error.get("message") if isinstance(error, dict) else error))
+    if not isinstance(reply.get("result"), dict):
+        raise CallFailed("в ответе плагина нет результата")
     return reply["result"]
+
+
+def _settle(answer: asyncio.Future[SliceReport], report: SliceReport) -> None:
+    if not answer.done():
+        answer.set_result(report)
 
 
 def _note(report: SliceReport, call: SlicerCall, result: Any) -> None:

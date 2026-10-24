@@ -2,8 +2,8 @@
  "applied_constraints": [
   {
    "id": "C1",
-   "result": "applied",
-   "why": "synthetic"
+   "result": "not_applied",
+   "why": "infill_sparse_density max 20 conflicts with other limits"
   }
  ],
  "assumptions": [

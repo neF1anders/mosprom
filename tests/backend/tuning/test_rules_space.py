@@ -73,6 +73,19 @@ def test_axes_are_monotone_from_cheap_to_strong():
     assert axes["print_speed"].value_at(1.0) == 25
 
 
+def test_axis_value_stays_inside_the_hard_interval():
+    axes = build_axes(CONTEXT)
+    speed = axes["print_speed"]
+    low, high = t_interval_for_limits(speed, None, 33)
+    # The nearest step is 35: a maximum rounds down to the step inside.
+    assert speed.value_at(low, low, high) == 30
+    low, high = t_interval_for_limits(speed, 31, 34)
+    # No step inside: the limit nearest to the raw value is used as it is.
+    assert speed.value_at(low, low, high) == 34
+    lines = axes["wall_line_count"]
+    assert t_interval_for_limits(lines, 2.25, 2.75)[0] > t_interval_for_limits(lines, 2.25, 2.75)[1]
+
+
 def test_value_limits_become_t_intervals_for_both_axis_directions():
     axes = build_axes(CONTEXT)
     low, high = t_interval_for_limits(axes["layer_height"], 0.1, 0.32)

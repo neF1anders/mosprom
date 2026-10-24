@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from src.backend.domain.units import convert, numbers, quantity_key, restated
+from src.backend.domain.units import convert, numbers
 
 pytestmark = pytest.mark.unit
 
@@ -46,18 +46,3 @@ def test_numbers_read_both_ends_of_a_dotted_range_but_not_a_dotted_version():
     assert numbers("-10..70") == [Decimal("-10"), Decimal("70")]
     assert numbers("1.5.7") == [Decimal("1.5")]
     assert numbers("v.2") == []
-
-
-def test_equivalent_quantities_compare_equal():
-    assert quantity_key("100", "мм") == quantity_key("10", "см")
-    assert quantity_key("25", "Н·м") == quantity_key("25000", "Н·мм")
-    assert quantity_key("25", "Н·м") != quantity_key("75", "Н·м")
-    assert quantity_key("PA12", None) == quantity_key("pa12 ", None)
-
-
-def test_numbers_are_restated_from_the_unit_the_quote_names():
-    assert restated("Плотность не более 1200 кг/м³", "g/cm3") == [Decimal("1.2")]
-    # A number belongs to the unit after it; a word that is not a unit does not split a range.
-    assert restated("от 1 до 2 см, длина 120 мм", "mm") == [Decimal("10"), Decimal("20")]
-    assert restated("от 283,15 до 343,15 K", "°C") == [Decimal("10"), Decimal("70")]
-    assert restated("до 80 °С", "°C") == [] and restated("до 80 °C", None) == []

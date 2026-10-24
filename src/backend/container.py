@@ -76,7 +76,10 @@ class Container:
         return McpSlicer(
             self.files,
             SlicerSettings(
-                settings.slicer_folder, settings.slicer_host_folder, settings.slicer_host
+                settings.slicer_folder,
+                settings.slicer_host_folder,
+                settings.slicer_host,
+                settings.slicing_timeout_seconds,
             ),
         )
 
@@ -93,10 +96,7 @@ class Container:
             lambda key, parameter_set, iteration: check_gcode(
                 gcode_facts(files, key), parameter_set, catalog, iteration
             ),
-            PipelineSettings(
-                timeout_seconds=self.settings.parameters_timeout_seconds,
-                slicing_timeout_seconds=self.settings.slicing_timeout_seconds,
-            ),
+            PipelineSettings(timeout_seconds=self.settings.parameters_timeout_seconds),
         )
 
     async def close(self) -> None:

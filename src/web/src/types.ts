@@ -48,10 +48,6 @@ export interface Assumption {
   basis: string;
   consequence: string;
 }
-export interface Remark {
-  severity: "critical" | "major" | "minor";
-  text: string;
-}
 export interface Card {
   schema_version: string;
   job_id: string;
@@ -64,8 +60,6 @@ export interface Card {
   unknowns: string[];
   questions: Question[];
   geometry: Geometry | null;
-  // Kept in the schema; the current chain always leaves it empty.
-  verdict: { score: number; passed: boolean; remarks: Remark[] } | null;
   readiness: "ready" | "preliminary" | "blocked";
   allowed_actions: string[];
   blocked_actions: Record<string, string[]>;
@@ -88,9 +82,13 @@ export interface Job {
     | "slicing"
     | "gcode"
     | "done";
+  // The revision whose work the card, the timeline and the results come from.
+  work_revision: number;
   parameters: ParametersSummary | null;
   // The last slicing of the current pass, once STE Slicer was asked.
   result?: ResultSummary | null;
+  // How the finished pipeline ended, as the server decided it.
+  outcome: "ready" | "attention" | "parameters_attention" | "not_sliced" | null;
   created_at: string;
   updated_at: string;
 }
@@ -183,15 +181,15 @@ export function jobStatus(job?: Job | null) {
   if (job.status !== "running") return statusLabel[job.status];
   return stageLabel[job.stage] || statusLabel.running;
 }
+const outcomeLabel: Record<NonNullable<Job["outcome"]>, string> = {
+  ready: "Проект готов",
+  attention: "Проект требует внимания",
+  parameters_attention: "Параметры требуют внимания",
+  not_sliced: "Проект не создан",
+};
+// Jobs finished before slicing joined the pipeline have no outcome.
 function outcome(job: Job) {
-  if (job.parameters?.check === "attention")
-    return "Параметры требуют внимания";
-  // Jobs finished before slicing joined the pipeline have no result.
-  if (!job.result) return statusLabel.completed;
-  if (!job.result.sliced) return "Проект не создан";
-  return job.result.gcode_check === "ok"
-    ? "Проект готов"
-    : "Проект требует внимания";
+  return job.outcome ? outcomeLabel[job.outcome] : statusLabel.completed;
 }
 const stageLabel: Partial<Record<Job["stage"], string>> = {
   parameters: "Подбираю параметры",

@@ -3,7 +3,9 @@
   l_bracket.stl: основание 40x20x5 и стойка 5x10x20 сверху у края (40x20x25 в сумме); нужна для знака поворота;
   mushroom.stl: ножка 10x10x20 и плита 40x40x4 сверху (нависание 15 мм со всех сторон); нужна для поддержек.
 Использование: python make_test_models.py <папка_вывода>"""
-import os, struct, sys
+import os
+import struct
+import sys
 
 
 def box(x0, y0, z0, x1, y1, z1):

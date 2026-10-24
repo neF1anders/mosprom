@@ -1,29 +1,49 @@
-#!/usr/bin/env python3
-"""Один вызов инструмента плагина через MCP: python mcp_call.py <инструмент> ['{"арг": 1}'] [--server-json путь]
-Например: get_state, list_models, analyze_orientation, get_slicing_status."""
-import json, os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from apply_parameter_set import McpClient, ApplyError
+"""One tool of the AI Assistant plugin, called by hand through the pipeline's MCP adapter.
+
+uv run python tools/slicing/mcp_call.py get_state ['{"арг": 1}'] [--folder папка]
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import json
+import sys
+from pathlib import Path
+
+import httpx
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from src.backend.config import Settings  # noqa: E402
+from src.backend.infrastructure.files import LocalFiles  # noqa: E402
+from src.backend.infrastructure.slicer import (  # noqa: E402
+    CallFailed,
+    McpSlicer,
+    SlicerSettings,
+    SlicerUnavailable,
+)
 
 
-def main(argv):
-    args = [a for a in argv[1:] if not a.startswith("--")]
-    server = None
-    if "--server-json" in argv:
-        server = argv[argv.index("--server-json") + 1]
-        args = [a for a in args if a != server]
-    if not args:
-        print(__doc__)
-        return 2
-    payload = json.loads(args[1]) if len(args) > 1 else {}
+def main(argv: list[str]) -> int:
+    settings = Settings()
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("tool")
+    parser.add_argument("arguments", nargs="?", default="{}", help="аргументы JSON")
+    parser.add_argument("--folder", type=Path, default=settings.slicer_folder)
+    args = parser.parse_args(argv)
+    run_seconds = settings.slicing_timeout_seconds
+    slicer = McpSlicer(
+        LocalFiles(settings.data_dir), SlicerSettings(args.folder, "", "127.0.0.1", run_seconds)
+    )
     try:
-        result = McpClient(server).call(args[0], payload)
-    except ApplyError as error:
+        result = asyncio.run(slicer.call(args.tool, json.loads(args.arguments)))
+    except (CallFailed, SlicerUnavailable, httpx.TransportError) as error:
         print("ОШИБКА:", error)
         return 1
-    print(json.dumps(result, ensure_ascii=False, indent=2) if not isinstance(result, str) else result)
+    print(result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main(sys.argv[1:]))
