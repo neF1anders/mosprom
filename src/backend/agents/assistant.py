@@ -28,7 +28,8 @@ from .sources import Sources
 from .store import RunStore
 
 logger = logging.getLogger(__name__)
-START, UPDATE, LOG, INVESTIGATE = "start_project", "update_project", "project_log", "investigate"
+REPLY, START, UPDATE = "reply", "start_project", "update_project"
+LOG, INVESTIGATE = "project_log", "investigate"
 # Steps of one turn: a look at the journal or an investigation, then the answer.
 STEPS = 4
 ASSISTANT = AgentSpec("assistant", "Ассистент", Output, max_steps=STEPS, thinking=False)
@@ -64,7 +65,12 @@ START_ARGS = {
     "required": ["title"],
 }
 UPDATE_ARGS = {"type": "object", "properties": {"summary": _TEXT}, "required": ["summary"]}
-INVESTIGATE_ARGS = {"type": "object", "properties": {"question": _TEXT}, "required": ["question"]}
+REPLY_ARGS = {"type": "object", "properties": {"text": _TEXT}, "required": ["text"]}
+INVESTIGATE_ARGS = {
+    "type": "object",
+    "properties": {"question": _TEXT, "say": _TEXT},
+    "required": ["question"],
+}
 Say = Callable[[str], Awaitable[None]]
 
 
@@ -105,32 +111,41 @@ class Assistant:
     def __init__(self, runner: AgentRunner, uow: UowFactory, files: Files):
         self.runner, self.store, self.journal = runner, JobStore(uow), Journal(uow)
         self.sources = Sources(RunStore(uow), files)
-        text, start = split_tool(prompt("assistant"), START, START_ARGS)
+        text, answer = split_tool(prompt("assistant"), REPLY, REPLY_ARGS)
+        text, start = split_tool(text, START, START_ARGS)
         text, update = split_tool(text, UPDATE, UPDATE_ARGS)
         text, log = split_tool(text, LOG)
         self.system, investigate = split_tool(text, INVESTIGATE, INVESTIGATE_ARGS)
-        self.tools = [start, update, log, investigate]
+        self.reply = answer
+        self.tools = [answer, start, update, log, investigate]
 
     async def decide(self, situation: Situation, say: Say) -> Decision:
-        """One turn: the tools until a decision or an answer; the last step has no tools.
+        """One turn: a tool every step, the reply in the chat included, so the agent never
+        says it did something it did not do; the last step offers only the reply.
 
-        A text sent along with a reading tool reaches the chat at once, so the user sees
-        «сейчас посмотрю» while the investigation runs.
+        What the agent says along with an investigation reaches the chat at once, so the
+        user sees «сейчас посмотрю» while it runs.
         """
         ctx = self.context(situation.job)
         await self.sources.parse(situation.files, ctx)
         messages = assistant_messages(self.system, situation)
         for step in range(1, STEPS + 1):
-            offered = self.tools if step < STEPS else []
-            reply = await self.runner.talk(ASSISTANT, messages, offered, ctx, step)
-            calls = reply.tool_calls if offered else []
-            if not calls:
-                return Decision("reply", chat_text(reply.content) or FALLBACK)
+            offered = self.tools if step < STEPS else [self.reply]
+            reply = await self.runner.talk(
+                ASSISTANT, messages, offered, ctx, step, tool_choice="required"
+            )
+            calls = reply.tool_calls
+            answer = called(calls, REPLY)
+            # A provider that ignores the requirement still answers in plain text.
+            if answer is not None or not calls:
+                text = str((answer or {}).get("text") or reply.content)
+                return Decision("reply", chat_text(text) or FALLBACK)
             decision = self._decision(calls, reply.content, situation)
             if decision is not None:
                 return decision
-            if reply.content.strip():
-                await say(chat_text(reply.content))
+            spoken = str((called(calls, INVESTIGATE) or {}).get("say") or reply.content)
+            if spoken.strip():
+                await say(chat_text(spoken))
             messages.append({"role": "assistant", "content": reply.content, "tool_calls": calls})
             for call in calls:
                 result = await self._tool(call, situation, ctx)
@@ -141,7 +156,7 @@ class Assistant:
                         "content": json.dumps(result, ensure_ascii=False),
                     }
                 )
-        raise RuntimeError("The last step is offered without tools, so it always answers")
+        raise RuntimeError("The last step offers only the reply, so it always answers")
 
     def _decision(
         self, calls: list[dict[str, Any]], text: str, situation: Situation
