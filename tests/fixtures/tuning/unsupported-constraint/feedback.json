@@ -1,0 +1,18 @@
+{
+ "constraints": [
+  {
+   "id": "C1",
+   "key": "speed_print",
+   "op": "ne",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": 60
+  }
+ ],
+ "contract": "stage3.feedback",
+ "exclude": [],
+ "iteration": 1,
+ "result": "needs_changes",
+ "version": "0.1",
+ "warnings": []
+}

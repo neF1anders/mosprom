@@ -1,0 +1,34 @@
+{
+ "constraints": [
+  {
+   "id": "C1",
+   "key": "infill_pattern",
+   "op": "eq",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": "cubic"
+  },
+  {
+   "id": "C2",
+   "key": "retraction_amount",
+   "op": "eq",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": 5.0
+  },
+  {
+   "id": "C3",
+   "key": "cool_fan_enabled_classic",
+   "op": "ne",
+   "reason": "synthetic",
+   "severity": "error",
+   "value": false
+  }
+ ],
+ "contract": "stage3.feedback",
+ "exclude": [],
+ "iteration": 1,
+ "result": "needs_changes",
+ "version": "0.1",
+ "warnings": []
+}

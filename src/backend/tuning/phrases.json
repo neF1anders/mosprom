@@ -1,0 +1,21 @@
+{
+  "note": "Free text of the stage-1 task card that parameter selection reads. Requirement codes, kinds and units come from knowledge/requirement_keys.json. Phrases are lowercase substrings of free text; load_phrases is checked in order, first match wins. material_answers are ids of stage-1 questions whose answer names the material.",
+  "booleans": {
+    "true": ["true", "да", "yes", "требуется", "обязательно"],
+    "false": ["false", "нет", "no", "не требуется"]
+  },
+  "material_answers": ["material_choice"],
+  "load_phrases": [
+    ["none", ["не несёт", "не несет", "без нагруз", "не рассчитан"]],
+    ["impact", ["удар"]],
+    ["cyclic", ["циклич", "вибрац", "знакоперемен"]],
+    ["static", ["статич"]]
+  ],
+  "priority_phrases": {
+    "strength": ["прочн"],
+    "accuracy": ["точн", "допуск"],
+    "speed": ["быстр", "срочн"],
+    "cost": ["дешев", "дёшев", "эконом"]
+  },
+  "supports_forbidden_phrases": ["без поддерж", "без опор", "без следов поддерж"]
+}

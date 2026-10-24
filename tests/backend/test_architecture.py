@@ -8,6 +8,17 @@ from packaging.requirements import Requirement
 
 pytestmark = pytest.mark.architecture
 ROOT = Path("src/backend")
+# Selection and its check are pure: they get the card and the catalog and return values.
+STAGE_CORE = (
+    "sqlalchemy",
+    "psycopg",
+    "fastapi",
+    "httpx",
+    "infrastructure",
+    "agents",
+    "services",
+    "pipeline",
+)
 
 
 def _imports(node: ast.AST) -> list[str]:
@@ -41,23 +52,12 @@ def test_runtime_dependencies_cover_lazy_production_imports():
         ("services", ("sqlalchemy", "psycopg", "fastapi", "infrastructure")),
         ("agents", ("sqlalchemy", "psycopg", "fastapi", "infrastructure", "httpx")),
         ("domain", ("sqlalchemy", "psycopg", "fastapi", "httpx", "infrastructure", "agents")),
-        ("domain", ("pipeline", "services")),
+        ("domain", ("pipeline", "services", "tuning", "validation")),
         ("pipeline", ("sqlalchemy", "psycopg", "fastapi", "httpx", "infrastructure", "agents")),
         ("ports", ("sqlalchemy", "psycopg", "fastapi", "infrastructure")),
         ("infrastructure", ("api.routes", "services", "agents")),
-        (
-            "validation",
-            (
-                "sqlalchemy",
-                "psycopg",
-                "fastapi",
-                "httpx",
-                "infrastructure",
-                "agents",
-                "services",
-                "pipeline",
-            ),
-        ),
+        ("validation", STAGE_CORE),
+        ("tuning", STAGE_CORE),
     ],
 )
 def test_A01_import_boundaries(folder, forbidden):
@@ -96,6 +96,7 @@ def test_A01_application_branch_nesting_at_most_two():
         "infrastructure",
         "pipeline",
         "validation",
+        "tuning",
     ]:
         for path in (ROOT / folder).rglob("*.py"):
             visit(ast.parse(path.read_text()))
