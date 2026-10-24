@@ -5,12 +5,21 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.errors import AppError, NotFound
-from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
+from ..domain.models import (
+    AgentCall,
+    Attachment,
+    Event,
+    Job,
+    JobHead,
+    Knowledge,
+    Message,
+    QueuedMessage,
+)
 from ..domain.pipeline import Step
 from . import tables as t
 
@@ -108,6 +117,33 @@ class MessageRepository(Repository):
             query = query.where(t.messages.c.seq < before)
         rows = (await self._session.execute(query)).mappings()
         return list(reversed([dict(row["payload"], seq=row["seq"]) for row in rows]))
+
+
+class QueuedRepository(Repository):
+    """Messages typed while the job works, in the order they were sent."""
+
+    async def save(self, item: QueuedMessage) -> None:
+        query = insert(t.queued_messages).values(
+            id=item.id, job_id=item.job_id, payload=item.model_dump(mode="json")
+        )
+        await self._session.execute(
+            query.on_conflict_do_update(
+                index_elements=["id"], set_={"payload": query.excluded.payload}
+            )
+        )
+
+    async def list(self, job_id: str) -> builtins.list[QueuedMessage]:
+        rows = await self._session.scalars(
+            select(t.queued_messages.c.payload)
+            .where(t.queued_messages.c.job_id == job_id)
+            .order_by(t.queued_messages.c.seq)
+        )
+        return [QueuedMessage.model_validate(row) for row in rows]
+
+    async def remove(self, ids: builtins.list[str]) -> None:
+        await self._session.execute(
+            delete(t.queued_messages).where(t.queued_messages.c.id.in_(ids))
+        )
 
 
 class AttachmentRepository(Repository):

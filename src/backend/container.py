@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from functools import cached_property
 
+from .agents.events import Narrator
 from .agents.runner import AgentRunner
 from .agents.stage1 import Stage1, Stage1Settings
+from .agents.steer import Steer
 from .agents.tools import ToolBox
 from .config import Settings
 from .domain.catalog import Catalog
+from .domain.model_settings import ModelSettings
 from .infrastructure.catalog import load_catalog, load_requirement_keys
 from .infrastructure.database import database
 from .infrastructure.files import LocalFiles
+from .infrastructure.model_settings import ModelSettingsFile
 from .infrastructure.notifier import PostgresNotifier
 from .infrastructure.queue import queue_app
 from .infrastructure.qwen import QwenClient
@@ -23,7 +27,9 @@ from .services.commands import Commands
 from .services.control import ControlService
 from .services.jobs import JobService
 from .services.messages import MessageService
+from .services.queued import QueuedService
 from .services.sessions import SessionService
+from .services.steering import Steering
 from .services.uploads import UploadService
 from .slicing import check_gcode
 from .tuning.select import select_parameters
@@ -36,12 +42,11 @@ class Container:
         self.queue = queue_app(settings.database_url)
         self.engine, self.uow = database(settings.database_url, self.queue)
         self.files = LocalFiles(settings.data_dir, limits=settings.limits)
-        self.model = QwenClient(
-            settings.qwen_base_url,
-            settings.qwen_model,
-            settings.qwen_api_key,
-            max_tokens=settings.qwen_max_tokens,
+        self.model_settings = ModelSettingsFile(
+            settings.data_dir,
+            ModelSettings(settings.qwen_base_url, settings.qwen_model, settings.qwen_api_key),
         )
+        self.model = QwenClient(self.model_settings.current, max_tokens=settings.qwen_max_tokens)
         self.notifier = PostgresNotifier(settings.database_url)
         self.requirement_keys = load_requirement_keys(settings.requirement_keys_path)
         commands = Commands(self.uow)
@@ -50,19 +55,28 @@ class Container:
         self.messages = MessageService(commands)
         self.answers = AnswerService(commands)
         self.control = ControlService(commands)
+        self.queued = QueuedService(commands)
         self.uploads = UploadService(commands, self.files, self.uow, settings.limits)
         self.artifacts = ArtifactService(self.uow, self.files)
-        tools = ToolBox(self.files)
+        # One runner for stage one and «Корректировка», which delivers between the steps.
+        runner = AgentRunner(
+            self.model,
+            ToolBox(self.files),
+            self.uow,
+            lambda: self.model_settings.current().model,
+            narrate=Narrator(self.model) if settings.narrate_reasoning else None,
+        )
+        self.steering = Steering(self.uow, Steer(runner, self.uow))
         self.stage1 = Stage1(
             self.uow,
             self.files,
-            AgentRunner(self.model, tools, self.uow, settings.qwen_model),
+            runner,
             Stage1Settings(
-                model=settings.qwen_model,
                 timeout_seconds=settings.stage1_timeout_seconds,
                 job_images=settings.limits.job_images,
             ),
             self.requirement_keys,
+            safe_point=self.steering.deliver,
         )
 
     @cached_property
@@ -97,6 +111,7 @@ class Container:
                 gcode_facts(files, key), parameter_set, catalog, iteration
             ),
             PipelineSettings(timeout_seconds=self.settings.parameters_timeout_seconds),
+            safe_point=self.steering.deliver,
         )
 
     async def close(self) -> None:

@@ -10,7 +10,7 @@ from procrastinate import App
 
 from .config import Settings
 from .container import Container
-from .infrastructure.queue import STAGE1_QUEUE, STAGE2_QUEUE
+from .infrastructure.queue import STAGE1_QUEUE, STAGE2_QUEUE, STEER_QUEUE
 from .tasks import register
 
 logger = logging.getLogger(__name__)
@@ -57,9 +57,10 @@ async def main() -> None:
             recovery = asyncio.create_task(recover_stalled(container.queue))
             try:
                 # Every queue whose tasks hold the job lock is served here, or a waiting task
-                # of one queue would hold back the job's work in the others.
+                # of one queue would hold back the job's work in the others. Deliveries the
+                # user sends at once run beside that work under a lock of their own.
                 await container.queue.run_worker_async(
-                    queues=[STAGE1_QUEUE, STAGE2_QUEUE],
+                    queues=[STAGE1_QUEUE, STAGE2_QUEUE, STEER_QUEUE],
                     concurrency=settings.worker_concurrency,
                     fetch_job_polling_interval=FETCH_SECONDS,
                 )

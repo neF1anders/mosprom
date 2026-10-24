@@ -1,5 +1,9 @@
+import asyncio
+import time
+
 import pytest
 
+from src.backend.agents.events import BUFFER, CallEvents, Clock, Narration, ThoughtStream, preview
 from src.backend.agents.runner import AgentRunner, AgentSpec, parse_output
 from src.backend.agents.schemas import Draft, Output
 from src.backend.agents.tools import ToolBox
@@ -15,9 +19,30 @@ class Scored(Output):
     score: float
 
 
-def runner(script) -> tuple[AgentRunner, ScriptedModel, FakeUow]:
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def runner(script, clock: Clock = time.monotonic) -> tuple[AgentRunner, ScriptedModel, FakeUow]:
     model, uow = ScriptedModel(script), FakeUow()
-    return AgentRunner(model, ToolBox(None), uow), model, uow
+    return AgentRunner(model, ToolBox(None), uow, clock=clock), model, uow
+
+
+def kinds(ctx) -> list[tuple[str, str]]:
+    return [(type, status) for type, _, status, _ in ctx.recorded]
+
+
+def thoughts(clock: FakeClock) -> tuple[ThoughtStream, list[tuple[int, str]]]:
+    sent: list[tuple[int, str]] = []
+
+    async def event(type, message, status="running", **data):
+        sent.append((data["attempt"], data["text"]))
+
+    return ThoughtStream(event, "checker", "Проверка", "r:checker:1", clock), sent
 
 
 def test_json_repair_and_per_item_validation():
@@ -189,11 +214,17 @@ async def test_talk_offers_the_tools_but_does_not_run_them():
         {"role": "system", "content": "Ты ассистент"},
         {"role": "user", "content": "Привет"},
     ]
-    answer = await agent.talk(spec, messages, [tool], context())
+    ctx = context()
+    answer = await agent.talk(spec, messages, [tool], ctx)
     assert answer.tool_calls[0]["function"]["name"] == "start_pipeline"
     assert model.requests["gate"][0]["tools"] == [tool]
     assert model.requests["gate"][0]["thinking"] is False
     assert len(uow.traces.calls) == 1 and uow.cache.values == {}
+    assert [(e[0], e[3]["call"]) for e in ctx.recorded] == [
+        ("agent.started", "r:gate:1"),
+        ("agent.thinking", "r:gate:1"),
+        ("agent.finished", "r:gate:1"),
+    ]
 
 
 def test_a_null_in_an_optional_field_keeps_the_item():
@@ -209,3 +240,244 @@ def test_a_null_in_an_optional_field_keeps_the_item():
     assert duty.sources[0].quote == "режим 24/7"
     # A null in a required field still makes the item unusable.
     assert dropped == ["requirements[1]: Input should be a valid string"]
+
+
+async def test_a_call_shows_its_start_reasoning_and_end():
+    clock = FakeClock()
+
+    async def slow(messages):
+        clock.now = 2.5
+        return reply({"purpose": "Деталь"}, reasoning="Читаю ТЗ")
+
+    agent, _, _ = runner({"interpreter": [slow]}, clock)
+    ctx = context()
+    await agent.run(SPEC, [], ctx)
+    call_id = "r:interpreter:1"
+    assert ctx.recorded == [
+        (
+            "agent.started",
+            "Разбор ТЗ, работает",
+            "running",
+            {"agent": "interpreter", "title": "Разбор ТЗ", "call": call_id},
+        ),
+        (
+            "agent.thinking",
+            "Разбор ТЗ, рассуждает",
+            "running",
+            {"agent": "interpreter", "call": call_id, "attempt": 1, "text": "Читаю ТЗ"},
+        ),
+        (
+            "agent.finished",
+            "Разбор ТЗ, готово",
+            "completed",
+            {
+                "agent": "interpreter",
+                "title": "Разбор ТЗ",
+                "call": call_id,
+                "duration_ms": 2500,
+                "cached": False,
+            },
+        ),
+    ]
+
+
+async def test_a_reused_result_starts_and_finishes_at_once():
+    agent, _, _ = runner({"interpreter": [reply({"purpose": "Деталь"})]}, FakeClock())
+    text = [{"type": "text", "text": "ТЗ"}]
+    await agent.run(SPEC, text, context())
+    ctx = context()
+    await agent.run(SPEC, text, ctx)
+    assert [(e[0], e[1], e[2]) for e in ctx.recorded] == [
+        ("agent.started", "Разбор ТЗ, работает", "running"),
+        ("agent.finished", "Разбор ТЗ, ответ из кеша", "completed"),
+    ]
+    assert ctx.recorded[-1][3] == {
+        "agent": "interpreter",
+        "title": "Разбор ТЗ",
+        "call": "r:interpreter:0",
+        "duration_ms": 0,
+        "cached": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        AppError("Модель не отвечает", "model_unavailable", 503),
+        reply('{"purpose": "обо', finish_reason="length"),
+    ],
+)
+async def test_a_failed_call_finishes_as_failed(answer):
+    agent, _, _ = runner({"interpreter": [answer]})
+    ctx = context()
+    with pytest.raises(AppError):
+        await agent.run(SPEC, [], ctx)
+    assert ctx.recorded[0][0] == "agent.started"
+    assert ctx.recorded[-1][:3] == ("agent.finished", "Разбор ТЗ, ошибка", "failed")
+
+
+async def test_a_cancelled_call_sends_nothing_after_its_start():
+    def stopped(messages):
+        raise asyncio.CancelledError
+
+    agent, _, _ = runner({"interpreter": [stopped]})
+    ctx = context()
+    with pytest.raises(asyncio.CancelledError):
+        await agent.run(SPEC, [], ctx)
+    assert kinds(ctx) == [("agent.started", "running")]
+
+
+async def test_tools_run_inside_their_step_and_finish_with_a_preview():
+    good = call("convert_units", {"value": "1", "from_unit": "inch", "to_unit": "mm"})
+    bad = call("convert_units", {"value": "x", "from_unit": "mm", "to_unit": "m"}, "c2")
+    agent, _, _ = runner(
+        {"interpreter": [reply(tool_calls=[good, bad]), reply({"purpose": "Деталь"})]},
+        FakeClock(),
+    )
+    ctx = context()
+    await agent.run(SPEC, [], ctx)
+    assert kinds(ctx) == [
+        ("agent.started", "running"),
+        ("agent.thinking", "running"),
+        ("tool.called", "running"),
+        ("tool.finished", "completed"),
+        ("tool.called", "running"),
+        ("tool.finished", "warning"),
+        ("agent.finished", "completed"),
+        ("agent.started", "running"),
+        ("agent.thinking", "running"),
+        ("agent.finished", "completed"),
+    ]
+    converted, refused = [e for e in ctx.recorded if e[0] == "tool.finished"]
+    assert converted[1] == "Разбор ТЗ, переводит единицы, готово"
+    assert converted[3] == {
+        "agent": "interpreter",
+        "tool": "convert_units",
+        "call": "r:interpreter:1",
+        "duration_ms": 0,
+        "result_preview": '{"value": "25.4", "unit": "mm"}',
+    }
+    assert refused[1] == "Разбор ТЗ, переводит единицы, ошибка"
+    assert refused[3]["result_preview"].startswith('{"error": ')
+
+
+def test_a_tool_preview_leaves_out_images_and_stays_short():
+    shown = preview({"status": "приложено " * 40, "images": [{"type": "image_url"}]})
+    assert len(shown) == 200 and "images" not in shown
+    assert shown.startswith('{"status": "приложено приложено')
+
+
+async def test_reasoning_goes_out_after_a_pause_a_paragraph_or_a_full_buffer():
+    clock = FakeClock()
+    stream, sent = thoughts(clock)
+    pieces = [(0.2, "a"), (0.4, "b"), (1.0, "c"), (1.3, "x\n\ny"), (1.6, "z"), (1.7, "w" * BUFFER)]
+    for at, text in pieces:
+        clock.now = at
+        await stream(text, 1)
+    # A paragraph sends only up to its end, the rest waits for the next piece.
+    assert [text for _, text in sent] == ["abc", "x\n\n", "yz" + "w" * BUFFER]
+    await stream("конец", 1)
+    assert len(sent) == 3
+    await stream.close()
+    await stream.close()
+    assert sent[3:] == [(1, "конец")]
+
+
+async def test_a_new_attempt_drops_the_unsent_reasoning():
+    clock = FakeClock()
+    stream, sent = thoughts(clock)
+    await stream("прежняя попытка", 1)
+    await stream("новая", 2)
+    await stream.close()
+    assert sent == [(2, "новая")]
+
+
+async def test_events_that_fail_never_stop_the_run():
+    async def broken(*args, **data):
+        raise RuntimeError("database is down")
+
+    agent, _, _ = runner({"interpreter": [reply({"purpose": "Деталь"}, reasoning="Читаю")]})
+    ctx = context()
+    ctx.event = broken
+    assert (await agent.run(SPEC, [], ctx)).purpose == "Деталь"
+    clock = FakeClock()
+    stream, _ = thoughts(clock)
+    clock.now = 5
+    await stream(None, 1)  # type: ignore[arg-type]
+    assert stream.buffer == ""
+
+
+async def test_a_stop_is_never_swallowed_by_the_reasoning():
+    async def stopped(*args, **data):
+        raise asyncio.CancelledError
+
+    stream = ThoughtStream(stopped, "checker", "Проверка", "r:checker:1", FakeClock())
+    with pytest.raises(asyncio.CancelledError):
+        await stream("w" * BUFFER, 1)
+
+
+def narration(narrate) -> tuple[Narration, list[tuple[int, str]]]:
+    said: list[tuple[int, str]] = []
+
+    async def event(type, message, status="running", **data):
+        said.append((data["attempt"], data["text"]))
+
+    return Narration(event, "checker", "r:checker:1", "Проверка", narrate, 0.01, 0.01), said
+
+
+async def test_the_narrator_says_what_the_agent_does_while_it_reasons():
+    heard: list[tuple[str, str]] = []
+
+    async def narrate(title: str, reasoning: str, previous: str) -> str:
+        heard.append((reasoning, previous))
+        return f"Сверяю {len(heard)}"
+
+    talk, said = narration(narrate)
+    talk.feed("Checking the torque. ", 1)
+    await asyncio.sleep(0.03)
+    talk.feed("Now the temperature.", 1)
+    await asyncio.sleep(0.03)
+    talk.stop()
+    assert said[:2] == [(1, "Сверяю 1"), (1, "Сверяю 2")]
+    assert heard[0] == ("Checking the torque. ", "")
+    assert heard[1] == ("Checking the torque. Now the temperature.", "Сверяю 1")
+
+
+async def test_the_narrator_keeps_quiet_without_news_and_skips_a_failure():
+    calls = 0
+
+    async def narrate(title: str, reasoning: str, previous: str) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise AppError("Модель не отвечает", "model_unavailable", 503)
+        return "Разбираю ТЗ"
+
+    talk, said = narration(narrate)
+    talk.feed("Reading the spec", 1)
+    await asyncio.sleep(0.05)
+    # The failed phrase is skipped and nothing new came, so no second call is made.
+    assert calls == 1 and said == []
+    talk.feed(" further", 2)
+    await asyncio.sleep(0.03)
+    talk.stop()
+    assert said[0] == (2, "Разбираю ТЗ")
+
+
+async def test_a_cancelled_call_stops_its_narrator():
+    async def narrate(title: str, reasoning: str, previous: str) -> str:
+        return "Разбираю ТЗ"
+
+    async def event(type, message, status="running", **data):
+        pass
+
+    ctx = context()
+    ctx.event = event
+    events = CallEvents(SPEC, ctx, 1, FakeClock(), narrate=narrate)
+    with pytest.raises(asyncio.CancelledError):
+        async with events:
+            await events.thoughts("Reading", 1)
+            raise asyncio.CancelledError
+    await asyncio.sleep(0)
+    assert events.narration is not None and events.narration.task is not None
+    assert events.narration.task.cancelled() or events.narration.task.done()

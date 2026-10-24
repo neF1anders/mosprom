@@ -13,6 +13,7 @@ from .repositories import (
     JobRepository,
     KnowledgeRepository,
     MessageRepository,
+    QueuedRepository,
     ReceiptRepository,
     StageResultRepository,
     TraceRepository,
@@ -27,6 +28,7 @@ class PostgresUnitOfWork:
         self._session = self._factory()
         self.jobs = JobRepository(self._session)
         self.messages = MessageRepository(self._session)
+        self.queued = QueuedRepository(self._session)
         self.attachments = AttachmentRepository(self._session)
         self.receipts = ReceiptRepository(self._session)
         self.cache = CacheRepository(self._session)
