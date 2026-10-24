@@ -69,27 +69,6 @@ class RunStore(JobStore):
             await _publish(uow, job, FILES_CHANGED if job.files_changed else text, "chat")
             await uow.commit()
 
-    async def reply(self, ctx: RunContext, text: str, kind: str, current: bool) -> None:
-        """The gate's reply when it starts no work; ``kind`` marks its request for details.
-
-        The card of the files the job still has stays, and so does a project finished from
-        it; work left unfinished goes on. A card of other files no longer describes the part.
-        """
-        async with self.uow() as uow:
-            job = await uow.jobs.get(ctx.job_id, lock=True)
-            ensure_current(job.revision, job.status, ctx.revision)
-            if job.card is not None and not current:
-                job.card = None
-                restart(job)
-            elif job.card is not None:
-                job.card = job.card.model_copy(update={"revision": job.revision})
-            if job.stage == "done":
-                job.status = transition(job.status, Status.COMPLETED)
-            else:
-                await _hand_over(uow, job)
-            await _publish(uow, job, FILES_CHANGED if job.files_changed else text, kind)
-            await uow.commit()
-
 
 async def _hand_over(uow: UnitOfWork, job: Job) -> None:
     """A ready card waits in the queue for parameter selection, in the same transaction.

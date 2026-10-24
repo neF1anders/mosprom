@@ -6,22 +6,28 @@ from typing import Any
 from ..domain.hashing import fingerprint
 from ..domain.models import Attachment, Event, Job, Message, Status, now
 from ..domain.pipeline import restart
+from ..domain.projects import in_project
 from ..domain.transitions import transition
 from ..ports.persistence import UnitOfWork, UowFactory
 
 
 async def changed(
-    uow: UnitOfWork, job: Job, message: str, start: bool = False, correction: bool = False
-) -> None:
+    uow: UnitOfWork,
+    job: Job,
+    message: str,
+    start: bool = False,
+    correction: bool = False,
+    typed: list[str] | None = None,
+) -> int | None:
     """A new revision and its stage-one job commit together with the change itself.
 
-    A finished project stays until stage one starts the work again, so a reply in the chat
-    that starts nothing leaves it as it was; unfinished work starts over. ``start`` skips
-    the gate's decision; ``correction`` continues the checker's dialog with the new text.
+    ``start`` runs stage one anew; ``correction`` continues the checker's dialog with the new
+    text; ``typed`` are messages already in the chat that the run reads as the user's reply.
+    Returns where the messages that waited in the queue start in the chat, if any did.
     """
     job.updated_at = now()
     job.revision += 1
-    await _take_queue(uow, job)
+    first = await _take_queue(uow, job)
     job.status = transition(job.status, Status.QUEUED)
     job.error = None
     job.files_changed = False
@@ -35,7 +41,7 @@ async def changed(
     await apply_stl(uow, job, attachments)
     await uow.jobs.save(job)
     await uow.queue.cancel_pending(job.id)
-    await uow.queue.stage1(job.id, job.revision, start, correction)
+    await uow.queue.stage1(job.id, job.revision, start, correction, typed or [])
     await uow.events.append(
         Event(
             job_id=job.id,
@@ -45,25 +51,30 @@ async def changed(
             message=message,
         )
     )
+    return first
 
 
-async def _take_queue(uow: UnitOfWork, job: Job) -> None:
+async def _take_queue(uow: UnitOfWork, job: Job) -> int | None:
     """Every new revision takes the messages still waiting, before whatever text started it.
 
     Nothing is lost or left between revisions; a delivery that claimed them loses its claim.
     """
     waiting = await uow.queued.list(job.id)
-    for item in waiting:
+    seqs = [
         await uow.messages.add(
             Message(
                 job_id=job.id,
                 revision=job.revision,
                 role="user",
                 text=item.text,
+                attachment_ids=item.attachment_ids,
                 created_at=item.created_at,
             )
         )
+        for item in waiting
+    ]
     await uow.queued.remove([item.id for item in waiting])
+    return seqs[0] if seqs else None
 
 
 async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) -> None:
@@ -71,7 +82,7 @@ async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) ->
 
     Removing an unsent STL therefore leaves the earlier model intact.
     """
-    stls = [a for a in attachments if a.active and a.kind == "stl"]
+    stls = [a for a in attachments if a.active and a.kind == "stl" and in_project(a, job)]
     new = next((a for a in stls if a.id != job.active_stl), None)
     current = next((a for a in stls if a.id == job.active_stl), None)
     if new is not None:

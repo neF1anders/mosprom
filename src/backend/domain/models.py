@@ -129,6 +129,13 @@ class StlAnalysis(Value):
     report: dict[str, Any]
 
 
+class WaivedQuestion(Value):
+    """A question the checker chose not to ask, and why; the user may still answer otherwise."""
+
+    title: str
+    reason: str
+
+
 class SourceFile(Value):
     id: str
     filename: str
@@ -147,6 +154,7 @@ class TaskCard(Value):
     assumptions: list[Assumption] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     questions: list[Question] = Field(default_factory=list)
+    waived: list[WaivedQuestion] = Field(default_factory=list)
     geometry: Geometry | None = None
     stl_analysis: StlAnalysis | None = None
     readiness: Literal["ready", "preliminary", "blocked"] = "blocked"
@@ -197,6 +205,22 @@ class ResultSummary(Value):
     material_meters: float | None = None
 
 
+class Project(Value):
+    """One part the chat works on; a chat may go on to the next part when one is done.
+
+    Its messages start at ``first_message``; the assistant's notes carry what the user said
+    about the part earlier in the chat. The answers of a finished project hint the next one.
+    """
+
+    number: int
+    title: str
+    notes: str = ""
+    first_message: int = 0
+    revision: int = 0
+    answers: dict[str, str] = Field(default_factory=dict)
+    started_at: datetime = Field(default_factory=now)
+
+
 class Job(Value):
     id: str = Field(default_factory=identifier)
     user_id: str
@@ -220,8 +244,14 @@ class Job(Value):
     result: ResultSummary | None = None
     outcome: Outcome | None = None
     error: str | None = None
+    # The parts of the chat in order; files and the card belong to the last one.
+    projects: list[Project] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
+
+    @property
+    def project(self) -> Project | None:
+        return self.projects[-1] if self.projects else None
 
 
 class JobHead(Value):
@@ -238,9 +268,12 @@ class Message(Value):
     # Answers are echoed into the chat but reach the agents through Job.answers, not as text.
     # "gate" is the assistant's one request for details before the work starts. "offtopic"
     # marks what the agents never read: a queued message that changed nothing, and messages
-    # of earlier versions; "steer" is the assistant's reply to such a message.
-    kind: Literal["chat", "answers", "gate", "offtopic", "steer"] = "chat"
+    # of earlier versions; "steer" is the assistant's reply to such a message. "report" is
+    # the assistant's summary of a finished project.
+    kind: Literal["chat", "answers", "gate", "offtopic", "steer", "report"] = "chat"
     text: str
+    # Files sent with the message, shown in its bubble.
+    attachment_ids: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=now)
 
 
@@ -254,6 +287,7 @@ class QueuedMessage(Value):
     id: str = Field(default_factory=identifier)
     job_id: str
     text: str
+    attachment_ids: list[str] = Field(default_factory=list)
     status: Literal["queued", "delivering"] = "queued"
     claim: str | None = None
     claimed_at: datetime | None = None
@@ -267,6 +301,8 @@ class Attachment(Value):
     active: bool = True
     # Not sent yet: a new upload waiting in the composer, or a removal the next send applies.
     draft: bool = False
+    # The project the file belongs to; None for a file sent but not taken into one yet.
+    project: int | None = None
     id: str = Field(default_factory=identifier)
     job_id: str
     filename: str

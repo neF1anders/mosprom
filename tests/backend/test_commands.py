@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import text
 
 from src.backend.domain.models import Status
+from src.backend.services.commands import changed
 
 pytestmark = pytest.mark.integration
 
@@ -33,6 +34,11 @@ async def queued(pg, job_id: str) -> list[dict]:
         return [dict(row._mapping) for row in rows]
 
 
+def active(snapshot: dict) -> list[str]:
+    """The files in use; removed ones stay in the snapshot for the messages that sent them."""
+    return [a["id"] for a in snapshot["attachments"] if a["active"]]
+
+
 async def upload(http, job_id: str, name: str, request_id: str | None = None):
     content = Path("tests/fixtures", name).read_bytes()
     return await http.post(
@@ -42,21 +48,24 @@ async def upload(http, job_id: str, name: str, request_id: str | None = None):
     )
 
 
-async def test_message_creates_revision_and_queues_work_in_one_transaction(pg, http):
+async def test_a_message_reaches_the_assistant_in_one_transaction(pg, http):
+    """A message alone starts no work: the assistant decides, and only its tool does."""
     job_id = await new_job(http)
     response = await http.post(
         f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "Шестерня привода"}
     )
-    assert response.json()["revision"] == 1 and response.json()["status"] == "queued"
+    assert response.json()["revision"] == 0 and response.json()["status"] == "draft"
     assert response.json()["title"] == "Шестерня привода"
     assert await queued(pg, job_id) == [
         {
-            "task_name": "stage1.run",
-            "queue_name": "stage1",
-            "lock": f"job:{job_id}",
-            "args": {"job_id": job_id, "revision": 1, "start": False},
+            "task_name": "steer.deliver",
+            "queue_name": "steer",
+            "lock": f"steer:{job_id}",
+            "args": {"job_id": job_id},
         }
     ]
+    messages = (await http.get(f"/api/v1/jobs/{job_id}")).json()["messages"]
+    assert [(m["role"], m["text"]) for m in messages] == [("user", "Шестерня привода")]
 
 
 async def test_repeated_command_is_idempotent_and_conflicting_reuse_is_rejected(pg, http):
@@ -114,8 +123,8 @@ async def test_an_unsent_stl_never_displaces_the_model_in_use(pg, http):
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
     assert snapshot["job"]["active_stl"] == first["id"]
     # A newer unsent STL replaces the unsent one before it.
-    assert [a["id"] for a in snapshot["attachments"]] == sorted([first["id"], third["id"]])
-    assert second["id"] not in {a["id"] for a in snapshot["attachments"]}
+    assert active(snapshot) == sorted([first["id"], third["id"]])
+    assert second["id"] not in active(snapshot)
     detached = await http.post(
         f"/api/v1/jobs/{job_id}/attachments/{third['id']}/detach", json={"request_id": rid()}
     )
@@ -124,7 +133,7 @@ async def test_an_unsent_stl_never_displaces_the_model_in_use(pg, http):
     sent = await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     assert sent.json()["active_stl"] == fourth["id"]
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
-    assert [a["id"] for a in snapshot["attachments"]] == [fourth["id"]]
+    assert active(snapshot) == [fourth["id"]]
 
 
 async def test_removing_the_sent_stl_takes_effect_on_send(pg, http):
@@ -160,9 +169,10 @@ async def test_unsent_files_stay_drafts_until_the_send(pg, http):
         f"/api/v1/jobs/{job_id}/attachments/{dropped['id']}/detach", json={"request_id": rid()}
     )
     assert detached.json()["files_changed"]
-    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
-    assert [(a["id"], a["draft"]) for a in snapshot["attachments"]] == [(kept["id"], False)]
+    sent = [(a["id"], a["draft"]) for a in snapshot["attachments"] if a["active"]]
+    assert sent == [(kept["id"], False)]
     assert not snapshot["job"]["files_changed"]
 
     extra = (await upload(http, job_id, "photo.png")).json()
@@ -186,7 +196,7 @@ async def test_failed_upload_leaves_no_file_or_revision(pg, http, tmp_path):
 
 async def test_stop_is_requested_while_running_and_immediate_otherwise(pg, http):
     job_id = await new_job(http)
-    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     async with pg.uow() as uow:
         job = await uow.jobs.get(job_id, lock=True)
         job.status = Status.RUNNING
@@ -262,7 +272,7 @@ async def test_an_edit_after_a_ready_card_reaches_the_stage_one_worker(pg, http)
     from procrastinate.jobs import Status as JobStatus
 
     job_id = await new_job(http)
-    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     async with pg.queue.open_async():
         worker = await pg.queue.job_manager.register_worker()
         first = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
@@ -272,12 +282,16 @@ async def test_an_edit_after_a_ready_card_reaches_the_stage_one_worker(pg, http)
             await uow.queue.stage2(job_id, 1)
             await uow.commit()
         await pg.queue.job_manager.finish_job(first, JobStatus.SUCCEEDED, delete_job=False)
-        await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
+        # The assistant applies a correction.
+        async with pg.uow() as uow:
+            await changed(uow, await uow.jobs.get(job_id, lock=True), "Правка", correction=True)
+            await uow.commit()
         edit = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
     assert edit is not None and edit.task_kwargs == {
         "job_id": job_id,
         "revision": 2,
         "start": False,
+        "correction": True,
     }
 
 

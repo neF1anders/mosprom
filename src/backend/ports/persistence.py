@@ -28,7 +28,7 @@ class Jobs(Protocol):
 
 
 class Messages(Protocol):
-    async def add(self, message: Message) -> None: ...
+    async def add(self, message: Message) -> int: ...
     async def list(
         self, job_id: str, before: int | None = None, limit: int = 100
     ) -> builtins.list[dict[str, Any]]: ...
@@ -63,7 +63,12 @@ class Events(Protocol):
 
 class Queue(Protocol):
     async def stage1(
-        self, job_id: str, revision: int, start: bool = False, correction: bool = False
+        self,
+        job_id: str,
+        revision: int,
+        start: bool = False,
+        correction: bool = False,
+        typed: builtins.list[str] | None = None,
     ) -> None: ...
     async def stage2(self, job_id: str, revision: int) -> None: ...
     async def steer(self, job_id: str) -> None: ...
@@ -77,6 +82,7 @@ class Library(Protocol):
 
 class Traces(Protocol):
     async def record(self, call: AgentCall) -> None: ...
+    async def calls(self, job_id: str, revision: int) -> builtins.list[AgentCall]: ...
     async def usage(self, job_id: str) -> tuple[int, int]: ...
 
 

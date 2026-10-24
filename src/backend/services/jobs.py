@@ -86,9 +86,8 @@ class JobService:
             "job": job.model_dump(mode="json", exclude={"card": {"stl_analysis"}}),
             "messages": messages,
             "queued": queued_view(queued),
-            "attachments": [
-                a.model_dump(mode="json", exclude={"fragments"}) for a in attachments if a.active
-            ],
+            # Removed files too: an earlier message still shows what it was sent with.
+            "attachments": [a.model_dump(mode="json", exclude={"fragments"}) for a in attachments],
             "message_cursor": messages[0]["seq"] if len(messages) == 100 else None,
         }
 

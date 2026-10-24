@@ -97,12 +97,15 @@ class JobRepository(Repository):
 
 
 class MessageRepository(Repository):
-    async def add(self, message: Message) -> None:
-        await self._session.execute(
-            insert(t.messages).values(
-                job_id=message.job_id, payload=message.model_dump(mode="json")
+    async def add(self, message: Message) -> int:
+        """The message's place in the chat, which a project counts its messages from."""
+        return (
+            await self._session.execute(
+                insert(t.messages)
+                .values(job_id=message.job_id, payload=message.model_dump(mode="json"))
+                .returning(t.messages.c.seq)
             )
-        )
+        ).scalar_one()
 
     async def list(
         self, job_id: str, before: int | None = None, limit: int = 100
@@ -267,6 +270,18 @@ class KnowledgeRepository(Repository):
 class TraceRepository(Repository):
     async def record(self, call: AgentCall) -> None:
         await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))
+
+    async def calls(self, job_id: str, revision: int) -> builtins.list[AgentCall]:
+        """The calls of one revision's work in order, for questions about how it went."""
+        rows = await self._session.execute(
+            select(t.agent_calls)
+            .where(t.agent_calls.c.job_id == job_id, t.agent_calls.c.revision == revision)
+            .order_by(t.agent_calls.c.id)
+        )
+        return [
+            AgentCall.model_validate({k: v for k, v in row.items() if k != "id"})
+            for row in rows.mappings()
+        ]
 
     async def usage(self, job_id: str) -> tuple[int, int]:
         """Provider calls a job made and the tokens they spent; cached results cost nothing."""

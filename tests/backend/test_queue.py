@@ -1,6 +1,6 @@
 """Messages queued while the job works and their delivery at its safe points, on PostgreSQL.
 
-Only the provider is scripted; the agent «Корректировка» answers as the agent ``steer``.
+Only the provider is scripted; the assistant decides as the agent ``assistant``.
 """
 
 import asyncio
@@ -11,13 +11,14 @@ from pathlib import Path
 import httpx
 import pytest
 
+from src.backend.agents.assistant import Situation
 from src.backend.agents.stage1 import CORRECTION, correction_key
 from src.backend.domain.errors import AppError
 from src.backend.domain.model_settings import ModelSettings
 from src.backend.domain.models import Status, now
 from src.backend.infrastructure.qwen import QwenClient
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
-from src.backend.services.steering import CLAIM_TIMEOUT, FILES_CHANGED
+from src.backend.services.steering import CLAIM_TIMEOUT
 from tests import model_server
 
 from .fakes import call, reply
@@ -27,7 +28,7 @@ from .test_stage1 import QUESTION, answer, chat, job_with, rid, rows, run, scrip
 pytestmark = pytest.mark.integration
 SUMMARY = "Температуру поменял с 70 на 90 °C: пересчитываю то, что от неё зависит."
 APPLIED = "Температуру поменял с 70 на 90 °C, пересчитываю то, что от неё зависит"
-APPLY = reply("", tool_calls=[call("apply_correction", {"summary": SUMMARY})])
+APPLY = reply("", tool_calls=[call("update_project", {"summary": SUMMARY})])
 OFFTOPIC = reply("Погоду не знаю — продолжаю работу.")
 TEMPERATURE = "Температура до 90 C"
 FIX = {
@@ -124,8 +125,11 @@ def correction(job_id: str, revision: int) -> dict:
 async def test_a_message_waits_while_the_job_works_and_goes_at_once_otherwise(pg, http, other):
     job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
     sent_now = await enqueue(http, job_id, "Шестерня привода")
-    assert (sent_now["job"]["revision"], sent_now["job"]["status"]) == (1, "queued")
+    assert (sent_now["job"]["revision"], sent_now["job"]["status"]) == (0, "draft")
     assert sent_now["job"]["title"] == "Шестерня привода" and sent_now["queued"] == []
+    assert await todo(pg, "steer") == [{"job_id": job_id}]
+    # The assistant started the work.
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     queued = await enqueue(http, job_id, TEMPERATURE)
     assert queued["job"]["revision"] == 1
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
@@ -173,7 +177,9 @@ async def test_only_a_waiting_message_is_edited_deleted_or_sent(pg, http):
 
 async def test_an_offtopic_message_at_the_end_of_stage_one_leaves_the_work_alone(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
-    model = script(checker=[queued_while(http, job_id, "Какая сегодня погода")], steer=[OFFTOPIC])
+    model = script(
+        checker=[queued_while(http, job_id, "Какая сегодня погода")], assistant=[OFFTOPIC]
+    )
     job = await run(pg, job_id, model)
     assert (job.revision, job.status, job.stage, job.card.revision) == (
         1,
@@ -188,19 +194,21 @@ async def test_an_offtopic_message_at_the_end_of_stage_one_leaves_the_work_alone
     ]
     assert await waiting(pg, job_id) == []
     assert (await events(pg, job_id))[-1]["type"] == "steer.replied"
-    state = model.requests["steer"][0]["messages"][1]["content"]
-    assert '"этап": "подбор параметров"' in state and '"назначение": "Шестерня привода"' in state
-    assert state.endswith("<messages>\nКакая сегодня погода\n</messages>")
+    state = model.requests["assistant"][0]["messages"][-1]["content"]
+    assert '"работа": "идёт, этап подбор параметров"' in state
+    assert '"назначение": "Шестерня привода"' in state
+    assert state.endswith("Какая сегодня погода")
     # The agents that make the card never read it.
-    await send(http, job_id, "Момент 30 Нм")
+    await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     model = script()
     await run(pg, job_id, model)
-    assert "Какая сегодня погода" not in sent(model, "interpreter")
+    # Its input is the same as before, so the interpreter's result is even reused.
+    assert "Какая сегодня погода" not in json.dumps(model.requests, ensure_ascii=False)
 
 
 async def test_a_correction_at_the_end_of_stage_one_is_one_more_turn_of_the_checker(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
-    first = script(checker=[queued_while(http, job_id, TEMPERATURE)], steer=[APPLY])
+    first = script(checker=[queued_while(http, job_id, TEMPERATURE)], assistant=[APPLY])
     job = await run(pg, job_id, first)
     # The new revision took the card's place in the queue of stage two.
     assert (job.revision, job.status, job.stage, job.card.revision) == (
@@ -236,7 +244,7 @@ async def test_a_correction_at_the_end_of_stage_one_is_one_more_turn_of_the_chec
 
     # A later correction goes on in the same dialog.
     await enqueue(http, job_id, "Количество 3")
-    pg.stage1.runner.model = script(steer=[APPLY])
+    pg.stage1.runner.model = script(assistant=[APPLY])
     assert await pg.steering.deliver(job_id, 2)
     third = script(checker=[reply({})])
     await run_queued(pg, third)
@@ -248,10 +256,10 @@ async def test_a_correction_at_the_end_of_stage_one_is_one_more_turn_of_the_chec
     assert '<source id="m1">' not in dialog[5]["content"]
 
 
-async def test_a_correction_before_the_first_card_reads_the_task_without_the_gate(pg, http):
+async def test_a_correction_before_the_first_card_reads_the_task_anew(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
     await enqueue(http, job_id, TEMPERATURE)
-    pg.stage1.runner.model = script(steer=[APPLY])
+    pg.stage1.runner.model = script(assistant=[APPLY])
     assert await pg.steering.deliver(job_id, force=True)
     model = script()
     job = await run_queued(pg, model)
@@ -259,23 +267,25 @@ async def test_a_correction_before_the_first_card_reads_the_task_without_the_gat
     assert TEMPERATURE in sent(model, "interpreter") and job.status == Status.QUEUED
 
 
-async def test_new_files_make_a_correction_without_asking_the_agent(pg, http):
+async def test_new_files_sent_during_the_work_go_into_the_update(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
     await run(pg, job_id, script())
-    await enqueue(http, job_id, "Добавил чертёж")
     response = await http.post(
         f"/api/v1/jobs/{job_id}/attachments",
         files={"file": ("extra.docx", Path("tests/fixtures/task.docx").read_bytes())},
         data={"request_id": rid()},
     )
     assert response.status_code == 201, response.text
-    model = script()
+    [item] = (await enqueue(http, job_id, "Добавил чертёж"))["queued"]
+    assert item["attachment_ids"] == [response.json()["id"]]
+    model = script(assistant=[APPLY])
     pg.stage1.runner.model = model
     assert await pg.steering.deliver(job_id, 1)
-    assert (await events(pg, job_id))[-1]["data"] == {"summary": FILES_CHANGED}
+    assert '"extra.docx (документ)"' in model.requests["assistant"][0]["messages"][-1]["content"]
+    assert (await events(pg, job_id))[-1]["data"] == {"summary": APPLIED}
     job = await run_queued(pg, model)
-    # The card of the old files has no dialog to go on with, and the gate is not asked.
-    assert set(model.requests) == {"interpreter", "checker"}
+    # The card of the old files has no dialog to go on with, so stage one runs anew.
+    assert {"interpreter", "checker"} <= set(model.requests)
     assert "extra.docx" in {f.filename for f in job.card.files}
 
 
@@ -288,7 +298,7 @@ async def test_a_correction_before_slicing_spares_the_slicer(pg, http):
         asyncio.run_coroutine_threadsafe(enqueue(http, job_id, TEMPERATURE), loop).result()
         return steps.check(parameter_set)
 
-    pg.stage1.runner.model = script(steer=[APPLY])
+    pg.stage1.runner.model = script(assistant=[APPLY])
     await stage_two(pg, steps, check=check_meanwhile).run(job_id, 1)
     assert steps.checked == [1] and steps.sliced == []
     job = await current(pg, job_id)
@@ -314,7 +324,7 @@ async def test_a_message_at_the_end_of_the_work_keeps_the_project(
         asyncio.run_coroutine_threadsafe(enqueue(http, job_id, "Какая погода"), loop).result()
         return steps.check_gcode(key, parameter_set, iteration)
 
-    pg.stage1.runner.model = script(steer=[decision])
+    pg.stage1.runner.model = script(assistant=[decision])
     await stage_two(pg, steps, check_gcode=gcode_meanwhile).run(job_id, 1)
     job = await current(pg, job_id)
     assert (job.revision, job.status) == (revision, status)
@@ -328,19 +338,19 @@ async def test_a_failing_agent_leaves_the_messages_queued_and_the_work_goes_on(p
     job_id = await ready_job(http, pg)
     await enqueue(http, job_id, TEMPERATURE)
     failure = AppError("Модель не отвечает, попробуйте позже", "model_unavailable", 503)
-    model = script(steer=[failure])
+    model = script(assistant=[failure])
     pg.stage1.runner.model = model
     steps = Steps()
     await stage_two(pg, steps).run(job_id, 1)
     assert (await current(pg, job_id)).status == Status.COMPLETED and steps.gcode
     # Two safe points tried, the later ones left the message for the user.
-    assert len(model.requests["steer"]) == 2
+    assert len(model.requests["assistant"]) == 2
     [message] = await waiting(pg, job_id)
     assert (message.status, message.claim, message.attempts) == ("queued", None, 2)
     failed = [e for e in await events(pg, job_id) if e["type"] == "steer.failed"]
     assert [e["data"] for e in failed] == [{"code": "model_unavailable"}] * 2
     # The user's own send still delivers it.
-    pg.stage1.runner.model = script(steer=[OFFTOPIC])
+    pg.stage1.runner.model = script(assistant=[OFFTOPIC])
     assert not await pg.steering.deliver(job_id, force=True)
     assert await waiting(pg, job_id) == [] and (await kinds(http, job_id))[-1][1] == "steer"
 
@@ -354,7 +364,7 @@ async def test_a_slow_agent_counts_as_a_failed_delivery(pg, http, monkeypatch):
         await asyncio.sleep(5)
         return OFFTOPIC
 
-    pg.stage1.runner.model = script(steer=[slow])
+    pg.stage1.runner.model = script(assistant=[slow])
     assert not await pg.steering.deliver(job_id, force=True)
     [message] = await waiting(pg, job_id)
     assert (message.status, message.attempts) == ("queued", 1)
@@ -375,7 +385,7 @@ async def test_a_stop_during_the_decision_releases_the_messages(pg, http, monkey
             cancelled.set()
             raise
 
-    model = script(checker=[queued_while(http, job_id, TEMPERATURE)], steer=[stop_meanwhile])
+    model = script(checker=[queued_while(http, job_id, TEMPERATURE)], assistant=[stop_meanwhile])
     job = await asyncio.wait_for(run(pg, job_id, model), 10)
     assert cancelled.is_set() and (job.revision, job.status) == (1, Status.STOPPED)
     [message] = await waiting(pg, job_id)
@@ -384,41 +394,51 @@ async def test_a_stop_during_the_decision_releases_the_messages(pg, http, monkey
     assert "steer.failed" not in types and types.count("job.changed") == 1
 
 
-@pytest.mark.parametrize(
-    ("command", "body", "typed"),
-    [("messages", {"text": "Количество 3"}, ["Количество 3"]), ("control/retry", {}, [])],
-)
-async def test_a_send_during_the_decision_takes_the_queue_first(pg, http, command, body, typed):
+async def test_a_retry_during_the_decision_takes_the_queue_first(pg, http):
+    job_id = await job_with(http, "box.stl")
+    await enqueue(http, job_id, TEMPERATURE)
+
+    async def retry_meanwhile(messages):
+        path = f"/api/v1/jobs/{job_id}/control/retry"
+        response = await http.post(path, json={"request_id": rid()})
+        assert response.status_code == 200, response.text
+        return APPLY
+
+    pg.stage1.runner.model = script(assistant=[retry_meanwhile])
+    # The late decision is dropped: the retry took the message into its revision.
+    assert not await pg.steering.deliver(job_id, force=True)
+    assert (await current(pg, job_id)).revision == 2
+    assert [(m["revision"], m["text"]) for m in await chat(http, job_id)] == [(2, TEMPERATURE)]
+    assert await waiting(pg, job_id) == []
+    assert await todo(pg, "stage1") == [{"job_id": job_id, "revision": 2, "start": False}]
+
+
+async def test_a_message_sent_during_the_decision_joins_the_correction(pg, http):
     job_id = await job_with(http, "box.stl")
     await enqueue(http, job_id, TEMPERATURE)
 
     async def send_meanwhile(messages):
-        response = await http.post(
-            f"/api/v1/jobs/{job_id}/{command}", json={"request_id": rid(), **body}
-        )
-        assert response.status_code == 200, response.text
+        await enqueue(http, job_id, "Количество 3")
         return APPLY
 
-    pg.stage1.runner.model = script(steer=[send_meanwhile])
-    # The late decision is dropped: the send took the message into its revision.
-    assert not await pg.steering.deliver(job_id, force=True)
-    assert (await current(pg, job_id)).revision == 2
+    pg.stage1.runner.model = script(assistant=[send_meanwhile])
+    assert await pg.steering.deliver(job_id, force=True)
     assert [(m["revision"], m["text"]) for m in await chat(http, job_id)] == [
-        (2, text) for text in [TEMPERATURE, *typed]
+        (2, TEMPERATURE),
+        (2, "Количество 3"),
     ]
     assert await waiting(pg, job_id) == []
-    assert await todo(pg, "stage1") == [{"job_id": job_id, "revision": 2, "start": False}]
-    assert "steer.applied" not in [e["type"] for e in await events(pg, job_id)]
+    assert await todo(pg, "stage1") == [correction(job_id, 2)]
 
 
 async def test_a_claim_left_by_a_dead_delivery_is_taken_again(pg, http):
     job_id = await job_with(http, "box.stl")
     await enqueue(http, job_id, "Какая погода")
     await hold(pg, job_id, status="delivering", claim="dead", claimed_at=now() - LATER * 30)
-    model = script(steer=[OFFTOPIC])
+    model = script(assistant=[OFFTOPIC])
     pg.stage1.runner.model = model
     assert not await pg.steering.deliver(job_id, 1)
-    assert "steer" not in model.requests and len(await waiting(pg, job_id)) == 1
+    assert "assistant" not in model.requests and len(await waiting(pg, job_id)) == 1
     await hold(pg, job_id, claimed_at=now() - CLAIM_TIMEOUT - LATER)
     assert not await pg.steering.deliver(job_id, 1)
     assert await waiting(pg, job_id) == [] and (await kinds(http, job_id))[-1][1] == "steer"
@@ -430,7 +450,7 @@ async def waiting_for_answers(pg, http, text: str):
     review = {"questions": [QUESTION]}
     model = script(checker=[queued_while(http, job_id, text, review)])
     job = await run(pg, job_id, model)
-    assert job.status == Status.WAITING and "steer" not in model.requests
+    assert job.status == Status.WAITING and "assistant" not in model.requests
     return job
 
 
@@ -451,14 +471,17 @@ async def test_while_questions_wait_the_queue_waits_and_goes_with_the_answers(pg
     assert f'<source id="a:{question.id}">' in follow
 
 
-async def test_send_now_on_an_idle_job_takes_the_queue_into_a_new_revision(pg, http):
+async def test_send_now_on_an_idle_job_lets_the_assistant_take_it_as_the_answer(pg, http):
     job = await waiting_for_answers(pg, http, "Работает в масле")
     [message] = await waiting(pg, job.id)
     response = await act(http, job.id, message.id, "send")
-    assert response.json()["job"]["revision"] == 2 and response.json()["queued"] == []
+    assert response.json()["job"]["revision"] == 1 and len(response.json()["queued"]) == 1
+    assert await todo(pg, "steer") == [{"job_id": job.id}]
+    pg.stage1.runner.model = script(assistant=[APPLY])
+    assert await pg.steering.deliver(job.id, force=True)
     assert (await kinds(http, job.id))[-1] == ("user", "chat", "Работает в масле")
+    # The questions wait, so the message answers them instead of correcting the card.
     assert await todo(pg, "stage1") == [{"job_id": job.id, "revision": 2, "start": False}]
-    assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'steer'") == []
 
 
 async def test_a_second_send_now_finds_nothing_to_claim(pg, http):
@@ -482,18 +505,18 @@ async def test_a_second_send_now_finds_nothing_to_claim(pg, http):
         await decided.wait()
         return OFFTOPIC
 
-    model = script(steer=[slow])
+    model = script(assistant=[slow])
     pg.stage1.runner.model = model
     first = asyncio.ensure_future(pg.steering.deliver(job_id, force=True))
     await deciding.wait()
     assert not await pg.steering.deliver(job_id, force=True)
     decided.set()
     await first
-    assert len(model.requests["steer"]) == 1
+    assert len(model.requests["assistant"]) == 1
     assert [kind for _, kind, _ in await kinds(http, job_id)] == ["offtopic", "steer"]
 
 
-async def test_after_the_answers_an_ordinary_message_still_goes_to_the_gate(pg, http):
+async def test_after_the_answers_a_correction_continues_the_same_dialog(pg, http):
     model = script(checker=[reply({"questions": [QUESTION]})])
     job = await run(pg, await job_with(http, "box.stl", "task.txt"), model)
     await answer(http, job, {job.card.questions[0].id: "вода"})
@@ -501,9 +524,11 @@ async def test_after_the_answers_an_ordinary_message_still_goes_to_the_gate(pg, 
     async with pg.uow() as uow:
         assert await uow.cache.get(correction_key(job.id, job.revision)) is not None
     await send(http, job.id, "Сделай деталь прочнее")
+    pg.stage1.runner.model = script(assistant=[APPLY])
+    assert await pg.steering.deliver(job.id, force=True)
     model = script()
-    await run(pg, job.id, model)
-    assert "gate" in model.requests
+    await run_queued(pg, model)
+    assert set(model.requests) == {"checker"}
 
 
 async def test_the_model_server_drives_the_agent_through_the_real_client(pg, http):
@@ -512,10 +537,17 @@ async def test_the_model_server_drives_the_agent_through_the_real_client(pg, htt
     client = QwenClient(lambda: settings, transport=transport)
     pg.stage1.runner.model = client
     job = await current(pg, await job_with(http, "box.stl"))
+
+    async def silent(text):
+        return None
+
+    def typed(text: str) -> Situation:
+        return Situation(job, [], [], [], [text])
+
     try:
-        answered = await pg.steering.steer.decide(job, ["Какая погода"])
-        applied = await pg.steering.steer.decide(job, ["TEST_STEER_APPLY Температура до 90 C"])
+        answered = await pg.assistant.decide(typed("Какая погода"), silent)
+        applied = await pg.assistant.decide(typed("TEST_STEER_APPLY Температура до 90 C"), silent)
     finally:
         await client.close()
-    assert (answered.correction, answered.text) == (False, model_server.STEER_REPLY)
-    assert (applied.correction, applied.text) == (True, model_server.STEER_SUMMARY)
+    assert (answered.action, answered.text) == ("reply", model_server.STEER_REPLY)
+    assert (applied.action, applied.summary) == ("update", model_server.STEER_SUMMARY)

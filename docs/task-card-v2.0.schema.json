@@ -1,4 +1,6 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mosprom.local/schemas/task-card-2.0.json",
   "$defs": {
     "Assumption": {
       "additionalProperties": false,
@@ -492,6 +494,26 @@
       ],
       "title": "Superseded",
       "type": "object"
+    },
+    "WaivedQuestion": {
+      "additionalProperties": false,
+      "description": "A question the checker chose not to ask, and why; the user may still answer otherwise.",
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "reason"
+      ],
+      "title": "WaivedQuestion",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -554,6 +576,13 @@
         "$ref": "#/$defs/Question"
       },
       "title": "Questions",
+      "type": "array"
+    },
+    "waived": {
+      "items": {
+        "$ref": "#/$defs/WaivedQuestion"
+      },
+      "title": "Waived",
       "type": "array"
     },
     "geometry": {
@@ -625,7 +654,5 @@
     "revision"
   ],
   "title": "TaskCard",
-  "type": "object",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mosprom.local/schemas/task-card-2.0.json"
+  "type": "object"
 }
