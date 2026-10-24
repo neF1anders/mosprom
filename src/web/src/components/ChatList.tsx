@@ -19,7 +19,7 @@ export function ChatList({
   onDelete,
   onMore,
   onCollapse,
-  themeSwitch,
+  tools,
 }: {
   jobs: Job[];
   selected: string;
@@ -33,13 +33,14 @@ export function ChatList({
   onDelete: (id: string) => void;
   onMore: () => void;
   onCollapse: () => void;
-  themeSwitch?: ReactNode;
+  // The model connection and the theme switch, next to the title.
+  tools?: ReactNode;
 }) {
   return (
     <aside className={styles.chats} aria-label="Чаты" inert={!open}>
       <div className={styles.brand}>
         <h1>StereotechAI Plugin</h1>
-        {themeSwitch}
+        <div className={styles.actions}>{tools}</div>
       </div>
       <div className={styles.row}>
         <h2>Чаты</h2>
