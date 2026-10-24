@@ -22,6 +22,7 @@ from src.backend.domain.parameters import CheckResult, Exclusion, Feedback, Issu
 from src.backend.domain.slicing import GcodeCheck, GcodeFinding, SliceReport
 from src.backend.infrastructure.catalog import load_catalog
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
+from src.backend.services.commands import changed
 from src.mesh_analysis import analyze_stl
 
 pytestmark = pytest.mark.integration
@@ -149,7 +150,10 @@ def pipeline(pg, steps, select=None, timeout: float = 5, slicer=None):
 async def ready_job(http, pg, **card) -> str:
     """A job whose stage one just handed a ready card over, as RunStore.finish does."""
     job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
-    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
+    # The assistant started the work, as its tool does.
+    async with pg.uow() as uow:
+        await changed(uow, await uow.jobs.get(job_id, lock=True), "Новый проект", start=True)
+        await uow.commit()
 
     async def nothing(*args, **kwargs):
         return None
@@ -158,6 +162,13 @@ async def ready_job(http, pg, **card) -> str:
     card = TaskCard(job_id=job_id, revision=1, readiness="ready", **card)
     await RunStore(pg.uow).finish(ctx, card, "Задание разобрано, передаю на подбор параметров")
     return job_id
+
+
+async def revise(pg, job_id: str) -> None:
+    """A correction the assistant applied: a new revision with its stage-one task."""
+    async with pg.uow() as uow:
+        await changed(uow, await uow.jobs.get(job_id, lock=True), "Правка принята", correction=True)
+        await uow.commit()
 
 
 async def job(pg, job_id: str):
@@ -325,10 +336,7 @@ async def test_an_edit_during_selection_leaves_the_new_revision_alone(pg, http):
     loop = asyncio.get_running_loop()
 
     def edit_meanwhile(card, feedback):
-        body = {"request_id": rid(), "text": "Допуск 0,1 мм"}
-        asyncio.run_coroutine_threadsafe(
-            http.post(f"/api/v1/jobs/{job_id}/messages", json=body), loop
-        ).result()
+        asyncio.run_coroutine_threadsafe(revise(pg, job_id), loop).result()
         return steps.select(card, feedback)
 
     await pipeline(pg, steps, select=edit_meanwhile).run(job_id, 1)
@@ -394,8 +402,8 @@ async def test_the_parameter_set_of_the_current_work_is_served(pg, http, other):
     served = (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json()
     assert served["iteration"] == 2 and served["version"] == "0.2"
     assert (await other.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 404
-    # A message alone keeps the finished project; only work started on it replaces the set.
-    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
+    # A new revision alone keeps the finished project; only work started on it replaces the set.
+    await revise(pg, job_id)
     assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json() == served
 
     async def nothing(*args, **kwargs):
@@ -474,9 +482,11 @@ async def test_without_a_running_slicer_the_parameters_stay_and_the_chat_says_wh
     messages = await rows(
         pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
     )
-    assert messages[-1]["payload"]["text"].startswith(
-        "Параметры подобраны, но проект не создан. STE Slicer с плагином AI Assistant не запущен."
-    )
+    # The report closes the project; without its model the template says the same.
+    report = messages[-1]["payload"]
+    assert report["kind"] == "report"
+    assert report["text"].startswith("Параметры подобраны, но проект не создан")
+    assert "STE Slicer с плагином AI Assistant не запущен" in report["text"]
 
 
 async def test_the_gcode_check_sends_the_selection_back_once(pg, http):

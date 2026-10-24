@@ -115,15 +115,16 @@ class AgentRunner:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         ctx: RunContext,
+        step: int = 1,
     ) -> ModelReply:
         """One plain reply in a chat, where calling a tool is the decision itself.
 
-        The tools are not executed: the caller reads which one was called. Nothing is cached,
-        a chat reply depends on the whole conversation.
+        The tools are not executed: the caller reads which one was called and runs the next
+        ``step`` itself. Nothing is cached, a chat reply depends on the whole conversation.
         """
         await ctx.check()
-        trace = Trace(spec, ctx, 1, messages)
-        async with CallEvents(spec, ctx, 1, self.clock, narrate=self.narrate) as events:
+        trace = Trace(spec, ctx, step, messages)
+        async with CallEvents(spec, ctx, step, self.clock, narrate=self.narrate) as events:
             reply = await self._complete(spec, messages, tools, trace, events)
             await self._record(trace.done(reply, [], None))
         return reply

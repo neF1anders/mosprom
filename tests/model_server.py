@@ -2,8 +2,8 @@
 
 Markers anywhere in the chat or in a document steer it. TEST_PROVIDER_401 and
 TEST_PROVIDER_INVALID_JSON break the provider, TEST_DELAY slows every call down. In the
-latest message TEST_OFFTOPIC and TEST_GATE_ASK keep the gate talking instead of starting the
-work. TEST_TOOL makes the interpreter call a tool first. TEST_QUESTIONS, TEST_CONFLICT and
+latest message TEST_OFFTOPIC and TEST_GATE_ASK keep the assistant talking instead of starting
+the work, TEST_STEER_APPLY makes it update the project. TEST_TOOL makes the interpreter call a tool first. TEST_QUESTIONS, TEST_CONFLICT and
 TEST_STL_MISMATCH make the checker ask in its first turn.
 """
 
@@ -32,6 +32,8 @@ OFF_TOPIC = "Я помогаю только с подготовкой задан
 STEER_SUMMARY = "Учитываю правку и пересчитываю то, что от неё зависит"
 STEER_REPLY = "Задание от этого не меняется, продолжаю работу"
 NO_MODEL = "Приложите модель STL, и я подберу параметры печати"
+REPORT = "### Итог\nПроект готов, параметры подобраны"
+ANALYSIS = "Так решила программа подбора по требованиям карточки"
 GATE_ASK = "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
 UNKNOWN = "Не знаю"
 REASONING = "Читаю источники и ищу числа.\n\nСверяю каждое значение с цитатой."
@@ -47,11 +49,11 @@ async def complete(request: Request):
         return JSONResponse({"error": "synthetic authorization failure"}, status_code=401)
     if "TEST_DELAY" in everything:
         await asyncio.sleep(2)
-    if agent == "gate":
-        return gate(payload)
-    if agent == "steer":
-        return steer(payload)
-    # The gate replies in plain text, so a broken answer reaches the first JSON agent.
+    if agent == "assistant":
+        return assistant(payload)
+    if agent in ("report", "analyst"):
+        return message(REPORT if agent == "report" else ANALYSIS)
+    # The assistant replies in plain text, so a broken answer reaches the first JSON agent.
     if "TEST_PROVIDER_INVALID_JSON" in everything:
         return message("invalid")
     # An agent that thinks answers with its reasoning, which the chat shows as it works.
@@ -93,24 +95,25 @@ def reply(body: dict[str, Any], finish: str, reasoning: str = "") -> dict:
     }
 
 
-def gate(payload: dict[str, Any]) -> dict:
-    """With a model attached the work starts, unless the latest message is marked otherwise."""
-    users = [m for m in payload["messages"] if m["role"] == "user"]
+def assistant(payload: dict[str, Any]) -> dict:
+    """New files with a model start a project and a marked message updates it; small talk is
+    answered, and so is the turn after a refused call."""
+    messages = payload["messages"]
+    users = [m for m in messages if m["role"] == "user"]
     latest = text(users[-1]) if users else ""
+    if messages[-1]["role"] == "tool" or not payload.get("tools"):
+        return message(NO_MODEL)
+    if "TEST_STEER_APPLY" in latest:
+        return tool_call("update_project", {"summary": STEER_SUMMARY})
     if "TEST_GATE_ASK" in latest:
         return message(GATE_ASK)
     if "TEST_OFFTOPIC" in latest:
         return message(OFF_TOPIC)
-    if not payload.get("tools"):
-        return message(NO_MODEL)
-    return tool_call("start_pipeline", {})
-
-
-def steer(payload: dict[str, Any]) -> dict:
-    """TEST_STEER_APPLY in a queued message makes it a correction; anything else is answered."""
-    if "TEST_STEER_APPLY" in text(payload["messages"][-1]):
-        return tool_call("apply_correction", {"summary": STEER_SUMMARY})
-    return message(STEER_REPLY)
+    if '"работа": "идёт' in latest:
+        return message(STEER_REPLY)
+    if "(модель STL)" in latest:
+        return tool_call("start_project", {"title": "Деталь", "notes": ""})
+    return message(NO_MODEL)
 
 
 def interpret(messages: list[dict[str, Any]]) -> dict:

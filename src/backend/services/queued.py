@@ -5,15 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from ..domain.errors import AppError
-from ..domain.models import Event, Job, QueuedMessage, Status, now
+from ..domain.models import Job, QueuedMessage, now
 from ..ports.persistence import UnitOfWork
-from .commands import Commands, changed
+from .commands import Commands
 from .messages import post
 from .steering import busy
-
-# The job works: a message waits for the end of the current step instead of restarting it.
-WORKING = {Status.QUEUED, Status.RUNNING}
-LIMIT = 10
 
 
 class QueuedService:
@@ -21,13 +17,10 @@ class QueuedService:
         self.commands = commands
 
     async def add(self, user_id: str, job_id: str, request_id: str, text: str):
-        """While the job works the message waits; otherwise it is sent as usual."""
+        """While the job works the message waits; otherwise it goes to the assistant at once."""
 
         async def apply(uow: UnitOfWork, job: Job):
-            if job.status in WORKING:
-                await _enqueue(uow, job, text)
-            else:
-                await post(uow, job, text)
+            await post(uow, job, text)
             return await _view(uow, job)
 
         return await self.commands.execute(user_id, job_id, request_id, {"queue": text}, apply)
@@ -54,18 +47,15 @@ class QueuedService:
         return await self.commands.execute(user_id, job_id, request_id, payload, apply)
 
     async def send(self, user_id: str, job_id: str, request_id: str, item_id: str):
-        """«Скорректировать»: the agent decides beside the running work, without waiting for
-        the step to end; an idle job takes the queue into the chat in a new revision.
+        """«Скорректировать»: the assistant decides beside the running work, without waiting
+        for the step to end, and at once when the job no longer works.
 
         The whole queue goes, in its order, so no message overtakes an earlier one.
         """
 
         async def apply(uow: UnitOfWork, job: Job):
             await _waiting(uow, job, item_id)
-            if job.status in WORKING:
-                await uow.queue.steer(job.id)
-            else:
-                await changed(uow, job, "Сообщение принято")
+            await uow.queue.steer(job.id)
             return await _view(uow, job)
 
         payload = {"send": item_id}
@@ -75,23 +65,6 @@ class QueuedService:
 def queued_view(items: list[QueuedMessage]) -> list[dict[str, Any]]:
     """What the chat shows of the queue; the claim is the server's own business."""
     return [item.model_dump(mode="json", exclude={"claim", "claimed_at"}) for item in items]
-
-
-async def _enqueue(uow: UnitOfWork, job: Job, text: str) -> None:
-    if len(await uow.queued.list(job.id)) >= LIMIT:
-        raise AppError(f"В очереди может быть не больше {LIMIT} сообщений", "queue_full", 409)
-    item = QueuedMessage(job_id=job.id, text=text)
-    await uow.queued.save(item)
-    await uow.events.append(
-        Event(
-            job_id=job.id,
-            revision=job.revision,
-            type="queue.added",
-            status=job.status,
-            message="Сообщение ждёт конца текущего шага",
-            data={"id": item.id},
-        )
-    )
 
 
 async def _waiting(uow: UnitOfWork, job: Job, item_id: str) -> QueuedMessage:

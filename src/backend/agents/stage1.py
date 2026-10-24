@@ -1,9 +1,9 @@
-"""Stage one: the gate in the chat, then one interpreter and one checker over files read by code.
+"""Stage one: one interpreter and one checker over files read by code.
 
-Every chat message reaches the gate first; it talks, asks for details once, or starts the work
-by calling its tool. The interpreter reads all sources while the code analyses the STL, then
-the checker edits the draft and asks its questions in one go. The answers return to the same
-checker dialog, so nothing before it runs again, and so does a correction queued meanwhile.
+The assistant in the chat starts the work by its tool. The interpreter reads the sources of
+the current project while the code analyses the STL, then the checker edits the draft and
+asks its questions in one go. The answers return to the same checker dialog, so nothing
+before it runs again, and so does a correction.
 """
 
 from __future__ import annotations
@@ -28,30 +28,34 @@ from ..domain.models import (
     TaskCard,
     identifier,
 )
+from ..domain.projects import earlier_answers, in_project, project_messages
 from ..domain.requirement_keys import RequirementKeys
 from ..domain.rules import RULES_VERSION, UNKNOWN_ANSWER, assess
 from ..domain.transitions import transition
 from ..pipeline.store import SafePoint, no_safe_point
 from ..ports.operations import Files
 from ..ports.persistence import UowFactory
-from .card import WorkingCard, fill, merged, stable_references, summary, to_question
+from .card import (
+    WorkingCard,
+    fill,
+    merged,
+    settle_questions,
+    stable_references,
+    summary,
+    to_question,
+)
 from .context import ContentBuilder, Inputs, codes_block, collect, follow_up
-from .gate import clean, gate_messages, split_tool, started
 from .runner import AgentRunner, AgentSpec, RunContext, prompt, redact
-from .schemas import Output, Review, draft_with_codes
+from .schemas import Review, draft_with_codes
 from .sources import ANALYZER_VERSION, Sources, StlFacts
 from .store import RunStore
 
 READING = ("view_page", "convert_units")
 # Budgets sit near the 90th percentile of traced reasoning: they cut runaway tails only.
-GATE = AgentSpec("gate", "Ассистент", Output, max_steps=1, thinking=False)
 CHECKER = AgentSpec("checker", "Проверка карточки", Review, max_steps=1, budget=6000)
-PROMPTS = ("gate", "interpreter", "checker")
+PROMPTS = ("interpreter", "checker")
 # How often a running stage checks for a stop or a newer revision, even mid model call.
 CHECK_SECONDS = 2
-OFF_TOPIC = (
-    "Я помогаю подготовить задание на 3D печать. Приложите STL модель и ТЗ или опишите деталь"
-)
 FOLLOW_UP = "Ответы пользователя на твои вопросы и карточка после твоей правки, id прежние"
 CORRECTION = "Правка пользователя и текущая карточка, id прежние, новых вопросов не задавай"
 
@@ -101,14 +105,18 @@ class Stage1:
         self.interpreter = AgentSpec(
             "interpreter", "Разбор задания", draft_with_codes(codes), READING, budget=9000
         )
-        self.gate_prompt, self.start = split_tool(prompt("gate"))
 
     async def run(
-        self, job_id: str, revision: int, start: bool = False, correction: bool = False
+        self,
+        job_id: str,
+        revision: int,
+        start: bool = False,
+        correction: bool = False,
+        typed: list[str] | None = None,
     ) -> None:
-        """``start`` resumes work the user stopped or that failed, without asking the gate;
-        ``correction`` takes in a queued message the agent «Корректировка» found to change
-        the task."""
+        """``start`` runs the whole stage anew; ``correction`` continues the checker's dialog
+        with what the user typed; ``typed`` are messages already in the chat that answer the
+        open questions or carry the correction."""
         ctx = RunContext(
             job_id=job_id,
             revision=revision,
@@ -118,7 +126,7 @@ class Stage1:
         )
         try:
             await asyncio.wait_for(
-                self._guarded(ctx, start, correction), self.settings.timeout_seconds
+                self._guarded(ctx, start, correction, typed or []), self.settings.timeout_seconds
             )
         except OperationCancelled:
             await self.store.cancel(job_id)
@@ -138,9 +146,11 @@ class Stage1:
             )
             raise
 
-    async def _guarded(self, ctx: RunContext, start: bool, correction: bool) -> None:
+    async def _guarded(
+        self, ctx: RunContext, start: bool, correction: bool, typed: list[str]
+    ) -> None:
         """A stop or a newer revision interrupts the run at once, even inside a model call."""
-        work = asyncio.ensure_future(self._run(ctx, start, correction))
+        work = asyncio.ensure_future(self._run(ctx, start, correction, typed))
         try:
             while not work.done():
                 await asyncio.wait({work}, timeout=CHECK_SECONDS)
@@ -152,10 +162,10 @@ class Stage1:
             raise
         work.result()
 
-    async def _run(self, ctx: RunContext, start: bool, correction: bool) -> None:
+    async def _run(self, ctx: RunContext, start: bool, correction: bool, typed: list[str]) -> None:
         job = await self.store.update(ctx.job_id, ctx.revision, _started)
         attachments = _active(job, await self.store.attachments(job.id))
-        messages = await self.store.messages(job.id)
+        messages = with_notes(job, project_messages(job, await self.store.messages(job.id)))
         await self.sources.parse(attachments, ctx)
         inputs = collect(messages, attachments, job.answers, None)
         if inputs.images() > self.settings.job_images:
@@ -167,14 +177,12 @@ class Stage1:
             )
         ctx.sources.update(inputs.sources())
         content = ContentBuilder(self.files, inputs, ctx, await self.store.knowledge(), self.codes)
-        session = await self._session(job, attachments, correction)
-        # A correction is not left to the gate, which could answer and drop the card.
-        direct = start or (correction and _with_stl(attachments))
+        session = None if start else await self._session(job, attachments, correction)
         if session is not None:
             await self._answered(
-                job, attachments, messages, inputs, session, content, ctx, correction
+                job, attachments, messages, inputs, session, content, ctx, correction, typed
             )
-        elif direct or await self._gate(job, attachments, messages, inputs, ctx):
+        else:
             await self._work(job, attachments, content, ctx)
         await self.safe_point(ctx.job_id, ctx.revision)
 
@@ -191,37 +199,6 @@ class Stage1:
         key = correction_key if correction else session_key
         stored = await self.store.cached(key(job.id, card.revision))
         return Session.model_validate(stored) if stored is not None else None
-
-    async def _gate(
-        self,
-        job: Job,
-        attachments: list[Attachment],
-        messages: list[dict[str, Any]],
-        inputs: Inputs,
-        ctx: RunContext,
-    ) -> bool:
-        """True to start the work; otherwise the gate's reply goes to the chat.
-
-        The gate may ask for details only once: after its request, the next message with a
-        model starts the work whatever it says.
-        """
-        stl = next((a.filename for a in attachments if a.id == job.active_stl), None)
-        last = next((m for m in reversed(messages) if m["role"] == "assistant"), None)
-        if stl and last is not None and last.get("kind") == "gate":
-            return True
-        reply = await self.runner.talk(
-            GATE,
-            gate_messages(self.gate_prompt, messages, inputs, stl),
-            [self.start] if stl else [],
-            ctx,
-        )
-        if stl and started(reply.tool_calls):
-            return True
-        current = _card_files(job.card) == {a.id for a in attachments}
-        # Only a reply before the first card for these files asks for details.
-        kind = "gate" if stl and not current else "chat"
-        await self.store.reply(ctx, clean(reply.content) or OFF_TOPIC, kind, current)
-        return False
 
     async def _work(
         self, job: Job, attachments: list[Attachment], content: ContentBuilder, ctx: RunContext
@@ -249,12 +226,17 @@ class Stage1:
         if facts is not None:
             ctx.stl_report = facts.report
             content.use_geometry(facts.geometry)
+        earlier = [f"{title} {value}" for title, value in earlier_answers(job).items()]
+        # Only a chat with earlier parts adds the block, so the usual input stays as it was.
+        extra: dict[str, Any] = {"earlier_answers": earlier} if earlier else {}
         turn = await content.build(
-            stl=False, report=True, knowledge=True, codes=True, card=working.view()
+            stl=False, report=True, knowledge=True, codes=True, card=working.view(), **extra
         )
         review = await self.runner.run(CHECKER, turn, ctx)
+        # Every question of the interpreter is asked, waived with a reason or asked as it was.
+        questions, card.waived = settle_questions(working.questions, review)
         working.apply(review, self.keys)
-        card.questions = merged([to_question(q) for q in review.questions], {})
+        card.questions = merged([to_question(q) for q in questions], {})
         session = Session(
             turn=redact(turn, ctx.images),
             review=review.model_dump(mode="json"),
@@ -270,6 +252,7 @@ class Stage1:
             "checking.completed",
             f"Нужны ответы на вопросы, всего {asked}" if asked else "Карточка проверена",
             "completed",
+            waived=[w.model_dump() for w in card.waived],
         )
         await self._finish(card, working, attachments, ctx)
 
@@ -283,6 +266,7 @@ class Stage1:
         content: ContentBuilder,
         ctx: RunContext,
         correction: bool = False,
+        typed: list[str] | None = None,
     ) -> None:
         """The answers continue the checker's dialog; nothing before it runs again.
 
@@ -299,7 +283,7 @@ class Stage1:
         await ctx.event("checking.started", "Учитываю правку" if correction else "Учитываю ответы")
         # A correction brings only what the user typed: the answers are in the dialog already.
         asked = [] if correction else [q for q in previous.questions if q.id in session.asked]
-        replies = _replies(asked, values(job), messages, inputs, previous.revision)
+        replies = _replies(asked, values(job), messages, inputs, previous.revision, typed or [])
         ctx.sources.update({reply.id: reply for reply in replies})
         intro = CORRECTION if correction else FOLLOW_UP
         turn = {"role": "user", "content": follow_up(intro, replies, session.card.view())}
@@ -362,6 +346,7 @@ def _replies(
     messages: list[dict[str, Any]],
     inputs: Inputs,
     revision: int,
+    typed: list[str],
 ) -> list[Source]:
     """Answers from the question window, then anything the user typed instead."""
     replies = [
@@ -373,8 +358,8 @@ def _replies(
         )
         for q in asked
     ]
-    typed = {m["id"] for m in messages if m["role"] == "user" and m["revision"] > revision}
-    return replies + [m for m in inputs.messages if m.ref in typed]
+    later = {m["id"] for m in messages if m["role"] == "user" and m["revision"] > revision}
+    return replies + [m for m in inputs.messages if m.ref in later | set(typed)]
 
 
 def values(job: Job) -> dict[str, str]:
@@ -393,12 +378,28 @@ def _active(job: Job, attachments: list[Attachment]) -> list[Attachment]:
     return [
         a
         for a in attachments
-        if a.active and not a.draft and (a.kind != "stl" or a.id == job.active_stl)
+        if a.active
+        and not a.draft
+        and in_project(a, job)
+        and (a.kind != "stl" or a.id == job.active_stl)
     ]
 
 
-def _with_stl(attachments: list[Attachment]) -> bool:
-    return any(a.kind == "stl" for a in attachments)
+def with_notes(job: Job, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What the user said about the part earlier in the chat, as the assistant retold it,
+    comes first, as one more message of the user."""
+    project = job.project
+    if project is None or not project.notes:
+        return messages
+    note = {
+        "id": f"notes:{project.number}",
+        "role": "user",
+        "kind": "chat",
+        "revision": project.revision,
+        "text": f"Из разговора в чате до начала проекта. {project.notes}",
+        "created_at": project.started_at,
+    }
+    return [note, *messages]
 
 
 def _card_files(card: TaskCard | None) -> set[str]:

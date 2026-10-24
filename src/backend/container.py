@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from functools import cached_property
 
+from .agents.assistant import Assistant
 from .agents.events import Narrator
 from .agents.runner import AgentRunner
 from .agents.stage1 import Stage1, Stage1Settings
-from .agents.steer import Steer
 from .agents.tools import ToolBox
 from .config import Settings
 from .domain.catalog import Catalog
@@ -28,6 +28,7 @@ from .services.control import ControlService
 from .services.jobs import JobService
 from .services.messages import MessageService
 from .services.queued import QueuedService
+from .services.reports import Reports
 from .services.sessions import SessionService
 from .services.steering import Steering
 from .services.uploads import UploadService
@@ -58,7 +59,7 @@ class Container:
         self.queued = QueuedService(commands)
         self.uploads = UploadService(commands, self.files, self.uow, settings.limits)
         self.artifacts = ArtifactService(self.uow, self.files)
-        # One runner for stage one and «Корректировка», which delivers between the steps.
+        # One runner for stage one and the assistant, which answers between the steps too.
         runner = AgentRunner(
             self.model,
             ToolBox(self.files),
@@ -66,7 +67,9 @@ class Container:
             lambda: self.model_settings.current().model,
             narrate=Narrator(self.model) if settings.narrate_reasoning else None,
         )
-        self.steering = Steering(self.uow, Steer(runner, self.uow))
+        self.assistant = Assistant(runner, self.uow, self.files)
+        self.steering = Steering(self.uow, self.assistant)
+        self.reports = Reports(self.uow, self.assistant)
         self.stage1 = Stage1(
             self.uow,
             self.files,
@@ -112,6 +115,7 @@ class Container:
             ),
             PipelineSettings(timeout_seconds=self.settings.parameters_timeout_seconds),
             safe_point=self.steering.deliver,
+            report=self.reports.post,
         )
 
     async def close(self) -> None:

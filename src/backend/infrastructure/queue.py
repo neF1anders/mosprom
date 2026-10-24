@@ -29,12 +29,20 @@ class ProcrastinateQueue:
         self._session, self._app = session, app
 
     async def stage1(
-        self, job_id: str, revision: int, start: bool = False, correction: bool = False
+        self,
+        job_id: str,
+        revision: int,
+        start: bool = False,
+        correction: bool = False,
+        typed: list[str] | None = None,
     ) -> None:
         arguments: dict[str, Any] = {"job_id": job_id, "revision": revision, "start": start}
+        # Only a correction or typed replies carry their flags, so ordinary work keeps the
+        # payload it had.
         if correction:
-            # Only a correction carries its flag, so ordinary work keeps the payload it had.
             arguments["correction"] = True
+        if typed:
+            arguments["typed"] = typed
         await self._defer(STAGE1_TASK, STAGE1_QUEUE, _lock(job_id), arguments)
 
     async def stage2(self, job_id: str, revision: int) -> None:
