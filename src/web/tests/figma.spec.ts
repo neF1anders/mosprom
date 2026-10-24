@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { designFixture, designStates } from "./figma-fixtures";
 
-// The surface of the panels in the light and dark Figma pages.
-const surfaces = { light: "rgb(245, 245, 247)", dark: "rgb(26, 27, 35)" };
+// The colour of the side panels in the light and dark Figma pages.
+const surfaces = { light: "rgb(247, 247, 249)", dark: "rgb(23, 24, 31)" };
 for (const scheme of ["light", "dark"] as const)
   for (const state of designStates)
     test(`Figma ${scheme} ${state}: panels, controls and intrinsic SVG geometry`, async ({
