@@ -32,6 +32,7 @@ OFF_TOPIC = "Я помогаю только с подготовкой задан
 NO_MODEL = "Приложите модель STL, и я подберу параметры печати"
 GATE_ASK = "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
 UNKNOWN = "Не знаю"
+REASONING = "Читаю источники и ищу числа.\n\nСверяю каждое значение с цитатой."
 
 
 @app.post("/v1/chat/completions")
@@ -49,11 +50,14 @@ async def complete(request: Request):
     # The gate replies in plain text, so a broken answer reaches the first JSON agent.
     if "TEST_PROVIDER_INVALID_JSON" in everything:
         return message("invalid")
+    # An agent that thinks answers with its reasoning, which the chat shows as it works.
+    reasoning = REASONING if payload.get("enable_thinking") else ""
     called = any(m["role"] == "tool" for m in messages)
     if agent == "interpreter" and "TEST_TOOL" in everything and not called:
-        return tool_call("convert_units", {"value": "1", "from_unit": "inch", "to_unit": "mm"})
+        arguments = {"value": "1", "from_unit": "inch", "to_unit": "mm"}
+        return tool_call("convert_units", arguments, reasoning)
     answer = ANSWERS.get(agent, lambda messages: {})(messages)
-    return message(json.dumps(answer, ensure_ascii=False))
+    return message(json.dumps(answer, ensure_ascii=False), reasoning)
 
 
 def text(item: dict[str, Any]) -> str:
@@ -63,22 +67,24 @@ def text(item: dict[str, Any]) -> str:
     return "\n".join(p.get("text", "") for p in content if p.get("type") == "text")
 
 
-def message(content: str) -> dict:
-    return reply({"role": "assistant", "content": content}, "stop")
+def message(content: str, reasoning: str = "") -> dict:
+    return reply({"role": "assistant", "content": content}, "stop", reasoning)
 
 
-def tool_call(name: str, arguments: dict[str, Any]) -> dict:
+def tool_call(name: str, arguments: dict[str, Any], reasoning: str = "") -> dict:
     call = {
         "id": "t1",
         "type": "function",
         "function": {"name": name, "arguments": json.dumps(arguments)},
     }
-    return reply({"role": "assistant", "content": None, "tool_calls": [call]}, "tool_calls")
+    body = {"role": "assistant", "content": None, "tool_calls": [call]}
+    return reply(body, "tool_calls", reasoning)
 
 
-def reply(body: dict[str, Any], finish: str) -> dict:
+def reply(body: dict[str, Any], finish: str, reasoning: str = "") -> dict:
+    """A provider that ignores stream answers with one body, its reasoning included."""
     return {
-        "choices": [{"finish_reason": finish, "message": body}],
+        "choices": [{"finish_reason": finish, "message": {**body, "reasoning_content": reasoning}}],
         "usage": {"prompt_tokens": 100, "completion_tokens": 100, "total_tokens": 200},
     }
 

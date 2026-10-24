@@ -182,6 +182,17 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     assert all(t["response"] for t in traces)
     async with pg.uow() as uow:
         assert (await uow.traces.usage(job.id))[0] == 3
+    events = await rows(pg, "SELECT payload FROM events WHERE job_id = :j ORDER BY seq", j=job.id)
+    # Each agent's call reaches the chat as it runs, its reasoning in between.
+    assert [
+        (e["payload"]["type"], e["payload"]["data"]["agent"])
+        for e in events
+        if e["payload"]["type"].startswith("agent.")
+    ] == [
+        (kind, agent)
+        for agent in ("gate", "interpreter", "checker")
+        for kind in ("agent.started", "agent.thinking", "agent.finished")
+    ]
     exported = (await http.get(f"/api/v1/jobs/{job.id}/card")).json()
     assert exported == card.model_dump(mode="json")
 

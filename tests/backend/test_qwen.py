@@ -5,6 +5,7 @@ import pytest
 
 from src.backend.domain.errors import AppError
 from src.backend.infrastructure.qwen import QwenClient
+from src.backend.ports.operations import Reasoning
 
 pytestmark = pytest.mark.unit
 
@@ -177,4 +178,73 @@ async def test_budget_is_sent_only_with_thinking():
     qwen = client(respond)
     await qwen.complete([], [], agent="a", thinking=False, budget=900)
     assert "thinking_budget" not in sent["payload"]
+    await qwen.close()
+
+
+def listener() -> tuple[list[tuple[str, int]], Reasoning]:
+    seen: list[tuple[str, int]] = []
+
+    async def think(text: str, attempt: int) -> None:
+        seen.append((text, attempt))
+
+    return seen, think
+
+
+async def test_streamed_reasoning_reaches_the_caller_piece_by_piece():
+    seen, think = listener()
+    body = stream(
+        {"choices": [{"delta": {"reasoning_content": "ду"}}]},
+        {"choices": [{"delta": {"content": "{"}}]},
+        {"choices": [{"delta": {"reasoning_content": "маю", "content": "}"}}]},
+        {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+    )
+
+    async def respond(request):
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    qwen = client(respond)
+    reply = await qwen.complete([], [], agent="a", thinking=True, on_reasoning=think)
+    assert seen == [("ду", 1), ("маю", 1)] and reply.reasoning == "думаю"
+    await qwen.close()
+
+
+async def test_a_retry_streams_its_reasoning_as_the_next_attempt():
+    seen, think = listener()
+    bodies = [
+        stream({"choices": [{"delta": {"reasoning_content": "оборвалось"}}]}),
+        stream(
+            {"choices": [{"delta": {"reasoning_content": "заново", "content": "{}"}}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+        ),
+    ]
+
+    async def respond(request):
+        return httpx.Response(
+            200, content=bodies.pop(0), headers={"content-type": "text/event-stream"}
+        )
+
+    qwen = client(respond)
+    reply = await qwen.complete([], [], agent="a", thinking=True, on_reasoning=think)
+    assert seen == [("оборвалось", 1), ("заново", 2)] and reply.reasoning == "заново"
+    await qwen.close()
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ({"content": "{}", "reasoning_content": "думаю целиком"}, [("думаю целиком", 1)]),
+        ({"content": "{}"}, []),
+    ],
+)
+async def test_a_single_body_hands_over_the_whole_reasoning_once(message, expected):
+    seen, think = listener()
+
+    async def respond(request):
+        return httpx.Response(
+            200, json={"choices": [{"finish_reason": "stop", "message": message}]}
+        )
+
+    qwen = client(respond)
+    await qwen.complete([], [], agent="a", thinking=True, on_reasoning=think)
+    assert seen == expected
     await qwen.close()
