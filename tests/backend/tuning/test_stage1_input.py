@@ -190,8 +190,8 @@ def test_canonical_load_code_is_taken_as_stated(select):
     assert not any(text.startswith("нагрузка") for text in assumption_texts(parameter_set))
 
 
-def test_unconfirmed_load_and_mode_codes_are_told_as_assumptions(select):
-    # Both were applied as stated with no word that the card had not confirmed them.
+def test_unconfirmed_load_is_told_but_moves_no_setting(select):
+    # An assumed load added walls and gyroid infill to parts nobody said were loaded.
     guessed = card(
         requirements=[
             requirement("load_bearing", "cyclic", provenance="assumption", verified=False),
@@ -199,9 +199,13 @@ def test_unconfirmed_load_and_mode_codes_are_told_as_assumptions(select):
         ]
     )
     parameter_set = select(guessed)
-    assert parameter_set["settings"]["wall_thickness"]["source"] == "rule:LOAD-WALLS"
+    assert parameter_set["settings"]["wall_thickness"]["source"] == "rule:WALLS-STANDARD"
+    assert "infill_pattern" not in parameter_set["settings"]
     texts = assumption_texts(parameter_set)
-    assert "нагрузка «cyclic» в карточке не подтверждена и принята как допущение" in texts
+    assert (
+        "нагрузка «cyclic» в карточке не подтверждена: подбор её не учитывает, подтвердите её, "
+        "если деталь нагружена"
+    ) in texts
     assert "режим печати classic в карточке не подтверждён и принят как допущение" in texts
 
 
