@@ -22,6 +22,7 @@ from .rules import (
     Rule,
     SetDiscreteAction,
     ShiftAction,
+    StartAction,
     UnsatisfiedAction,
     requirement_keys,
 )
@@ -36,6 +37,9 @@ class AxisPlan:
     moving_rule_ids: tuple[str, ...] = ()
     low_rule: str | None = None
     high_rule: str | None = None
+    # A start value in t that replaces the slicer's own, and the rule that set it.
+    start: float | None = None
+    start_rule: str | None = None
 
 
 @dataclass(frozen=True)
@@ -145,14 +149,15 @@ def _conflict_unmet(conflict: Conflict, reference: Callable[[str], str]) -> Unme
 def resolve_t(entry: AxisPlan, baseline_t: float) -> tuple[float, str | None]:
     """t and the rule that decided it (None: the slicer value stands).
 
-    The slicer value is brought inside the hard interval, shifted by the rules, then kept inside
-    the interval again; a limit that cut the shift decides the value. An empty interval
-    collapses to its middle.
+    The start (a rule's start value, else the slicer value) is brought inside the hard
+    interval, shifted by the rules, then kept inside the interval again; a limit that cut the
+    shift decides the value. An empty interval collapses to its middle.
     """
     low, high = entry.low, entry.high
     if low > high:
         low = high = (low + high) / 2.0
-    start = min(max(baseline_t, low), high)
+    preferred = baseline_t if entry.start is None else entry.start
+    start = min(max(preferred, low), high)
     raw = start + entry.shift
     t = min(max(raw, low), high)
     if raw > high + EPSILON and entry.high_rule:
@@ -161,8 +166,10 @@ def resolve_t(entry: AxisPlan, baseline_t: float) -> tuple[float, str | None]:
         return t, entry.low_rule
     if entry.moving_rule_ids and abs(entry.shift) > EPSILON:
         return t, entry.moving_rule_ids[-1]
+    if abs(start - preferred) > EPSILON:
+        return t, entry.low_rule if preferred < low else entry.high_rule
     if abs(start - baseline_t) > EPSILON:
-        return t, entry.low_rule if baseline_t < low else entry.high_rule
+        return t, entry.start_rule
     return t, None
 
 
@@ -195,6 +202,10 @@ def _apply(
             minimum = None if action.minimum is None else context.number(action.minimum)
             maximum = None if action.maximum is None else context.number(action.maximum)
             return limit_axis(plan, axes[action.param], rule_id, minimum, maximum)
+        case StartAction():
+            start = axes[action.param].clamped_t_of(context.number(action.value))
+            entry = replace(plan.axes[action.param], start=start, start_rule=rule_id)
+            return plan.with_axis(action.param, entry)
         case MinLayersAction():
             layers = LayerMinimum(action.minimum, rule_id)
             return replace(plan, min_layers={**plan.min_layers, action.param: layers})

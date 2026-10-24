@@ -64,7 +64,7 @@ def test_constraints_can_choose_mode_quality_and_material(select):
     review = feedback(
         constraint("C1", "printing_mode", "eq", "cylindrical"),
         constraint("C2", "quality_type", "eq", "draft"),
-        constraint("C3", "material", "ne", "enduse_abs"),
+        constraint("C3", "material", "ne", "generic_pla_175"),
     )
     second = select(card(), review)
     assert (second["printing_mode"]["value"], second["printing_mode"]["source"]) == (
@@ -76,7 +76,7 @@ def test_constraints_can_choose_mode_quality_and_material(select):
         "why": "профиль задан ограничением этапа 3",
         "source": "constraint:C2",
     }
-    assert second["materials"]["0"]["id"] != "enduse_abs"
+    assert second["materials"]["0"]["id"] != "generic_pla_175"
     assert applied(second) == {"C1": "applied", "C2": "applied", "C3": "applied"}
 
 
@@ -151,7 +151,8 @@ def test_limits_are_kept_on_the_step_grid(select):
     second = select(card(), feedback(constraint("C1", "speed_print", "max", 33)))
     assert second["settings"]["speed_print"]["value"] == 30
     assert applied(second) == {"C1": "applied"}
-    hot = select(card(), feedback(constraint("C1", "material_print_temperature", "max", 243)))
+    abs_part = card(requirements=[requirement("material", "Enduse ABS")])
+    hot = select(abs_part, feedback(constraint("C1", "material_print_temperature", "max", 243)))
     assert hot["settings"]["material_print_temperature"]["value"] <= 243
 
 
@@ -193,7 +194,7 @@ def test_excluding_the_only_orientation_is_reported(select):
     second = select(card(), review)
     assert {
         "requirement_id": "orientation",
-        "why": "единственный кандидат ориентации исключён этапом 3",
+        "why": "кандидат ориентации o1 исключён этапом 3",
     } in second["unsatisfied"]
 
 

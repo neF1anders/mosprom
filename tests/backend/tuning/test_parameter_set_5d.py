@@ -12,7 +12,14 @@ def five_d(mode, **fields):
 
 
 def test_5d_mode_requested_by_the_card_is_used_with_its_own_keys(select):
-    parameter_set = select(five_d("cylindrical_full"))
+    # Enduse ABS has no part cooling in its file.
+    abs_part = card(
+        requirements=[
+            requirement("printing_mode", "cylindrical_full"),
+            requirement("material", "Enduse ABS"),
+        ]
+    )
+    parameter_set = select(abs_part)
     mode = parameter_set["printing_mode"]
     assert mode == {
         "value": "cylindrical_full",
@@ -89,7 +96,7 @@ def test_bore_narrower_than_the_build_allows_keeps_the_default_base(select):
 @pytest.mark.parametrize(
     ("field", "reason"),
     [
-        ("is_revolution", "деталь по отчёту STL не тело вращения"),
+        ("is_revolution", "деталь по отчёту STL не симметрична вокруг оси отверстия"),
         ("through", "отверстие детали 16.3 мм по отчёту STL не сквозное"),
     ],
 )
@@ -101,6 +108,13 @@ def test_only_a_through_bore_of_a_body_of_revolution_sets_the_base(select, field
     assert "cylindrical_mode_base_diameter" not in parameter_set["settings"]
     texts = [entry["text"] for entry in parameter_set["assumptions"]]
     assert f"диаметр основания 5D оставлен по умолчанию (6 мм), {reason}" in texts
+
+
+def test_symmetric_part_with_blades_takes_its_bore_as_the_base(select):
+    stl_report = report(bore=8.0)
+    stl_report["revolution"].update(is_revolution=False, symmetry_score=1.0)
+    settings = select(five_d("cylindrical_full", stl_report=stl_report))["settings"]
+    assert settings["cylindrical_mode_base_diameter"]["value"] == 8.0
 
 
 def test_bore_does_not_set_a_base_in_3d(select):

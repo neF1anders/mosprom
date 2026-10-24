@@ -246,6 +246,13 @@ def _flag(requirement: Requirement, entry: RequirementKey) -> bool:
     return read_flag(requirement.value)
 
 
+def _option(requirement: Requirement, entry: RequirementKey) -> str:
+    value = requirement.value.strip().lower()
+    if value not in entry.options:
+        raise Unreadable(f"expected one of {', '.join(entry.options)}, got {requirement.value!r}")
+    return value
+
+
 def _items(requirement: Requirement, entry: RequirementKey) -> tuple[str, ...]:
     items = [item.strip().lower() for item in _LIST_SEPARATORS.split(requirement.value)]
     found = tuple(item for item in items if item)
@@ -266,14 +273,17 @@ def _read_quantity(
 def _read_load(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
+    """A load stage one only assumed is told, not used: it would add walls and gyroid infill to a
+    part nobody said is loaded (validation cases 004, 007, 056 printed 2-4 times longer)."""
+    if _basis(requirement) == "assumption":
+        draft.assumptions.append(
+            f"нагрузка «{requirement.value}» в карточке не подтверждена: подбор её не учитывает, "
+            "подтвердите её, если деталь нагружена"
+        )
+        return
     code = requirement.value.strip().lower()
     if code in entry.options:
         draft.load = code
-        _note_unconfirmed(
-            draft,
-            requirement,
-            f"нагрузка «{code}» в карточке не подтверждена и принята как допущение",
-        )
         return
     _set_load(draft, requirement.value, label)
 
@@ -347,6 +357,7 @@ _VALUES: dict[str, Callable[[Requirement, RequirementKey], RequirementValue]] = 
     "number": _number,
     "flag": _flag,
     "list": _items,
+    "choice": _option,
 }
 
 

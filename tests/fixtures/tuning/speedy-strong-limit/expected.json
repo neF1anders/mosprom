@@ -38,24 +38,23 @@
   "revision": 1
  },
  "contract": "stage2.parameter_set",
- "idempotency_key": "job-1:1",
  "iteration": 2,
  "materials": {
   "0": {
    "alternatives": [
     {
-     "id": "enduse_pa6",
+     "id": "enduse_abs",
      "why": "оценка 0.50"
     },
     {
-     "id": "enduse_pc",
+     "id": "enduse_pa6",
      "why": "оценка 0.50"
     }
    ],
    "checks": [],
-   "id": "enduse_abs",
+   "id": "generic_pla_175",
    "source": "rule:MATERIAL-RANK",
-   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50"
+   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
   }
  },
  "models": [
@@ -73,25 +72,25 @@
     ],
     "rotation": [
      [
-      1,
-      0,
-      0
+      1.0,
+      0.0,
+      0.0
      ],
      [
-      0,
-      1,
-      0
+      0.0,
+      1.0,
+      0.0
      ],
      [
-      0,
-      0,
-      1
+      0.0,
+      0.0,
+      1.0
      ]
     ],
     "scale": [
-     1,
-     1,
-     1
+     1.0,
+     1.0,
+     1.0
     ]
    },
    "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
@@ -106,14 +105,13 @@
  "quality": {
   "quality_type": "normal",
   "source": "default",
-  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+  "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
  },
  "settings": {
-  "cool_fan_enabled_classic": {
-   "scope": "extruder:0",
-   "source": "rule:FAN-OFF-NO-COOLING",
-   "value": false,
-   "why": "в файле материала обдув 0 %: обдув выключен"
+  "adhesion_type": {
+   "source": "rule:ADHESION-CLASSIC-SKIRT",
+   "value": "skirt",
+   "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
   },
   "infill_pattern": {
    "source": "rule:INFILL-GYROID",
@@ -126,18 +124,18 @@
    "value": 25.0,
    "why": "ограничение этапа 3 (constraint:C1); главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв"
   },
+  "layer_height": {
+   "source": "rule:LAYER-STANDARD",
+   "unit": "mm",
+   "value": 0.2,
+   "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
+  },
   "material_print_temperature": {
    "scope": "extruder:0",
    "source": "rule:PRIORITY-STRENGTH",
    "unit": "°C",
-   "value": 255.0,
+   "value": 205.0,
    "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв"
-  },
-  "speed_print": {
-   "source": "rule:SPEED-MATERIAL-MAX",
-   "unit": "mm/s",
-   "value": 50.0,
-   "why": "скорость печати не выше рекомендованной в файле материала"
   },
   "top_bottom_thickness": {
    "source": "rule:LOAD-WALLS",
@@ -148,13 +146,13 @@
   "wall_thickness": {
    "source": "rule:LOAD-WALLS",
    "unit": "mm",
-   "value": 1.6,
-   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения; главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв; периметров: 4"
+   "value": 2.0,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения; главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв; периметров: 5"
   }
  },
  "status": "proposed",
  "unsatisfied": [],
- "version": "0.1",
+ "version": "0.2",
  "warnings": [
   "stl report: Self-intersections and intersections/nesting between shells are not checked."
  ]
