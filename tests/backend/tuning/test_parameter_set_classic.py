@@ -113,16 +113,12 @@ def test_neutral_card_keeps_slicer_defaults_with_the_standard_layer(select):
         "0,2 мм, как в типовых проектах Stereotech",
         "source": "default",
     }
-    # enduse_abs wins the tie. Its file has no part cooling and recommends 50 mm/s against the
-    # slicer's 60, so exactly these two differences are sent.
-    assert parameter_set["materials"]["0"]["id"] == "enduse_abs"
-    settings = parameter_set["settings"]
-    assert sorted(settings) == ["cool_fan_enabled_classic", "layer_height", "speed_print"]
-    assert settings["cool_fan_enabled_classic"]["value"] is False
-    assert (settings["speed_print"]["value"], settings["speed_print"]["source"]) == (
-        50,
-        "rule:SPEED-MATERIAL-MAX",
-    )
+    # Nothing tells the materials apart: the slicer's own PLA, not the first id (enduse_abs).
+    material = parameter_set["materials"]["0"]
+    assert material["id"] == "generic_pla_175"
+    assert material["why"].startswith("требования задания не различают")
+    # PLA is cooled and has no speed of its own: only the layer and the skirt of 3D are sent.
+    assert sorted(parameter_set["settings"]) == ["adhesion_type", "layer_height"]
 
 
 def test_speed_priority_prints_thick_layers_on_the_default_profile(select):
@@ -225,3 +221,10 @@ def test_banned_default_profile_gives_the_nearest_one(select):
     # The 0.2 mm standard layer is the layer of `draft` itself, so no layer is sent.
     assert quality["quality_type"] == "draft"
     assert quality["why"].startswith("профиль Fine исключён этапом 3, ближайший — Draft")
+
+
+def test_requirements_that_tell_materials_apart_win_over_the_slicer_default(select):
+    hot = card(requirements=[requirement("service_temp_max_c", "100", "°C")])
+    material = select(hot)["materials"]["0"]
+    assert material["id"] != "generic_pla_175"
+    assert material["why"].startswith("лучший из")

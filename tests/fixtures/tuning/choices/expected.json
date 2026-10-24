@@ -48,16 +48,16 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_pc",
+     "id": "enduse_pa6",
      "why": "оценка 0.50"
     },
     {
-     "id": "enduse_petg",
+     "id": "enduse_pc",
      "why": "оценка 0.50"
     }
    ],
    "checks": [],
-   "id": "enduse_pa6",
+   "id": "enduse_abs",
    "source": "rule:MATERIAL-RANK",
    "why": "лучший из 28 материалов каталога по требованиям задания; оценка 0.50"
   }

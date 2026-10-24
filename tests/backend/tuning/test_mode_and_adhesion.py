@@ -87,9 +87,7 @@ def test_flexible_wheel_stays_in_3d(select):
     ],
 )
 def test_impeller_goes_to_5d_unless_it_is_a_flat_disc(select, length, diameter, round_part, mode):
-    impeller = coded(
-        axial(length, diameter, round_part), requirement("part_class", "impeller_fan")
-    )
+    impeller = coded(axial(length, diameter, round_part), requirement("part_class", "impeller_fan"))
     assert select(impeller)["printing_mode"]["value"] == mode
 
 

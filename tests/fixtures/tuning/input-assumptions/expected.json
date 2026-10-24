@@ -46,18 +46,18 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_pa6",
+     "id": "enduse_abs",
      "why": "оценка 0.50"
     },
     {
-     "id": "enduse_pc",
+     "id": "enduse_pa6",
      "why": "оценка 0.50"
     }
    ],
    "checks": [],
-   "id": "enduse_abs",
+   "id": "generic_pla_175",
    "source": "rule:MATERIAL-RANK",
-   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50"
+   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
   }
  },
  "models": [
@@ -111,11 +111,10 @@
   "why": "профиль принтера по умолчанию: Fine, слой 0.15 мм задан отдельно: пожелание по точности размеров: тоньше слой"
  },
  "settings": {
-  "cool_fan_enabled_classic": {
-   "scope": "extruder:0",
-   "source": "rule:FAN-OFF-NO-COOLING",
-   "value": false,
-   "why": "в файле материала обдув 0 %: обдув выключен"
+  "adhesion_type": {
+   "source": "rule:ADHESION-CLASSIC-SKIRT",
+   "value": "skirt",
+   "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
   },
   "infill_sparse_density": {
    "source": "rule:PRIORITY-STRENGTH",
@@ -133,14 +132,8 @@
    "scope": "extruder:0",
    "source": "rule:PRIORITY-STRENGTH",
    "unit": "°C",
-   "value": 255.0,
+   "value": 205.0,
    "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв"
-  },
-  "speed_print": {
-   "source": "rule:SPEED-MATERIAL-MAX",
-   "unit": "mm/s",
-   "value": 50.0,
-   "why": "скорость печати не выше рекомендованной в файле материала"
   },
   "top_bottom_thickness": {
    "source": "rule:PRIORITY-STRENGTH",
