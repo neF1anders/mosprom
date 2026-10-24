@@ -22,6 +22,7 @@ import { forget } from "./preview";
 import { Questions } from "./components/Questions";
 import { Progress } from "./components/Progress";
 import { TaskCard } from "./components/TaskCard";
+import { Icon } from "./components/Icon";
 import styles from "./App.module.css";
 
 function unique<T, K>(items: T[], key: (item: T) => K) {
@@ -263,32 +264,15 @@ export function App() {
     <div className={styles.app}>
       <header className={styles.header}>
         <h1>StereotechAI Plugin</h1>
-        {!connected && (
-          <span className={styles.connectionHeader}>
-            <img
-              src="/figma/dot-error.svg"
-              alt=""
-              className={styles.statusDot}
-              data-state="error"
-            />
-            Нет связи
-          </span>
-        )}
-        {!left && (
+        <div className={styles.mobileTools}>
           <button
+            className={styles.icon}
             aria-label="Новое задание"
             disabled={!session.data || create.isPending}
             onClick={() => create.mutate()}
           >
-            <img
-              className={styles.mobileOnly}
-              src="/figma/new-chat.svg"
-              alt=""
-            />
-            <span className={styles.desktopOnly}>Новое задание</span>
+            <Icon name="new-chat" size={20} />
           </button>
-        )}
-        <div className={styles.mobileTools}>
           <button
             className={styles.icon}
             aria-label="Открыть чаты"
@@ -297,7 +281,7 @@ export function App() {
               setLeft(true);
             }}
           >
-            <img src="/figma/collapse-left.svg" alt="" />
+            <Icon name="collapse-left" size={20} />
           </button>
           <button
             className={styles.icon}
@@ -307,7 +291,7 @@ export function App() {
               setRight(true);
             }}
           >
-            <img src="/figma/collapse-right.svg" alt="" />
+            <Icon name="collapse-right" size={20} />
           </button>
         </div>
       </header>
@@ -318,10 +302,8 @@ export function App() {
           onClick={closePanels}
         />
       )}
-      <div
-        className={`${styles.workspace} ${!left ? styles.noLeft : ""} ${!right ? styles.noRight : ""}`}
-      >
-        <div className={styles.side} data-open={left}>
+      <div className={styles.workspace} data-left={left} data-right={right}>
+        <div className={styles.side} data-side="left" data-open={left}>
           <ChatList
             jobs={jobList}
             selected={selected}
@@ -336,14 +318,16 @@ export function App() {
             onMore={() => jobs.fetchNextPage()}
             onCollapse={() => setLeft(false)}
           />
-          <button
-            className={styles.panelToggle}
-            inert={left}
-            onClick={() => setLeft(true)}
-          >
-            Чаты
-          </button>
         </div>
+        <button
+          className={styles.handle}
+          data-side="left"
+          data-visible={!left}
+          inert={left}
+          onClick={() => setLeft(true)}
+        >
+          <span>Показать чаты</span>
+        </button>
         <main className={styles.chat}>
           {(error || snapshot.isError) && (
             <div className={styles.error} role="alert">
@@ -352,7 +336,7 @@ export function App() {
                 aria-label="Закрыть сообщение об ошибке"
                 onClick={() => setError("")}
               >
-                ×
+                <Icon name="close" />
               </button>
             </div>
           )}
@@ -404,18 +388,6 @@ export function App() {
                 job={job}
                 compact={job?.status === "waiting_user"}
               />
-              {job?.error && (
-                <section className={styles.technicalError} role="alert">
-                  <img src="/figma/error.svg" alt="" />
-                  <p>{job.error}</p>
-                  <button
-                    disabled={control.isPending}
-                    onClick={() => control.mutate("retry")}
-                  >
-                    Повторить позже
-                  </button>
-                </section>
-              )}
               {job?.card && asking && (
                 <Questions
                   key={`questions-${job.revision}-${job.card.questions.map((q) => q.id).join()}`}
@@ -440,22 +412,37 @@ export function App() {
               aria-label="Прокрутить вниз"
               onClick={() => toBottom("smooth")}
             >
-              <img src="/figma/arrow-down.svg" alt="" />
+              <Icon name="arrow-down" />
             </button>
           </div>
+          {job?.error && (
+            <section className={styles.notice} role="alert">
+              <span className={styles.badge} data-state="error">
+                <Icon name="err-x" />
+              </span>
+              <p>{job.error}</p>
+              <button
+                className={styles.small}
+                disabled={control.isPending}
+                onClick={() => control.mutate("retry")}
+              >
+                Повторить
+              </button>
+            </section>
+          )}
           {connected &&
             running &&
             job?.card &&
             job.card.revision < job.revision && (
-              <p className={styles.connectionNotice} role="status">
-                <img src="/figma/run.svg" alt="" />
+              <p className={styles.notice} role="status">
+                <Icon name="spinner-14" className={styles.spin} />
                 Обновляю карточку с учётом изменений
               </p>
             )}
           {!connected && (
-            <p className={styles.connectionNotice} role="status">
-              <img src="/figma/run.svg" alt="" />
-              Соединение потеряно, переподключаемся
+            <p className={styles.notice} role="status">
+              <Icon name="spinner-14" className={styles.spin} />
+              Соединение потеряно, переподключаюсь
             </p>
           )}
           <Composer
@@ -477,25 +464,28 @@ export function App() {
             onStop={() => control.mutate("stop")}
             pending={send.isPending || create.isPending || !session.data}
             running={running}
+            connected={connected}
             files={drafts}
             filesChanged={!!job?.files_changed}
             placeholder={composerPlaceholder(job, connected, sent)}
           />
         </main>
-        <div className={styles.side} data-open={right}>
+        <button
+          className={styles.handle}
+          data-side="right"
+          data-visible={!right}
+          inert={right}
+          onClick={() => setRight(true)}
+        >
+          <span>Показать карточку</span>
+        </button>
+        <div className={styles.side} data-side="right" data-open={right}>
           <TaskCard
             job={job}
             events={current}
             collapsed={!right}
             onCollapse={() => setRight(false)}
           />
-          <button
-            className={styles.panelToggle}
-            inert={right}
-            onClick={() => setRight(true)}
-          >
-            Карточка
-          </button>
         </div>
       </div>
     </div>

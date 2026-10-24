@@ -1,10 +1,11 @@
+/* Layout and type of the Figma file "Mosprom — Chat UI (Stage 1)"; colours come from theme.css. */
 :global(*) {
   box-sizing: border-box;
 }
 :global(body) {
   margin: 0;
-  background: #fff;
-  color: #13141a;
+  background: var(--bg);
+  color: var(--text);
   font:
     14px/1.5 Inter,
     system-ui,
@@ -14,24 +15,24 @@
 :global(input),
 :global(textarea) {
   font: inherit;
+  color: inherit;
 }
 :global(button) {
   border: 0;
-  background: #f5f5f7;
-  color: inherit;
+  background: var(--surface);
   padding: 9px 16px;
   border-radius: 16px;
   cursor: pointer;
 }
 :global(button:hover) {
-  background: #e6e7eb;
+  background: var(--hover);
 }
 :global(button:disabled) {
   opacity: 0.45;
   cursor: not-allowed;
 }
 :global(:focus-visible) {
-  outline: 2px solid #13141a;
+  outline: 2px solid var(--text);
   outline-offset: 3px;
 }
 :global(input:focus),
@@ -60,13 +61,13 @@
 }
 :global(small) {
   display: block;
-  color: #6b6e7b;
+  color: var(--text-2);
   font-size: 12px;
 }
 :global(blockquote) {
   margin: 8px 0;
   padding: 8px 12px;
-  background: white;
+  background: var(--raised);
   border-radius: 10px;
   overflow-wrap: anywhere;
 }
@@ -79,7 +80,7 @@
 :global(textarea) {
   border: 0;
   border-radius: 12px;
-  background: #fff;
+  background: var(--raised);
   padding: 10px 12px;
   max-width: 100%;
 }
@@ -89,394 +90,189 @@
 :global(details) {
   margin-top: 8px;
 }
+
+/* Frame: two full-height panels of 340 px and the 720 px column in the middle of the window. */
 .app {
   height: 100dvh;
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 .header {
-  height: 44px;
-  flex: none;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 24px;
-}
-.header h1 {
-  font-size: 15px;
+  display: none;
 }
 .workspace {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 360px;
-  gap: 16px;
-  min-height: 0;
+  --left: 360px;
+  --right: 360px;
+  position: relative;
   flex: 1;
-  transition: grid-template-columns 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  min-height: 0;
+}
+.workspace[data-left="false"] {
+  --left: 20px;
+}
+.workspace[data-right="false"] {
+  --right: 20px;
 }
 .side {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.side > * {
-  grid-area: 1 / 1;
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  width: 340px;
   transition:
-    opacity 220ms ease,
     transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
     visibility 0s linear 0s;
 }
-.side > .chats {
-  width: 260px;
+.side[data-side="left"] {
+  left: 0;
 }
-.side > .card {
-  width: 360px;
-  justify-self: end;
+.side[data-side="right"] {
+  right: 0;
 }
-.side > .panelToggle {
-  justify-self: start;
-  width: 40px;
-}
-.side[data-open="false"] > aside,
-.side[data-open="true"] > .panelToggle {
-  opacity: 0;
+.side[data-open="false"] {
   visibility: hidden;
   transition:
-    opacity 140ms ease,
     transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 0s linear 140ms;
+    visibility 0s linear 280ms;
 }
-.side[data-open="false"] > .panelToggle {
-  transition-delay: 120ms;
+.side[data-side="left"][data-open="false"] {
+  transform: translateX(-100%);
+}
+.side[data-side="right"][data-open="false"] {
+  transform: translateX(100%);
 }
 .chats,
 .card {
-  background: #f5f5f7;
-  border-radius: 16px;
+  height: 100%;
   overflow: auto;
-  min-width: 0;
+  background: var(--surface);
+  scrollbar-width: thin;
 }
 .chats {
+  border-right: 1px solid var(--line);
   padding: 20px 12px;
 }
+.card {
+  border-left: 1px solid var(--line);
+  padding: 20px 22px;
+}
+.chat {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0 max(var(--right), calc(50% - 360px)) 16px
+    max(var(--left), calc(50% - 360px));
+}
+/* A folded panel leaves a thin handle at the window edge, as on Figma screens 13–15. */
+.handle,
+.handle:hover {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  width: 20px;
+  height: 72px;
+  margin-top: -36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: opacity 200ms ease 120ms;
+}
+.handle::before {
+  content: "";
+  width: 4px;
+  height: 56px;
+  border-radius: 2px;
+  background: var(--wait);
+  transition: background-color 150ms ease;
+}
+.handle:hover::before,
+.handle:focus-visible::before {
+  background: var(--handle-hover);
+}
+.handle[data-side="left"] {
+  left: 0;
+}
+.handle[data-side="right"] {
+  right: 0;
+}
+.handle[data-visible="false"] {
+  opacity: 0;
+  transition-delay: 0s;
+}
+.handle > span {
+  position: absolute;
+  top: 50%;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 150ms ease;
+}
+.handle[data-side="left"] > span {
+  left: 22px;
+}
+.handle[data-side="right"] > span {
+  right: 22px;
+}
+.handle:hover > span,
+.handle:focus-visible > span {
+  opacity: 1;
+}
+
+/* Chats panel, Figma node 132:111. */
+.chats > h1 {
+  padding-left: 12px;
+  margin-bottom: 21px;
+}
 .chats > .row {
-  padding: 0 8px 0 12px;
   height: 23px;
+  padding: 0 8px 0 12px;
   margin-bottom: 16px;
+}
+.chats > .row .actions {
+  gap: 12px;
+}
+.chats > .row .icon,
+.card > .row .icon {
+  min-width: 20px;
+  width: 20px;
+  height: 20px;
 }
 .chats nav {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
-}
-.chats nav button {
-  text-align: left;
-  width: 100%;
-  overflow-wrap: anywhere;
-}
-.activeChat {
-  background: #fff !important;
-}
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  min-width: 32px;
-  height: 32px;
-  background: transparent;
-}
-.icon img {
-  display: block;
-  max-width: none;
-}
-.card {
-  padding: 24px;
-}
-.card section {
-  margin-top: 20px;
-}
-.card section h3 {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #6b6e7b;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-.card p {
-  margin-top: 4px;
-  overflow-wrap: anywhere;
-}
-.card details {
-  font-size: 13px;
-}
-.card > a {
-  display: inline-block;
-  margin-top: 20px;
-}
-.chat {
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  min-height: 0;
-  padding: 35px 18px 0;
 }
-.thread {
-  overflow: auto;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  padding: 24px 0 32px;
-}
-.welcome {
-  margin-top: auto;
-  padding: 0;
-}
-.welcome h2 {
-  font-size: 17px;
-  line-height: 26px;
-  margin-bottom: 14px;
-}
-.welcome p {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-top: 14px;
-  font-size: 15px;
-  line-height: 23px;
-}
-.welcome p > span {
-  height: 22px;
-  width: 22px;
-  flex: none;
-  background: #e6e7eb;
-  border-radius: 6px;
-}
-.welcome button {
-  margin-top: 16px;
-}
-.composer {
-  background: #f5f5f7;
-  border-radius: 16px;
-  padding: 14px 16px 12px;
-  flex: none;
-}
-.composer textarea {
-  display: block;
-  background: transparent;
-  padding: 0;
-  resize: none;
-  height: 23px;
-  min-height: 23px;
-  font-size: 15px;
-  line-height: 23px;
-  width: 100%;
-  max-height: 150px;
-}
-.composer > .row {
-  margin-top: 12px;
-}
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.userMessage {
-  align-self: flex-end;
-  background: #f5f5f7;
-  border-radius: 16px;
-  padding: 12px 16px;
-  width: 520px;
-  max-width: 100%;
-  font-size: 14px;
-  line-height: 20px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.agentMessage {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.question {
-  background: #f5f5f7;
-  border-radius: 16px;
-}
-.question .options {
-  display: grid;
-}
-.options button {
-  background: white;
-  text-align: left;
-}
-.options button[aria-pressed="true"] {
-  background: #13141a;
-  color: #fff;
-}
-.question label {
-  display: block;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-.question input {
-  width: 100%;
-}
-.steps {
-  display: flex;
-  gap: 6px;
-  margin-top: 12px;
-}
-.steps button {
-  padding: 4px 12px;
-  background: white;
-}
-.steps button[aria-current="step"] {
-  background: #13141a;
-  color: white;
-}
-.primary {
-  background: #13141a !important;
-  color: #fff !important;
-}
-.muted {
-  color: #6b6e7b;
-}
-.warning {
-  color: #8a5b00;
-  font-size: 13px;
-}
-.error {
-  padding: 14px;
-  background: #fff2f0;
-  border-radius: 16px;
-  color: #9f302a;
-  overflow-wrap: anywhere;
-}
-.error button {
-  margin: 8px;
-}
-.preview {
-  width: 100%;
-  height: auto;
-  border-radius: 12px;
-  margin: 12px 0;
-}
-.panelToggle {
-  align-self: start;
-  writing-mode: vertical-rl;
-  padding: 16px 8px;
-}
-.noLeft {
-  grid-template-columns: 40px minmax(0, 1fr) 360px;
-}
-.noRight {
-  grid-template-columns: 260px minmax(0, 1fr) 40px;
-}
-.noLeft.noRight {
-  grid-template-columns: 40px minmax(0, 1fr) 40px;
-}
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-}
-.locked {
-  max-width: 600px;
-  margin: 15vh auto;
-  padding: 24px;
-}
-.locked p {
-  margin-top: 20px;
-}
-@media (max-width: 1100px) {
-  .workspace {
-    grid-template-columns: 200px minmax(0, 1fr) 280px;
-  }
-  .side > .chats {
-    width: 200px;
-  }
-  .side > .card {
-    width: 280px;
-  }
-  .noLeft {
-    grid-template-columns: 40px minmax(0, 1fr) 280px;
-  }
-  .noRight {
-    grid-template-columns: 200px minmax(0, 1fr) 40px;
-  }
-  .noLeft.noRight {
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
-  }
-  .chat {
-    padding: 0;
-  }
-  .card {
-    padding: 16px;
-  }
-}
-@media (max-width: 800px) {
-  .app {
-    padding: 12px;
-  }
-  .header {
-    padding: 0;
-    height: 48px;
-  }
-  .workspace,
-  .noLeft,
-  .noRight,
-  .noLeft.noRight {
-    display: flex;
-    flex-direction: column;
-  }
-  .chats {
-    max-height: 180px;
-    padding: 12px;
-  }
-  .chats nav {
-    overflow: auto;
-  }
-  .chats nav button {
-    min-width: 160px;
-  }
-  .card {
-    order: 3;
-    max-height: 400px;
-  }
-  .panelToggle {
-    writing-mode: initial;
-  }
-  .question > .row {
-    align-items: flex-start;
-  }
-  .composer {
-    bottom: 12px;
-  }
-  .userMessage {
-    max-width: 95%;
-  }
-}
-
 .chats nav button {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
   height: 36px;
   min-height: 36px;
   padding: 8px 12px;
+  background: transparent;
+  text-align: left;
+}
+.chats nav button:hover {
+  background: var(--hover);
+}
+.chats nav .activeChat,
+.chats nav .activeChat:hover {
+  background: var(--raised);
 }
 .chats nav button span {
   display: block;
@@ -486,18 +282,18 @@
   white-space: nowrap;
   font-weight: 500;
   line-height: 21px;
-  transform: translateY(0.5px);
 }
 .chats nav button small {
   flex: none;
   font-size: 12px;
   line-height: 18px;
 }
+.chats > button {
+  margin-top: 8px;
+  width: 100%;
+}
 .chatItem {
   position: relative;
-}
-.chats nav .chatItem > button:first-child {
-  padding-right: 12px;
 }
 .chats nav button .chatTitle {
   flex: 1;
@@ -507,7 +303,6 @@
   overflow: visible;
   font-weight: inherit;
   line-height: inherit;
-  transform: none;
 }
 .chats nav button .chatTitle[data-marquee="true"] {
   text-overflow: clip;
@@ -541,6 +336,7 @@
   padding: 0;
   justify-content: center;
   background: transparent;
+  color: var(--text-2);
   opacity: 0;
   transition: opacity 120ms ease;
 }
@@ -570,7 +366,8 @@
   display: grid;
   min-width: 160px;
   padding: 4px;
-  background: #fff;
+  background: var(--raised);
+  border: 1px solid var(--line);
   border-radius: 12px;
   animation: rise 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -579,15 +376,14 @@
   min-height: 32px;
   padding: 6px 10px;
   border-radius: 8px;
-  background: transparent;
   font-size: 13px;
   justify-content: flex-start;
 }
 .chats nav .chatMenu button:hover {
-  background: #f5f5f7;
+  background: var(--surface);
 }
 .chats nav .chatMenu button[data-danger="true"] {
-  color: #d14343;
+  color: var(--error);
 }
 .chatRename {
   width: 100%;
@@ -596,35 +392,324 @@
   border-radius: 16px;
   font-weight: 500;
 }
-.steps {
-  flex-wrap: wrap;
-}
 
-/* Dimensions and typography from Figma frames 2:2, 2:99, 4:2, 4:138. */
-.header h1 {
-  transform: translateY(0.5px);
-}
-.chats > .row .actions {
+/* Common pieces. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
 }
-.chats > .row .icon,
-.card > .row .icon {
-  min-width: 20px;
-  width: 20px;
-  height: 20px;
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.card > .row {
-  height: 23px;
+.icon,
+.icon:hover {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text-2);
 }
-.card section h3 {
+.glyph {
+  display: inline-block;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: var(--icon) center / contain no-repeat;
+  mask: var(--icon) center / contain no-repeat;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: var(--on-status);
+  background: var(--text-3);
+}
+.badge[data-state="error"] {
+  background: var(--error);
+}
+.badge[data-state="warn"] {
+  background: var(--warn);
+}
+.badge[data-state="done"] {
+  background: var(--done);
+}
+.spin {
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.primary {
+  background: var(--text) !important;
+  color: var(--bg) !important;
+}
+.muted {
+  color: var(--text-2);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+.locked {
+  max-width: 600px;
+  margin: 15vh auto;
+  padding: 24px;
+}
+.locked p {
+  margin-top: 20px;
+}
+.preview {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 12px 0;
+}
+
+/* Thread. */
+.threadArea {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.thread {
+  overflow: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px 0 20px;
+  scrollbar-width: thin;
+}
+.thread > * {
+  flex-shrink: 0;
+}
+.thread > :first-child {
+  margin-top: auto;
+}
+.welcome {
+  margin-bottom: 12px;
+}
+.welcome h2 {
+  font-size: 17px;
+  line-height: 26px;
+  margin-bottom: 14px;
+}
+.welcome p {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 15px;
+  line-height: 23px;
+}
+.welcome p > span {
+  height: 22px;
+  width: 22px;
+  flex: none;
+  background: var(--checkbox);
+  border-radius: 6px;
+}
+.userMessage {
+  align-self: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: 560px;
+  max-width: 100%;
+}
+.bubble {
+  width: 100%;
+  background: var(--bubble);
+  border-radius: 18px;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 17px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.messageMeta {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 160ms ease;
+}
+.messageMeta > div {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 12px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 18px;
+}
+.messageMeta > div > :first-child {
+  margin-top: 6px;
+}
+.messageMeta .icon,
+.messageMeta .icon:hover {
+  min-width: 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 6px;
+  color: var(--text-3);
+}
+.userMessage:hover .messageMeta,
+.userMessage:focus-within .messageMeta {
+  grid-template-rows: 1fr;
+}
+.agentMessage {
+  font-size: 14px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.answerList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  white-space: normal;
+}
+.answerList dt {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+.answerList dd {
+  margin: 2px 0 0;
+}
+.toBottom,
+.toBottom:hover {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--text);
+  color: var(--bg);
+  transform: translateX(-50%);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    visibility 0s linear 180ms;
+}
+.toBottom[data-visible="false"] {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 8px);
+}
+.toBottom[data-visible="true"] {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+/* Lines above the composer: the error and the lost connection, Figma screens 11 and 12. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 39px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  animation: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.notice > p {
+  flex: 1;
+}
+.small,
+.small:hover {
+  flex: none;
+  margin-left: auto;
+  height: 26px;
+  padding: 4px 12px;
+  border-radius: 13px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11px;
   line-height: 18px;
   font-weight: 500;
 }
-.card p {
-  line-height: 21px;
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 10px 12px 10px 16px;
+  background: var(--surface);
+  border-radius: 16px;
+  color: var(--error);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
 }
-.card[data-empty="true"] section p {
-  color: #6b6e7b;
+.error button,
+.error button:hover {
+  flex: none;
+  padding: 4px;
+  background: transparent;
+  color: var(--text-2);
+}
+.warning {
+  margin-top: 16px;
+  color: var(--warn);
+  font-size: 13px;
+}
+
+/* Composer, Figma node 132:334, and the attachment cards inside it, component 78:268. */
+.composer {
+  flex: none;
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 14px 16px 12px;
+}
+.composer textarea {
+  display: block;
+  width: 100%;
+  height: 23px;
+  min-height: 23px;
+  max-height: 150px;
+  padding: 0;
+  background: transparent;
+  resize: none;
+  font-size: 15px;
+  line-height: 23px;
+}
+.composer textarea::placeholder {
+  color: var(--text-2);
+  opacity: 1;
+}
+.composer > .row {
+  margin-top: 12px;
 }
 .composer .actions {
   gap: 4px;
@@ -633,12 +718,17 @@
   min-width: 16px;
   width: 16px;
 }
-.composer textarea::placeholder {
-  color: #6b6e7b;
-  opacity: 1;
-}
 .composer .icon:disabled {
   opacity: 1;
+}
+.composer .send,
+.composer .send:hover {
+  width: 32px;
+  background: var(--text);
+  color: var(--bg);
+}
+.composer .actions .icon:last-child:not(.send) {
+  color: var(--text);
 }
 .attachments {
   display: flex;
@@ -648,7 +738,7 @@
   padding: 0;
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: #d5d6dc transparent;
+  scrollbar-color: var(--wait) transparent;
 }
 .attachment {
   position: relative;
@@ -657,7 +747,7 @@
   flex-direction: column;
   width: 160px;
   height: 120px;
-  background: #fff;
+  background: var(--attachment);
   border-radius: 16px;
   overflow: hidden;
 }
@@ -675,7 +765,7 @@
   margin: 0;
   font-size: 11px;
   line-height: 15px;
-  color: #6b6e7b;
+  color: var(--text-2);
   text-align: center;
 }
 .attachmentImage {
@@ -693,7 +783,7 @@
   overflow: hidden;
   font-size: 7px;
   line-height: 10px;
-  color: #6b6e7b;
+  color: var(--text-2);
 }
 .attachmentText p {
   margin: 0 0 3px;
@@ -704,7 +794,7 @@
 }
 .attachmentText p:first-child {
   font-weight: 600;
-  color: #13141a;
+  color: var(--text);
 }
 .attachmentLabel {
   display: flex;
@@ -716,17 +806,17 @@
   line-height: 18px;
   font-weight: 500;
 }
-.attachmentLabel img {
-  flex: none;
+.attachmentLabel .glyph {
+  color: var(--text-2);
 }
-.attachmentLabel span {
+.attachmentLabel span:not(.glyph) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .attachment[data-state="uploading"] .attachmentLabel {
-  color: #6b6e7b;
+  color: var(--text-2);
 }
 .attachmentRemove,
 .attachmentRemove:hover {
@@ -736,12 +826,11 @@
   width: 20px;
   height: 20px;
   padding: 0;
+  display: flex;
   border-radius: 10px;
-  background: transparent;
+  background: var(--text);
+  color: var(--bg);
   opacity: 0;
-}
-.attachmentRemove img {
-  display: block;
 }
 .attachment:hover .attachmentRemove,
 .attachmentRemove:focus-visible,
@@ -753,121 +842,90 @@
     opacity: 1;
   }
 }
-.thread > * {
-  flex-shrink: 0;
+
+/* Task card panel; the redesigned panel replaces these rules. */
+.card section {
+  margin-top: 20px;
 }
-.thread > :first-child {
-  margin-top: auto;
-}
-.agentMessage {
+.card section h3 {
   display: flex;
-  gap: 12px;
-  font-size: 14px;
-  line-height: 20px;
-}
-.agentMessage > p {
-  padding-top: 2px;
-}
-.answerList {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  white-space: normal;
-}
-.answerList dt {
-  font-size: 12px;
-  line-height: 16px;
-  color: #6b6e7b;
-}
-.answerList dd {
-  margin: 2px 0 0;
-}
-.userMessage,
-.agentMessage,
-.question,
-.files,
-.fileChips,
-.technicalError {
-  animation: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .userMessage,
-  .agentMessage,
-  .question,
-  .files,
-  .fileChips,
-  .technicalError {
-    animation: none;
-  }
-  .workspace,
-  .side > *,
-  .toBottom {
-    transition: none !important;
-  }
-}
-.threadArea {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.toBottom,
-.toBottom:hover {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  border-radius: 16px;
-  background: #13141a;
-  transform: translateX(-50%);
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    visibility 0s linear 180ms;
-}
-.toBottom[data-visible="false"] {
-  opacity: 0;
-  visibility: hidden;
-  transform: translate(-50%, 8px);
-}
-.toBottom[data-visible="true"] {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
-}
-.avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 12px;
-  background: #13141a;
-  color: white;
-  flex: none;
-  text-align: center;
+  color: var(--text-2);
   font-size: 12px;
-  font-weight: 600;
-  line-height: 24px;
+  line-height: 18px;
+  font-weight: 500;
+  margin-bottom: 4px;
 }
+.card p {
+  margin-top: 4px;
+  line-height: 21px;
+  overflow-wrap: anywhere;
+}
+.card[data-empty="true"] section p {
+  color: var(--text-2);
+}
+.card details {
+  font-size: 13px;
+}
+.card > a {
+  display: inline-block;
+  margin-top: 20px;
+}
+.card > .row {
+  height: 23px;
+}
+.statusDot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--wait);
+}
+.statusDot[data-state="done"] {
+  background: var(--done);
+}
+.statusDot[data-state="warn"] {
+  background: var(--warn);
+}
+.statusDot[data-state="error"] {
+  background: var(--error);
+}
+.card .cardDisclosure {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 21px;
+}
+.cardDisclosure > summary {
+  list-style: none;
+}
+.cardDisclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.cardDisclosure > summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.card .geometryDetails {
+  font-size: 11px;
+  color: var(--text-2);
+}
+.audit {
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--text-2);
+}
+.audit article {
+  padding: 10px 0;
+}
+
+/* Progress timeline; the redesigned timeline replaces these rules. */
 .timeline {
-  background: #f5f5f7;
+  background: var(--surface);
   padding: 14px 16px;
   border-radius: 16px;
+  margin-top: -8px;
 }
 .timelineRow {
   position: relative;
@@ -875,7 +933,7 @@
   padding-bottom: 14px;
   font-size: 12px;
   line-height: 18px;
-  color: #6b6e7b;
+  color: var(--text-2);
 }
 .timelineRow:last-child {
   padding-bottom: 0;
@@ -887,13 +945,13 @@
   top: 20px;
   bottom: 0;
   width: 1px;
-  background: #d5d6dc;
+  background: var(--wait);
 }
 .timelineRow:last-child::before {
   display: none;
 }
 .timelineRow[data-state="done"]::before {
-  background: #13141a;
+  background: var(--text);
 }
 .timelineRow summary {
   list-style: none;
@@ -908,7 +966,7 @@
 .timelineRow[data-state="done"] > summary,
 .timelineRow[data-state="run"] > summary,
 .timelineRow[data-state="warn"] > summary {
-  color: #13141a;
+  color: var(--text);
 }
 .marker {
   width: 16px;
@@ -921,7 +979,6 @@
   flex: none;
   margin-left: auto;
 }
-
 .stepContent {
   margin-left: 26px;
   margin-top: 1px;
@@ -951,40 +1008,83 @@
 .substep .stepContent {
   margin-left: 20px;
 }
-.audit {
+.cardSummary {
+  background: var(--raised);
+  border-radius: 16px;
+  padding: 12px;
+  margin-top: 6px;
+  color: var(--text);
+}
+.cardSummary > p {
   font-size: 11px;
-  line-height: 17px;
-  color: #6b6e7b;
+  color: var(--text-2);
 }
-.audit article {
-  padding: 10px 0;
+.cardSummary dl {
+  margin: 0;
 }
+.cardSummary dl > div {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cardSummary dl > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.cardSummary dt {
+  color: var(--text-2);
+  font-size: 11px;
+}
+.cardSummary dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+/* One selected setting, requirement or assumption per line. */
+.cardSummary dd > span,
+.cardSummary dd details > span {
+  display: block;
+}
+.cardSummary dd summary {
+  cursor: pointer;
+  color: var(--text-2);
+}
+
+/* Question window; the redesigned window replaces these rules. */
 .question {
+  background: var(--surface);
+  border-radius: 16px;
   padding: 16px;
 }
 .question > .row {
   min-height: 20px;
 }
 .questionCounter {
-  color: #6b6e7b;
+  color: var(--text-2);
   font-weight: 500;
   font-size: 12px;
   line-height: 18px;
 }
-.question .steps {
-  margin-top: 0;
+.steps {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
-.question .steps button {
+.steps button {
   padding: 0;
   width: 20px;
   height: 20px;
   font-size: 11px;
   line-height: 17px;
-  color: #6b6e7b;
+  color: var(--text-2);
+  background: var(--raised);
 }
-.question .steps button[aria-current="step"] {
-  color: #fff;
+.steps button[aria-current="step"] {
+  background: var(--text);
+  color: var(--bg);
 }
 .question h3 {
   font-size: 14px;
@@ -998,6 +1098,7 @@
   line-height: 17px;
 }
 .question .options {
+  display: grid;
   gap: 6px;
   margin: 12px 0;
 }
@@ -1007,12 +1108,19 @@
   gap: 12px;
   min-height: 36px;
   padding: 9px 14px;
+  background: var(--raised);
+  text-align: left;
   font-size: 12px;
   line-height: 18px;
   font-weight: 500;
 }
+.options button[aria-pressed="true"],
+.options button[data-suggested="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
 .optionNumber {
-  color: #6b6e7b;
+  color: var(--text-2);
   font-size: 12px;
   line-height: 18px;
   font-weight: 500;
@@ -1025,25 +1133,28 @@
   font-weight: 400;
 }
 .options button[aria-pressed="true"] small,
-.options button[aria-pressed="true"] .optionNumber {
-  color: #c9cad1;
+.options button[aria-pressed="true"] .optionNumber,
+.options button[data-suggested="true"] small,
+.options button[data-suggested="true"] .optionNumber {
+  color: var(--text-3);
 }
 .customOption {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--raised);
   border-radius: 16px;
   padding-left: 14px;
 }
 .customOption input {
+  width: 100%;
   padding: 9px 14px 9px 0;
   font-size: 12px;
   line-height: 18px;
   background: transparent;
 }
 .customOption input::placeholder {
-  color: #6b6e7b;
+  color: var(--text-2);
 }
 .question .actions {
   margin-top: 12px;
@@ -1051,7 +1162,7 @@
   gap: 6px;
 }
 .question .actions button {
-  background: white;
+  background: var(--raised);
   padding: 5px 12px;
   font-size: 12px;
   line-height: 16px;
@@ -1060,47 +1171,11 @@
   border-radius: 13px;
   transition: background-color 150ms ease;
 }
-.statusDot {
-  display: block;
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: #d5d6dc;
-}
-.statusDot[data-state="done"] {
-  background: #16a35a;
-}
-.statusDot[data-state="warn"] {
-  background: #d39300;
-}
-.statusDot[data-state="error"] {
-  background: #e5484d;
-}
-.card .cardDisclosure {
-  margin-top: 4px;
-  font-size: 14px;
-  line-height: 21px;
-}
-.cardDisclosure > summary {
-  list-style: none;
-}
-.cardDisclosure > summary::-webkit-details-marker {
-  display: none;
-}
-.cardDisclosure > summary:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.card .geometryDetails {
-  font-size: 11px;
-  color: #6b6e7b;
-}
 .conflictHeading {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #6b6e7b;
+  color: var(--text-2);
   margin-bottom: 14px !important;
 }
 .conflictHeading img {
@@ -1109,19 +1184,21 @@
 }
 .question .sources {
   font-size: 11px;
-  color: #6b6e7b;
+  color: var(--text-2);
   margin-top: 10px;
 }
+
+/* Sent files in the thread; the project file tree replaces them. */
 .files {
   padding: 16px;
-  background: #f5f5f7;
+  background: var(--surface);
   border-radius: 16px;
 }
 .files h2 {
   font-size: 12px;
   line-height: 18px;
   font-weight: 500;
-  color: #6b6e7b;
+  color: var(--text-2);
   margin-bottom: 8px;
 }
 .files ul {
@@ -1132,7 +1209,8 @@
   gap: 8px;
 }
 .files li {
-  background: #fff;
+  position: relative;
+  background: var(--raised);
   border-radius: 16px;
   padding: 9px 14px;
   min-width: 0;
@@ -1150,6 +1228,10 @@
   height: 16px;
   flex: none;
 }
+.fileRow img:first-child {
+  width: 14px;
+  height: 14px;
+}
 .fileRow a {
   overflow-wrap: anywhere;
   text-decoration: none;
@@ -1158,32 +1240,39 @@
   margin-left: auto;
   font-size: 11px;
   line-height: 17px;
-  color: #6b6e7b;
+  color: var(--text-2);
+}
+.files li[data-failed="true"] .fileStatus {
+  padding-right: 80px;
 }
 .files details {
+  position: absolute;
+  top: 6px;
+  right: 38px;
+  margin: 0;
+  z-index: 2;
   font-size: 11px;
-  margin-top: 4px;
-  color: #6b6e7b;
+  color: var(--text-2);
 }
-.connectionHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #6b6e7b;
+.files details > summary {
+  list-style: none;
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 5px 12px;
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text);
 }
-.connectionNotice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  line-height: 20px;
-  padding: 12px 0;
-  margin-bottom: 12px;
+.files details > summary::-webkit-details-marker {
+  display: none;
 }
-.connectionNotice img {
-  width: 16px;
-  height: 16px;
+.files details button {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  white-space: nowrap;
+  border: 1px solid var(--wait);
+  background: var(--raised);
 }
 .fileChips {
   display: flex;
@@ -1192,13 +1281,13 @@
   gap: 8px;
   list-style: none;
   padding: 0;
-  margin: -16px 0 0;
+  margin: -12px 0 0;
 }
 .fileChips li {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #f5f5f7;
+  background: var(--surface);
   padding: 6px 10px;
   border-radius: 16px;
   font-size: 13px;
@@ -1214,212 +1303,139 @@
   text-decoration: none;
   overflow-wrap: anywhere;
 }
-.cardSummary {
-  background: #fff;
-  border-radius: 16px;
-  padding: 12px;
-  margin-top: 6px;
-  color: #13141a;
+
+/* Soft appearance of new rows; transform and opacity only. */
+.userMessage,
+.agentMessage,
+.question,
+.files,
+.fileChips {
+  animation: rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.cardSummary > p {
-  font-size: 11px;
-  color: #6b6e7b;
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
 }
-.cardSummary dl {
-  margin: 0;
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
-.cardSummary dl > div {
-  display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid #e6e7eb;
-}
-.cardSummary dl > div:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-.cardSummary dt {
-  color: #6b6e7b;
-  font-size: 11px;
-}
-.cardSummary dd {
-  margin: 0;
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
-}
-/* One selected setting, requirement or assumption per line. */
-.cardSummary dd > span,
-.cardSummary dd details > span {
-  display: block;
-}
-.cardSummary dd summary {
-  cursor: pointer;
-  color: #6b6e7b;
-}
-.chats nav {
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-}
-.chats nav button {
-  min-width: 0;
-}
-.technicalError {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  line-height: 20px;
-  padding: 12px 0;
-}
-.technicalError img {
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-.technicalError button {
-  margin-left: auto;
-  background: #13141a;
-  color: white;
-  font-size: 11px;
-  line-height: 17px;
-  padding: 5px 12px;
-  flex: none;
+@media (prefers-reduced-motion: reduce) {
+  .userMessage,
+  .agentMessage,
+  .question,
+  .files,
+  .fileChips,
+  .notice,
+  .spin {
+    animation: none;
+  }
+  .side,
+  .handle,
+  .messageMeta,
+  .toBottom {
+    transition: none !important;
+  }
 }
 
-.fileRow img:first-child {
-  width: 14px;
-  height: 14px;
-}
-.thread[data-running="true"] {
-  padding-bottom: 16px;
-}
-.timeline {
-  margin-top: -8px;
-}
-.card > .actions {
-  margin-top: 12px;
-}
-.options button[data-suggested="true"] {
-  background: #13141a;
-  color: #fff;
-}
-.options button[data-suggested="true"] small,
-.options button[data-suggested="true"] .optionNumber {
-  color: #c9cad1;
-}
-.files li {
-  position: relative;
-}
-.files li[data-failed="true"] .fileStatus {
-  padding-right: 80px;
-}
-.files details {
-  position: absolute;
-  top: 6px;
-  right: 38px;
-  margin: 0;
-  z-index: 2;
-}
-.files details > summary {
-  list-style: none;
-  background: #f5f5f7;
-  border-radius: 12px;
-  padding: 5px 12px;
-  font-size: 11px;
-  line-height: 14px;
-  color: #13141a;
-}
-.files details > summary::-webkit-details-marker {
-  display: none;
-}
-.files details button {
-  position: absolute;
-  top: 30px;
-  right: 0;
-  white-space: nowrap;
-  border: 1px solid #d5d6dc;
-  background: #fff;
-}
-.mobileOnly,
-.mobileTools {
-  display: none;
-}
-@media (max-width: 800px) {
-  .app {
-    height: 100dvh;
-    min-height: 0;
+/* A window narrower than both panels and the column keeps the column readable. */
+@media (max-width: 1280px) {
+  .side {
+    width: 280px;
   }
   .workspace {
-    min-height: 0;
+    --left: 300px;
+    --right: 300px;
   }
-  .chat {
-    flex: 1;
-    min-height: 0;
-  }
-  .thread {
-    max-height: none;
-  }
-  .composer {
-    position: static;
-  }
-  .panelToggle {
-    display: none;
-  }
-  .side {
-    display: contents;
-  }
-  .side > .chats,
-  .side > .card {
-    position: fixed;
-    z-index: 25;
-    top: 76px;
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-height: none;
-  }
-  .side[data-open="false"] > .chats {
-    transform: translateX(-24px);
-  }
-  .side[data-open="false"] > .card {
-    transform: translateX(24px);
-  }
-  .chats nav {
-    display: grid;
-  }
-  .panelBackdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    background: rgba(19, 20, 26, 0.12);
-    border-radius: 0;
-    animation: fade 200ms ease both;
+}
+/* Narrow window: the panels open over the chat as drawers. */
+@media (max-width: 800px) {
+  .header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 16px;
   }
   .mobileTools {
     display: flex;
     gap: 8px;
   }
-  .mobileTools .icon {
+  .mobileTools .icon,
+  .mobileTools .icon:hover {
     min-width: 20px;
     width: 20px;
     height: 20px;
   }
-  .mobileOnly {
-    display: block;
-    width: 20px;
-    height: 20px;
+  .workspace,
+  .workspace[data-left="false"],
+  .workspace[data-right="false"] {
+    --left: 16px;
+    --right: 16px;
   }
-  .desktopOnly {
+  .chat {
+    padding: 0 16px 12px;
+  }
+  .side,
+  .side[data-side="left"],
+  .side[data-side="right"] {
+    position: fixed;
+    z-index: 25;
+    top: 56px;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    transition:
+      opacity 220ms ease,
+      transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s linear 0s;
+  }
+  .side[data-open="false"] {
+    opacity: 0;
+    transition:
+      opacity 140ms ease,
+      transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      visibility 0s linear 140ms;
+  }
+  .side[data-side="left"][data-open="false"] {
+    transform: translateX(-24px);
+  }
+  .side[data-side="right"][data-open="false"] {
+    transform: translateX(24px);
+  }
+  .chats,
+  .card {
+    border: 0;
+    border-radius: 16px;
+  }
+  .chats > h1 {
     display: none;
   }
-  .header > button {
-    padding: 0;
-    background: transparent;
+  .handle {
+    display: none;
   }
-  .question > .row {
-    flex-direction: row;
+  .panelBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: var(--overlay);
+    border-radius: 0;
+    animation: fade 200ms ease both;
+  }
+  .userMessage {
+    max-width: 95%;
+  }
+}
+.mobileTools {
+  display: none;
+}
+@media (max-width: 800px) {
+  .mobileTools {
+    display: flex;
   }
 }

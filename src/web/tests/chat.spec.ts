@@ -210,7 +210,7 @@ for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
     // A refused call fails at the gate, a broken answer at the interpreter.
     await task(page, message);
     await expect(
-      page.getByRole("button", { name: "Повторить позже" }),
+      page.getByRole("button", { name: "Повторить", exact: true }),
     ).toBeVisible();
   });
 }
@@ -313,7 +313,9 @@ test("T14 keyboard send and panels", async ({ page }) => {
   await page.getByLabel("Сообщение", { exact: true }).press("Enter");
   await settled(page);
   await page.getByRole("button", { name: "Свернуть карточку" }).click();
-  await page.getByRole("button", { name: "Карточка", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Показать карточку", exact: true })
+    .click();
   await expect(
     page.getByRole("complementary", { name: "Карточка задания" }),
   ).toBeVisible();

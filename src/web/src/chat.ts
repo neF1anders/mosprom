@@ -16,7 +16,7 @@ export function composerPlaceholder(
   connected: boolean,
   attachments: Attachment[],
 ) {
-  if (!connected) return "Нет связи. Текст останется в поле ввода";
+  if (!connected) return "Сообщение отправится после переподключения";
   if (job?.error) return "Или напишите сообщение…";
   if (job?.files_changed) return "Напишите сообщение или отправьте файлы";
   if (attachments.some((file) => file.status === "failed"))

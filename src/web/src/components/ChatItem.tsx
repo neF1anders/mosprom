@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Job } from "../types";
+import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
 // A long title runs on hover; the menu renames the chat in place or deletes it.
@@ -111,7 +112,7 @@ export function ChatItem({
           aria-expanded={menu !== "closed"}
           onClick={() => setMenu(menu === "closed" ? "open" : "closed")}
         >
-          <img src="/figma/more.svg" alt="" />
+          <Icon name="more" />
         </button>
       )}
       {menu === "open" && (

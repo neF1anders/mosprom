@@ -2,8 +2,50 @@ import { Fragment } from "react";
 import { answerPairs } from "../chat";
 import type { Attachment, Job, Message } from "../types";
 import { Files } from "./Files";
+import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
+function sentAt(message: Message) {
+  if (!message.created_at) return "";
+  return new Date(message.created_at).toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+// Hovering a sent message shows when it was sent and a copy button, as on Figma screen 23.
+function UserMessage({ message, job }: { message: Message; job?: Job }) {
+  const time = sentAt(message);
+  return (
+    <article className={styles.userMessage}>
+      <div className={styles.bubble}>
+        {message.kind === "answers" ? (
+          <dl className={styles.answerList}>
+            {answerPairs(message.text, job).map((pair, index) => (
+              <div key={index}>
+                <dt>{pair.question}</dt>
+                <dd>{pair.answer}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p>{message.text}</p>
+        )}
+      </div>
+      <div className={styles.messageMeta}>
+        <div>
+          {time && <time dateTime={message.created_at}>{time}</time>}
+          <button
+            className={styles.icon}
+            aria-label="Скопировать сообщение"
+            onClick={() => void navigator.clipboard?.writeText(message.text)}
+          >
+            <Icon name="copy" />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}
 // Sent files follow the last user message once read; until then they wait below the thread.
 export function MessageList({
   messages,
@@ -40,29 +82,13 @@ export function MessageList({
     <>
       {messages.map((message) => (
         <Fragment key={message.id}>
-          <article
-            className={
-              message.role === "user" ? styles.userMessage : styles.agentMessage
-            }
-          >
-            {message.role !== "user" && (
-              <span className={styles.avatar} aria-hidden="true">
-                M
-              </span>
-            )}
-            {message.kind === "answers" ? (
-              <dl className={styles.answerList}>
-                {answerPairs(message.text, job).map((pair, index) => (
-                  <div key={index}>
-                    <dt>{pair.question}</dt>
-                    <dd>{pair.answer}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : (
+          {message.role === "user" ? (
+            <UserMessage message={message} job={job} />
+          ) : (
+            <article className={styles.agentMessage}>
               <p>{message.text}</p>
-            )}
-          </article>
+            </article>
+          )}
           {ready && message.id === lastUserId && files}
         </Fragment>
       ))}

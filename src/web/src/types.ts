@@ -143,6 +143,7 @@ export interface Message {
   kind?: "chat" | "answers" | "gate" | "offtopic";
   text: string;
   revision: number;
+  created_at?: string;
 }
 export interface Snapshot {
   job: Job;
@@ -157,6 +158,7 @@ export interface ProgressEvent {
   message: string;
   status: string;
   data: Record<string, unknown>;
+  created_at?: string;
 }
 export const statusLabel: Record<string, string> = {
   draft: "Ожидаю материалы",

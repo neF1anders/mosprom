@@ -10,10 +10,10 @@ test("T12 reconnect catches up and reopens same task", async ({
   await settled(page);
   const url = page.url();
   await context.setOffline(true);
-  await page.getByText("Соединение потеряно, переподключаемся").waitFor();
+  await page.getByText("Соединение потеряно, переподключаюсь").waitFor();
   await context.setOffline(false);
   await expect(
-    page.getByText("Соединение потеряно, переподключаемся"),
+    page.getByText("Соединение потеряно, переподключаюсь"),
   ).not.toBeVisible();
   const second = await context.newPage();
   await second.goto(url);
