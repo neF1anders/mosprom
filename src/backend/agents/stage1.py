@@ -95,9 +95,7 @@ AGENTS = (
 UNITS_POLL_SECONDS = 2
 # How often a running stage checks for a stop or a newer revision, even mid model call.
 CHECK_SECONDS = 2
-OFF_TOPIC = (
-    "Я помогаю подготовить задание на 3D печать. Приложите STL модель и ТЗ или опишите деталь"
-)
+OFF_TOPIC = "Я помогаю подготовить задание на 3D печать. Приложите STL модель и ТЗ или опишите деталь"
 
 
 @dataclass(frozen=True)
@@ -458,7 +456,6 @@ class Stage1:
         )
         stable_references(card, ctx)
         return card
-
 
 def values(job: Job) -> dict[str, str]:
     return {key: answer.value for key, answer in job.answers.items()}
