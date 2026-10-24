@@ -162,3 +162,98 @@ def test_fully_collapsed_triangle_is_serializable(tmp_path):
     assert report["validation"]["degenerate_faces"] == 1
     assert report["geometry"]["surface_centroid"] is None
     json.dumps(report, allow_nan=False)
+
+
+def tube():
+    return trimesh.creation.annulus(r_min=5, r_max=10, height=30)
+
+
+def test_tube_is_a_revolution_with_a_through_bore(tmp_path):
+    report = analyze_stl(save(tmp_path, tube()), units="mm", samples=0)
+    revolution = report["revolution"]
+    assert revolution["is_revolution"] and revolution["round_fraction"] == 1
+    assert np.abs(revolution["axis_direction"]) == pytest.approx([0, 0, 1], abs=1e-3)
+    assert revolution["bore"]["through"]
+    assert revolution["bore"]["diameter_mm"] == pytest.approx(10, abs=0.2)
+    assert revolution["outer_diameter_mm"] == pytest.approx(20, abs=0.2)
+    assert revolution["length_along_axis_mm"] == pytest.approx(30)
+
+
+def test_open_tube_is_still_a_revolution(tmp_path):
+    mesh = tube()
+    mesh.update_faces(np.abs(mesh.face_normals[:, 2]) < 0.5)  # drop both caps
+    mesh.remove_unreferenced_vertices()
+    report = analyze_stl(save(tmp_path, mesh), units="mm", samples=0)
+    assert "boundary_edges" in report["validation"]["defects"]
+    assert report["revolution"]["is_revolution"]
+    assert report["revolution"]["bore"]["diameter_mm"] == pytest.approx(10, abs=0.2)
+
+
+def test_box_bottom_rests_on_the_bed(tmp_path):
+    report = analyze_stl(save(tmp_path, trimesh.creation.box(extents=[10, 20, 30])), samples=0)
+    assert report["overhangs"]["area_mm2"] == 0
+    assert report["overhangs"]["bed_contact_area_mm2"] == pytest.approx(200)
+    assert report["overhangs"]["critical_angle_deg"] == 45
+    assert report["revolution"]["is_revolution"] is False
+    assert report["revolution"]["bore"] is None
+    assert report["revolution"]["wall_to_radius"] == 1
+
+
+def test_wide_plate_on_a_post_overhangs_outside_the_bed_band(tmp_path):
+    post = trimesh.creation.box(extents=[10, 10, 10])
+    post.apply_translation([0, 0, 5])
+    plate = trimesh.creation.box(extents=[30, 30, 5])
+    plate.apply_translation([0, 0, 12.5])
+    report = analyze_stl(save(tmp_path, post + plate), units="mm", samples=0)
+    overhangs = report["overhangs"]
+    assert overhangs["area_mm2"] == pytest.approx(900)
+    assert overhangs["bed_contact_area_mm2"] == pytest.approx(100)
+    assert overhangs["area_fraction"] == pytest.approx(
+        900 / report["geometry"]["surface_area"], abs=1e-4
+    )
+
+
+def test_orientations_start_as_loaded_and_are_rotations(tmp_path):
+    # Tilted, so standing on the axis is not one of the axis-aligned candidates.
+    mesh = tube()
+    mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(30), [1, 0, 0]))
+    report = analyze_stl(save(tmp_path, mesh), units="mm", samples=0)
+    candidates = report["orientations"]
+    assert 1 <= len(candidates) <= 12
+    assert [c["id"] for c in candidates] == [f"o{i}" for i in range(1, len(candidates) + 1)]
+    assert candidates[0]["source"] == "as_loaded"
+    assert candidates[0]["rotation"] == np.eye(3).tolist()
+    assert candidates[0]["overhang_area_mm2"] == report["overhangs"]["area_mm2"]
+    for candidate in candidates:
+        rotation = np.array(candidate["rotation"])
+        assert rotation @ rotation.T == pytest.approx(np.eye(3), abs=1e-5)
+        assert np.linalg.det(rotation) == pytest.approx(1, abs=1e-5)
+    assert "revolution_axis" in {c["source"] for c in candidates}
+
+
+def test_failed_revolution_is_null_and_named(tmp_path, monkeypatch):
+    import src.mesh_analysis as analysis
+
+    def broken(mesh):
+        raise RuntimeError
+
+    monkeypatch.setattr(analysis, "revolution", broken)
+    report = analyze_stl(save(tmp_path, tube()), samples=0)
+    assert report["revolution"] is None
+    assert report["partial_errors"] == {"revolution": "RuntimeError"}
+    assert report["orientations"][0]["source"] == "as_loaded"
+    assert "overhangs" in report
+
+
+def test_new_sections_follow_the_stage_two_contract(tmp_path):
+    import json
+    from pathlib import Path
+
+    from jsonschema import Draft202012Validator
+
+    report = analyze_stl(save(tmp_path, tube()), units="mm", samples=0)
+    json.dumps(report, allow_nan=False)
+    assert report["schema_version"] == "1.2"
+    contract = json.loads(Path("docs/stage1-contract.schema.json").read_text())
+    schema = {"$defs": contract["$defs"], **contract["$defs"]["StlReport"]}
+    Draft202012Validator(schema).validate(report)

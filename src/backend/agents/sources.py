@@ -15,7 +15,7 @@ from .concurrency import together
 from .runner import RunContext
 from .store import RunStore
 
-ANALYZER_VERSION = "1.2-partial"
+ANALYZER_VERSION = "1.3-revolution"
 
 
 @dataclass(frozen=True)
