@@ -10,6 +10,15 @@ export function modelSize(geometry?: Geometry | null) {
       : unitNames[geometry.units] || geometry.units;
   return `${size} ${units}`;
 }
+// Defects of the STL analysis as the chat names them.
+export const defectLabels: Record<string, string> = {
+  boundary_edges: "открытая поверхность",
+  duplicate_faces: "дублирующие грани",
+  multiple_shells: "несколько оболочек",
+  nonmanifold_edges: "немногообразные рёбра",
+  inconsistent_winding: "несогласованные нормали",
+  topology_unchecked: "топология не проверена",
+};
 const unitNames: Record<string, string> = {
   mm: "мм",
   cm: "см",

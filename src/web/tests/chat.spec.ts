@@ -83,35 +83,23 @@ for (const name of [
     // The model goes with the document, or the gate only talks about it.
     await upload(page, name, "box.stl");
     await settled(page);
-    await page.getByLabel("Показать требования", { exact: true }).click();
-    await expect(
-      page
-        .getByRole("complementary", { name: "Карточка задания" })
-        .locator("summary")
-        .filter({ hasText: /25/ })
-        .first(),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole("complementary", { name: "Карточка задания" })
-        .locator("summary")
-        .filter({ hasText: /75/ })
-        .first(),
-    ).toBeVisible();
+    const panel = page.getByRole("complementary", {
+      name: "Карточка задания",
+    });
+    await panel
+      .getByRole("button", { name: /Обязательные требования/ })
+      .click();
+    const items = panel.locator("li");
+    await expect(items.filter({ hasText: /25/ }).first()).toBeVisible();
+    await expect(items.filter({ hasText: /75/ }).first()).toBeVisible();
     // A value named by a requirement code reaches the card under that code.
     if (name === "task.txt")
       await expect(
-        page
-          .getByRole("complementary", { name: "Карточка задания" })
-          .locator("summary")
+        items
           .filter({ hasText: "Максимальная рабочая температура детали" })
           .filter({ hasText: /от 10 до 70 °C/ }),
       ).toBeVisible();
     if (name.endsWith(".pdf") || name === "photo.png") {
-      const panel = page.getByRole("complementary", {
-        name: "Карточка задания",
-      });
-      await panel.locator("summary").filter({ hasText: /25/ }).first().click();
       const image = panel
         .getByRole("link", { name: "Посмотреть страницу" })
         .first();
@@ -131,13 +119,23 @@ for (const name of [
 }
 for (const [name, expected] of [
   ["box.stl", "10 × 20 × 30"],
-  ["open.stl", "Открытая поверхность"],
-  ["duplicate.stl", "Повторяющиеся грани"],
-  ["shells.stl", "Несколько оболочек"],
+  ["open.stl", "открытая поверхность"],
+  ["duplicate.stl", "дублирующие грани"],
+  ["shells.stl", "несколько оболочек"],
   ["nan.stl", "Файл STL повреждён или не читается"],
 ]) {
   test(`T04 mesh ${name}`, async ({ page }) => {
     await upload(page, name);
+    // A defect the card settled is listed in the opened geometry section.
+    if (/поверхность|грани|оболочек/.test(expected)) {
+      await settled(page);
+      const panel = page.getByRole("complementary", {
+        name: "Карточка задания",
+      });
+      const geometry = panel.getByRole("button", { name: /Геометрия/ });
+      if ((await geometry.getAttribute("aria-expanded")) === "false")
+        await geometry.click();
+    }
     await expect(
       page.getByText(expected, { exact: false }).first(),
     ).toBeVisible();
@@ -172,12 +170,11 @@ for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
         .click();
       await expect(card.getByText("не удалось уточнить").first()).toBeVisible();
       await expect(
-        card.getByText(
-          "Источники расходятся, Длина детали, принято без ответа",
-          {
+        card
+          .getByText("Источники расходятся, Длина детали, принято без ответа", {
             exact: false,
-          },
-        ),
+          })
+          .first(),
       ).toBeAttached();
     }
   });

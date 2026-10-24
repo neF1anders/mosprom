@@ -1,4 +1,4 @@
-import { modelSize, plural } from "./format";
+import { defectLabels, modelSize, plural } from "./format";
 import type { Attachment, Geometry, Job, ProgressEvent } from "./types";
 import { isRunning } from "./types";
 
@@ -101,7 +101,9 @@ function geometryOutput(
       `объём ${String(Number((geometry.volume / 1000).toFixed(1))).replace(".", ",")} см3`,
     );
   if (geometry.defects.length)
-    lines.push(`дефекты ${geometry.defects.join(", ").replace(/_/g, " ")}`);
+    lines.push(
+      `дефекты ${geometry.defects.map((d) => defectLabels[d] || d).join(", ")}`,
+    );
   return { command: `$ stl ${name}`, output: lines };
 }
 function count(message: string) {

@@ -42,10 +42,15 @@ function Step({ section }: { section: Section }) {
                 ) : (
                   <span>{item.text}</span>
                 )}
-                {(item.meta || item.tag) && (
+                {(item.meta || item.tag || item.page) && (
                   <small>
                     {item.meta}
                     {item.tag && <em>{item.tag}</em>}
+                    {item.page && (
+                      <a href={item.page} target="_blank" rel="noreferrer">
+                        Посмотреть страницу
+                      </a>
+                    )}
                   </small>
                 )}
               </li>
