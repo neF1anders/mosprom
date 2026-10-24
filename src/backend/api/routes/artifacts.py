@@ -12,6 +12,11 @@ async def card(job_id: str, services: Services, user: User):
     return await services.jobs.current_card(user, job_id)
 
 
+@router.get("/jobs/{job_id}/parameters")
+async def parameters(job_id: str, services: Services, user: User):
+    return await services.jobs.current_parameters(user, job_id)
+
+
 @router.get("/jobs/{job_id}/artifacts/{artifact_id}")
 async def artifact(job_id: str, artifact_id: str, services: Services, user: User):
     data = await services.artifacts.read(user, job_id, artifact_id)

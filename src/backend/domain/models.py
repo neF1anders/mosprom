@@ -177,6 +177,23 @@ class Answer(Value):
     answered_at: datetime = Field(default_factory=now)
 
 
+Stage = Literal["understanding", "parameters", "validation", "done"]
+
+
+class ParametersSummary(Value):
+    """What the chat shows of the latest parameter set without loading it."""
+
+    iteration: int
+    printing_mode: str
+    quality_type: str
+    material: str
+    changed_settings: int
+    unsatisfied: int
+    status: Literal["proposed", "infeasible"]
+    # "attention" when the last check still found problems or a requirement is not met.
+    check: Literal["pending", "ok", "attention"] = "pending"
+
+
 class Job(Value):
     id: str = Field(default_factory=identifier)
     user_id: str
@@ -192,7 +209,9 @@ class Job(Value):
     answers: dict[str, Answer] = Field(default_factory=dict)
     # Files are attached without starting work; the next send processes them.
     files_changed: bool = False
-    next_stage: Literal["not_ready", "queued"] = "not_ready"
+    # Between stages the job is queued; it is completed only after the last stage.
+    stage: Stage = "understanding"
+    parameters: ParametersSummary | None = None
     # Stage-one step of the running revision; answers given before "consolidate" join it.
     phase: Literal["triage", "deep", "consolidate", "verify"] | None = None
     error: str | None = None

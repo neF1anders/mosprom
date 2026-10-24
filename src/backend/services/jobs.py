@@ -127,3 +127,12 @@ class JobService:
         if job.card.revision != job.revision:
             raise RevisionConflict()
         return job.card.model_dump(mode="json")
+
+    async def current_parameters(self, user_id: str, job_id: str) -> dict[str, Any]:
+        """The latest parameter set of the current revision, as the check and slicer read it."""
+        async with self.uow() as uow:
+            job = await uow.jobs.get(job_id, user_id=user_id)
+            found = await uow.stage_results.latest(job.id, job.revision, "parameters")
+        if found is None:
+            raise AppError("Параметры ещё не подобраны", "parameters_pending", 409)
+        return found
