@@ -444,43 +444,45 @@ async def test_a_claim_left_by_a_dead_delivery_is_taken_again(pg, http):
     assert await waiting(pg, job_id) == [] and (await kinds(http, job_id))[-1][1] == "steer"
 
 
-async def waiting_for_answers(pg, http, text: str):
-    """A job whose checker asked, with a message queued while it did."""
+async def waiting_for_answers(pg, http, text: str, decision=None):
+    """A job whose checker asked, with a message queued while it did; the assistant decides
+    on it as soon as the questions come."""
     job_id = await job_with(http, "box.stl", "task.txt")
     review = {"questions": [QUESTION]}
-    model = script(checker=[queued_while(http, job_id, text, review)])
-    job = await run(pg, job_id, model)
-    assert job.status == Status.WAITING and "assistant" not in model.requests
-    return job
+    model = script(checker=[queued_while(http, job_id, text, review)], assistant=[decision])
+    await run(pg, job_id, model)
+    return await current(pg, job_id), model
 
 
-async def test_while_questions_wait_the_queue_waits_and_goes_with_the_answers(pg, http):
-    job = await waiting_for_answers(pg, http, "Работает в масле")
-    [message] = await waiting(pg, job.id)
-    assert (message.status, message.attempts) == ("queued", 0)
-    question = job.card.questions[0]
-    await answer(http, job, {question.id: "вода"})
-    assert (await kinds(http, job.id))[-2:] == [
-        ("user", "chat", "Работает в масле"),
-        ("user", "answers", f"{QUESTION['title']}, вода"),
-    ]
+async def test_a_message_queued_while_the_checker_asks_answers_the_questions(pg, http):
+    """Regression: the message waited unanswered until the user answered in the window."""
+    job, model = await waiting_for_answers(pg, http, "Работает в масле", APPLY)
+    assert len(model.requests["assistant"]) == 1
+    assert (
+        '"вопросы без ответа": ["В какой среде работает деталь"]'
+        in (model.requests["assistant"][0]["messages"][-1]["content"])
+    )
+    assert job.revision == 2 and await waiting(pg, job.id) == []
+    assert (await kinds(http, job.id))[-1] == ("user", "chat", "Работает в масле")
+    # The questions wait, so the message answers them instead of correcting the card.
+    assert await todo(pg, "stage1") == [{"job_id": job.id, "revision": 2, "start": False}]
     model = script(checker=[reply({})])
-    await run(pg, job.id, model)
+    await run_queued(pg, model)
     follow = model.requests["checker"][0]["messages"][3]["content"]
     assert '<source id="m1">Работает в масле</source>' in follow
-    assert f'<source id="a:{question.id}">' in follow
 
 
-async def test_send_now_on_an_idle_job_lets_the_assistant_take_it_as_the_answer(pg, http):
-    job = await waiting_for_answers(pg, http, "Работает в масле")
+async def test_send_now_after_a_failed_delivery_lets_the_assistant_take_it(pg, http):
+    failure = AppError("Модель не отвечает", "model_unavailable", 503)
+    job, _ = await waiting_for_answers(pg, http, "Работает в масле", failure)
     [message] = await waiting(pg, job.id)
+    assert (job.status, message.attempts) == (Status.WAITING, 1)
     response = await act(http, job.id, message.id, "send")
     assert response.json()["job"]["revision"] == 1 and len(response.json()["queued"]) == 1
     assert await todo(pg, "steer") == [{"job_id": job.id}]
     pg.stage1.runner.model = script(assistant=[APPLY])
     assert await pg.steering.deliver(job.id, force=True)
     assert (await kinds(http, job.id))[-1] == ("user", "chat", "Работает в масле")
-    # The questions wait, so the message answers them instead of correcting the card.
     assert await todo(pg, "stage1") == [{"job_id": job.id, "revision": 2, "start": False}]
 
 

@@ -196,13 +196,17 @@ class Chat:
         raise TimeoutError(f"job did not reach {statuses}")
 
     async def finished(self, timeout: float = 600) -> dict[str, Any]:
-        """The project is done and its report is in the chat."""
+        """The project is done and its new report is in the chat."""
+        known = {m["id"] for m in (await self.snapshot())["messages"]}
         await self.until({"completed", "failed"}, timeout)
         started = time.monotonic()
         while time.monotonic() - started < 120:
             now = await self.snapshot()
-            if any(m.get("kind") == "report" for m in now["messages"]):
-                report = [m for m in now["messages"] if m.get("kind") == "report"][-1]
+            reports = [
+                m for m in now["messages"] if m.get("kind") == "report" and m["id"] not in known
+            ]
+            if reports:
+                report = reports[-1]
                 self.result.transcript.append(f"📄 {report['text']}")
                 return now
             await asyncio.sleep(3)
@@ -315,7 +319,8 @@ async def stl_only(chat: Chat, result: Result) -> None:
     await chat.attach("fan", ("stl",))
     turn = await chat.say("")
     if turn.action == "reply":
-        result.check("попросил описание", "?" in " ".join(turn.texts), turn.texts)
+        asked = re.search(r"назначени|услови|нагрузк", " ".join(turn.texts), re.I)
+        result.check("попросил описание", asked, turn.texts)
         turn = await chat.say("Подробностей нет, делай как считаешь нужным")
     result.check("начал проект после ответа", turn.action == "start", turn)
     await chat.stop()
@@ -404,7 +409,7 @@ async def typed_answers(chat: Chat, result: Result) -> None:
         await chat.stop()
         return
     questions = [q["title"] for q in now["job"]["card"]["questions"]]
-    turn = await chat.say("Отвечаю на вопросы: деталь работает в помещении, нагрузки небольшие")
+    turn = await chat.say("На все вопросы ответ один, не знаю, решай сам")
     result.check("ответ принят как ответ", turn.action == "update", (turn, questions))
     await chat.stop()
 
