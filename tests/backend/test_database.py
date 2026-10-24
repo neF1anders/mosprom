@@ -1,4 +1,4 @@
-"""The unit of work on PostgreSQL: a cancelled request must not poison the connection pool."""
+"""The unit of work on SQLite: one writer at a time, readers beside it."""
 
 import asyncio
 
@@ -6,37 +6,43 @@ import pytest
 from sqlalchemy import text
 
 from src.backend.domain.pipeline import Step
-from src.backend.infrastructure.database import database
-from src.backend.infrastructure.queue import queue_app
-
-from .conftest import TEST_DATABASE
 
 pytestmark = pytest.mark.integration
 
 
-async def test_a_query_cancelled_mid_flight_leaves_the_pool_usable():
-    """A stop now cancels a run even mid-query, and a closed event stream cancels its read;
-    neither may hand the next request a connection still busy with the cancelled statement."""
-    engine, uow = database(TEST_DATABASE, queue_app(TEST_DATABASE))
-    try:
+async def test_concurrent_writers_wait_for_each_other_instead_of_failing(pg):
+    """Chats write in parallel; a locked database must make them queue, not raise."""
 
-        async def slow():
-            async with uow() as work:
-                await work._session.execute(text("SELECT pg_sleep(5)"))
+    async def write(index: int):
+        async with pg.uow() as uow:
+            await uow.cache.put(f"key-{index}", {"value": index})
+            await asyncio.sleep(0.01)
+            await uow.commit()
 
-        task = asyncio.ensure_future(slow())
-        await asyncio.sleep(0.5)
-        # Starlette cancels a dropped stream level-triggered: every later await is cancelled too.
-        while not task.done():
-            task.cancel()
-            await asyncio.sleep(0)
-        with pytest.raises(asyncio.CancelledError):
-            await task
-        for _ in range(3):
-            async with uow() as work:
-                assert (await work._session.execute(text("SELECT 1"))).scalar() == 1
-    finally:
-        await engine.dispose()
+    await asyncio.gather(*(write(i) for i in range(20)))
+    async with pg.uow() as uow:
+        assert [await uow.cache.get(f"key-{i}") for i in range(20)] == [
+            {"value": i} for i in range(20)
+        ]
+
+
+async def test_a_cancelled_request_leaves_the_pool_usable(pg):
+    async def slow():
+        async with pg.uow() as work:
+            await work.cache.put("slow", {})
+            await asyncio.sleep(5)
+
+    task = asyncio.ensure_future(slow())
+    await asyncio.sleep(0.3)
+    # Starlette cancels a dropped stream level-triggered: every later await is cancelled too.
+    while not task.done():
+        task.cancel()
+        await asyncio.sleep(0)
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    for _ in range(3):
+        async with pg.uow() as work:
+            assert (await work._session.execute(text("SELECT 1"))).scalar() == 1
 
 
 async def test_a_step_result_is_written_once_per_revision_step_and_pass(pg):

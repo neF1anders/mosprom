@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from ..config import Settings
 from ..container import Container
 from ..domain.errors import AppError
+from ..startup import prepare, stop, watch_parent
 from .body_limit import RequestBodyLimit
 from .middleware import LocalSecurity
 from .routes import (
@@ -28,12 +29,15 @@ from .routes import (
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
     if len(settings.session_secret) < 32:
-        raise RuntimeError("Set SESSION_SECRET using python scripts/bootstrap.py")
+        raise RuntimeError("Set SESSION_SECRET to at least 32 characters")
     container = Container(settings)
 
     @asynccontextmanager
     async def lifespan(app):
+        await prepare(container)
+        watcher = watch_parent(settings.parent_pid)
         yield
+        await stop(watcher)
         await container.close()
 
     app = FastAPI(

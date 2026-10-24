@@ -1,5 +1,6 @@
-"""HTTP commands against PostgreSQL: atomic revisions, queueing, ownership, idempotency."""
+"""HTTP commands against SQLite: atomic revisions, queueing, ownership, idempotency."""
 
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 from sqlalchemy import text
 
 from src.backend.domain.models import Status
+from src.backend.infrastructure.queue import TaskRunner
 
 pytestmark = pytest.mark.integration
 
@@ -25,12 +27,18 @@ async def queued(pg, job_id: str) -> list[dict]:
     async with pg.engine.connect() as connection:
         rows = await connection.execute(
             text(
-                "SELECT task_name, queue_name, lock, args FROM procrastinate_jobs "
-                "WHERE args->>'job_id' = :job ORDER BY id"
+                "SELECT task AS task_name, job_id, revision, start FROM task_queue "
+                "WHERE job_id = :job ORDER BY id"
             ),
             {"job": job_id},
         )
-        return [dict(row._mapping) for row in rows]
+        return [
+            {
+                "task_name": row.task_name,
+                "args": {"job_id": row.job_id, "revision": row.revision, "start": bool(row.start)},
+            }
+            for row in rows
+        ]
 
 
 async def upload(http, job_id: str, name: str, request_id: str | None = None):
@@ -52,8 +60,6 @@ async def test_message_creates_revision_and_queues_work_in_one_transaction(pg, h
     assert await queued(pg, job_id) == [
         {
             "task_name": "stage1.run",
-            "queue_name": "stage1",
-            "lock": f"job:{job_id}",
             "args": {"job_id": job_id, "revision": 1, "start": False},
         }
     ]
@@ -227,58 +233,79 @@ async def test_launch_link_works_once(pg):
         assert again.status_code == 401
 
 
-async def test_job_of_a_dead_worker_returns_to_the_queue(pg, http):
-    from src.backend.worker import retry_stalled
-
+async def test_work_a_stopped_process_left_half_done_runs_again(pg, http):
     job_id = await new_job(http)
     await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
     async with pg.engine.begin() as connection:
-        worker = await connection.scalar(
-            text(
-                "INSERT INTO procrastinate_workers (last_heartbeat) "
-                "VALUES (NOW() - INTERVAL '5 minutes') RETURNING id"
-            )
-        )
         await connection.execute(
-            text(
-                "UPDATE procrastinate_jobs SET status = 'doing', worker_id = :worker "
-                "WHERE args->>'job_id' = :job"
-            ),
-            {"worker": worker, "job": job_id},
+            text("UPDATE task_queue SET status = 'doing' WHERE job_id = :job"), {"job": job_id}
         )
-    async with pg.queue.open_async():
-        assert await retry_stalled(pg.queue) == 1
-        assert await retry_stalled(pg.queue) == 0
+    handled = []
+
+    async def stage1(job, revision, start):
+        handled.append((job, revision))
+
+    runner = TaskRunner(pg.uow, pg.wake, {"stage1.run": stage1}, 2)
+    await runner.start()
+    for _ in range(100):
+        if handled:
+            break
+        await asyncio.sleep(0.05)
+    await runner.stop()
+    assert handled == [(job_id, 1)]
     async with pg.engine.connect() as connection:
         status = await connection.scalar(
-            text("SELECT status FROM procrastinate_jobs WHERE args->>'job_id' = :job"),
-            {"job": job_id},
+            text("SELECT status FROM task_queue WHERE job_id = :job"), {"job": job_id}
         )
-    assert status == "todo"
+    assert status == "done"
 
 
-async def test_an_edit_after_a_ready_card_reaches_the_stage_one_worker(pg, http):
-    """Work queued for an earlier revision held the job lock, so the edit was never fetched."""
-    from procrastinate.jobs import Status as JobStatus
-
+async def test_an_edit_after_a_ready_card_is_not_held_back_by_the_old_work(pg, http):
+    """Work queued for an earlier revision is cancelled, and the edit runs after the stage."""
     job_id = await new_job(http)
     await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
-    async with pg.queue.open_async():
-        worker = await pg.queue.job_manager.register_worker()
-        first = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
-        assert first is not None
-        # Stage one finishes the revision and hands the ready card to stage two.
-        async with pg.uow() as uow:
-            await uow.queue.stage2(job_id, 1)
-            await uow.commit()
-        await pg.queue.job_manager.finish_job(first, JobStatus.SUCCEEDED, delete_job=False)
-        await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
-        edit = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
-    assert edit is not None and edit.task_kwargs == {
-        "job_id": job_id,
-        "revision": 2,
-        "start": False,
-    }
+    # Stage one finishes the revision and hands the ready card to stage two.
+    async with pg.uow() as uow:
+        await uow.queue.stage2(job_id, 1)
+        await uow.commit()
+    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
+    async with pg.engine.connect() as connection:
+        rows = (
+            await connection.execute(
+                text("SELECT task, revision, status FROM task_queue ORDER BY id")
+            )
+        ).all()
+    assert [tuple(row) for row in rows] == [
+        ("stage1.run", 1, "cancelled"),
+        ("stage2.select_parameters", 1, "cancelled"),
+        ("stage1.run", 2, "todo"),
+    ]
+
+
+async def test_one_job_never_runs_two_tasks_at_once(pg, http):
+    job_id = await new_job(http)
+    async with pg.uow() as uow:
+        await uow.queue.stage1(job_id, 1)
+        await uow.queue.stage2(job_id, 1)
+        await uow.commit()
+    active, peak, handled = 0, 0, []
+
+    async def handler(job, revision, start):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.05)
+        active -= 1
+        handled.append(job)
+
+    runner = TaskRunner(pg.uow, pg.wake, {"stage1.run": handler, "stage2.select_parameters": handler}, 4)
+    await runner.start()
+    for _ in range(100):
+        if len(handled) == 2:
+            break
+        await asyncio.sleep(0.05)
+    await runner.stop()
+    assert handled == [job_id, job_id] and peak == 1
 
 
 async def test_rename_and_delete_a_chat(pg, http):
