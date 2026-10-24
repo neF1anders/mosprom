@@ -140,15 +140,25 @@ export interface Message {
   seq: number;
   role: string;
   // A gate reply asks for details before the work starts; offtopic marks older rows.
-  kind?: "chat" | "answers" | "gate" | "offtopic";
+  // "steer" is the reply to a message that did not change the task while the work went on.
+  kind?: "chat" | "answers" | "gate" | "offtopic" | "steer";
   text: string;
   revision: number;
+  created_at?: string;
+}
+// A message typed while the job works; it waits for the end of the current stage.
+export interface QueuedMessage {
+  id: string;
+  text: string;
+  status: "queued" | "delivering";
+  attempts: number;
   created_at?: string;
 }
 export interface Snapshot {
   job: Job;
   messages: Message[];
   attachments: Attachment[];
+  queued?: QueuedMessage[];
   message_cursor: number | null;
 }
 export interface ProgressEvent {

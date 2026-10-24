@@ -426,3 +426,57 @@ describe("agents and their reasoning", () => {
     ]);
   });
 });
+describe("messages sent while the work goes on", () => {
+  it("puts a reply that kept the work going into its stage", () => {
+    const stages = buildTimeline({
+      events: [event("files.completed", "completed", {}, "", 0)],
+      job: job(),
+      messages: [
+        {
+          id: "m1",
+          seq: 2,
+          role: "user",
+          kind: "offtopic",
+          text: "Какая погода",
+          revision: 1,
+          created_at: new Date(at(5)).toISOString(),
+        },
+        {
+          id: "m2",
+          seq: 3,
+          role: "assistant",
+          kind: "steer",
+          text: "Не могу ответить, продолжаю работу",
+          revision: 1,
+          created_at: new Date(at(6)).toISOString(),
+        },
+      ],
+    });
+    expect(stage(stages, "understanding").notes.map((n) => n.text)).toEqual([
+      "Какая погода",
+      "Не могу ответить, продолжаю работу",
+    ]);
+    expect(summaries(stages).has("m1")).toBe(true);
+  });
+  it("says what an applied correction changed while the stage works", () => {
+    const stages = buildTimeline({
+      events: [
+        event("steer.applied", "running", {
+          summary: "Длину участка A поменял со 100 на 90 мм",
+        }),
+        event("checking.started", "running", {}, "Учитываю правку"),
+      ],
+      job: job(),
+    });
+    expect(stage(stages, "understanding").summary).toBe(
+      "Длину участка A поменял со 100 на 90 мм",
+    );
+  });
+  it("a reply alone starts no timeline", () => {
+    expect(
+      buildTimeline({
+        events: [event("steer.replied"), event("agent.started")],
+      }),
+    ).toBeNull();
+  });
+});

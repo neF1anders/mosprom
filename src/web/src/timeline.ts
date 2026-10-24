@@ -1,5 +1,11 @@
 import { defectLabels, modelSize, plural } from "./format";
-import type { Attachment, Geometry, Job, ProgressEvent } from "./types";
+import type {
+  Attachment,
+  Geometry,
+  Job,
+  Message,
+  ProgressEvent,
+} from "./types";
 import { isRunning } from "./types";
 
 export type StageState = "done" | "run" | "warn" | "error" | "wait";
@@ -37,6 +43,12 @@ export interface AgentRun {
   // A step of code shown among the agents, like the STL analysis: no reasoning of its own.
   code?: boolean;
 }
+// A message that did not change the task and the reply to it, shown inside its stage.
+export interface Note {
+  id: string;
+  role: string;
+  text: string;
+}
 export interface Stage {
   key: string;
   title: string;
@@ -45,6 +57,7 @@ export interface Stage {
   summary: string;
   actions: Action[];
   agents: AgentRun[];
+  notes: Note[];
   started?: number;
   finished?: number;
   result?: "card" | "parameters" | "project";
@@ -67,7 +80,10 @@ const HIDDEN_AGENTS = new Set(["gate"]);
 export function agentLook(agent: string, title = "") {
   return AGENTS[agent] || { title: title || agent, icon: "file-search" };
 }
-const STAGE_ONE = /^(files|stl|interpretation|checking|tool|agent|stage1)\./;
+const STAGE_ONE =
+  /^(files|stl|interpretation|checking|tool|agent|stage1|steer)\./;
+// Events that are no work of their own: a chat reply of the gate or of the correction agent.
+const TALK = /^(agent|stage1|steer)\./;
 const LATER = [
   { key: "parameters", title: "Подбор параметров", prefix: "parameters." },
   { key: "validation", title: "Валидация", prefix: "validation." },
@@ -439,12 +455,16 @@ function stageOne(
       (a) => !running.some((agent) => agent.agent === a.agent),
     ),
     agents: stl ? [stl, ...agents] : agents,
+    notes: [],
     started,
     finished,
     result: state === "done" && job?.card ? "card" : undefined,
   };
+  // An applied correction says what changed while the stage works on it, Figma screen 10.
+  const applied = last(own, (e) => e.type === "steer.applied");
   if (state === "error") stage.summary = job?.error || "";
   else if (finishedEvent) stage.summary = finishedEvent.message;
+  else if (applied) stage.summary = String(applied.data.summary || "");
   return stage;
 }
 function laterStage(
@@ -481,6 +501,7 @@ function laterStage(
       : waitingText(definition.prefix, job),
     actions: passes.map((event) => passAction(definition.key, event)),
     agents: [],
+    notes: [],
     started,
     finished,
     result,
@@ -530,6 +551,7 @@ export function buildTimeline({
   events,
   job,
   attachments = [],
+  messages = [],
   thoughts = {},
   now = Date.now(),
   connected = true,
@@ -537,6 +559,7 @@ export function buildTimeline({
   events: ProgressEvent[];
   job?: Job;
   attachments?: Attachment[];
+  messages?: Message[];
   thoughts?: Record<string, CallThoughts>;
   now?: number;
   connected?: boolean;
@@ -545,19 +568,15 @@ export function buildTimeline({
     (e) =>
       STAGE_ONE.test(e.type) || LATER.some((s) => e.type.startsWith(s.prefix)),
   );
-  // Agent events alone mean a chat reply of the gate, not work.
-  if (
-    !work.some(
-      (e) => !e.type.startsWith("agent.") && e.type !== "stage1.completed",
-    )
-  )
-    return null;
+  // Talk alone means a chat reply, not work.
+  if (!work.some((e) => !TALK.test(e.type))) return null;
   const stages = [
     stageOne(work, job, attachments, thoughts, now, connected),
     ...LATER.map((definition) =>
       laterStage(definition, work, job, now, connected),
     ),
   ];
+  placeNotes(stages, messages);
   return stages;
 }
 const THOUGHT_LIMIT = 20000;
@@ -598,5 +617,27 @@ export function addThought(
 }
 // Texts the timeline already shows as a stage summary are not repeated in the chat.
 export function summaries(stages: Stage[] | null) {
-  return new Set((stages || []).map((stage) => stage.summary).filter(Boolean));
+  return new Set(
+    (stages || [])
+      .flatMap((stage) => [
+        stage.summary,
+        ...stage.notes.map((note) => note.id),
+      ])
+      .filter(Boolean),
+  );
+}
+// A reply that left the work going belongs to the stage that was running when it came.
+function placeNotes(stages: Stage[], messages: Message[]) {
+  for (const message of messages) {
+    if (!["offtopic", "steer"].includes(message.kind || "")) continue;
+    const at = message.created_at ? Date.parse(message.created_at) : NaN;
+    const stage = [...stages]
+      .reverse()
+      .find((s) => s.started !== undefined && s.started <= at);
+    stage?.notes.push({
+      id: message.id,
+      role: message.role,
+      text: message.text,
+    });
+  }
 }

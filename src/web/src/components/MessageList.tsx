@@ -59,7 +59,9 @@ export function MessageList({
     <>
       {messages
         .filter(
-          (message) => message.role === "user" || !hidden.has(message.text),
+          (message) =>
+            !hidden.has(message.id) &&
+            (message.role === "user" || !hidden.has(message.text)),
         )
         .map((message) =>
           message.role === "user" ? (

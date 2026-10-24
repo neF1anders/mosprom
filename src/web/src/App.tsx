@@ -8,7 +8,7 @@ import {
 import { usePanelFocus } from "./usePanelFocus";
 import { api, authenticate, command } from "./api";
 import { asksQuestions, composerPlaceholder } from "./chat";
-import type { Job, Snapshot } from "./types";
+import type { Job, QueuedMessage, Snapshot } from "./types";
 import { isRunning, jobStatus } from "./types";
 import { useFollow } from "./hooks/useFollow";
 import { useHistory } from "./hooks/useHistory";
@@ -20,6 +20,7 @@ import type { DraftFile } from "./components/Attachments";
 import { MessageList } from "./components/MessageList";
 import { forget } from "./preview";
 import { Questions } from "./components/Questions";
+import { QueuedMessages } from "./components/QueuedMessages";
 import { Timeline } from "./components/Timeline";
 import { AgentDetail } from "./components/AgentDetail";
 import { buildTimeline, summaries } from "./timeline";
@@ -146,12 +147,12 @@ export function App() {
     },
     onError: (e) => setError(e.message),
   });
+  // While the job works a message waits in the queue for the end of the stage.
   const send = useMutation({
-    mutationFn: async (text: string) => {
+    mutationFn: async ({ text, queue }: { text: string; queue: boolean }) => {
       const id = await ensureJob();
-      return text
-        ? command(`/jobs/${id}/messages`, { text })
-        : command(`/jobs/${id}/control/retry`);
+      if (!text) return command(`/jobs/${id}/control/retry`);
+      return command(`/jobs/${id}/${queue ? "queue" : "messages"}`, { text });
     },
     onSuccess: () => {
       // Rejected files never reached the server, so they are not part of the sent message.
@@ -216,6 +217,27 @@ export function App() {
     onSettled: refresh,
     onError: (e) => setError(e.message),
   });
+  const [editing, setEditing] = useState<QueuedMessage | null>(null);
+  const queued = useMutation({
+    mutationFn: ({
+      id,
+      action,
+      text,
+    }: {
+      id: string;
+      action: "send" | "delete" | "edit";
+      text?: string;
+    }) =>
+      command(
+        `/jobs/${selectedRef.current}/queue/${id}/${action}`,
+        text === undefined ? {} : { text },
+      ),
+    onSuccess: refresh,
+    onError: (e) => {
+      setError(e.message);
+      refresh();
+    },
+  });
   const control = useMutation({
     mutationFn: (action: string) =>
       command(`/jobs/${selected}/control/${action}`),
@@ -273,10 +295,13 @@ export function App() {
     events: current,
     job,
     attachments: sent,
+    messages,
     thoughts,
     now,
     connected,
   });
+  // Replies the timeline shows in place are not repeated in the chat.
+  const hidden = summaries(stages);
   const agents = (stages || []).flatMap((stage) => stage.agents);
   const working = agents.filter(
     (agent) => agent.state === "run" && !agent.code,
@@ -414,11 +439,7 @@ export function App() {
                   Предыдущие сообщения
                 </button>
               )}
-              <MessageList
-                messages={messages}
-                job={job}
-                hidden={summaries(stages)}
-              />
+              <MessageList messages={messages} job={job} hidden={hidden} />
               <Timeline
                 stages={stages}
                 job={job}
@@ -485,11 +506,25 @@ export function App() {
               }}
             />
           )}
+          <QueuedMessages
+            items={snapshot.data?.queued || []}
+            pending={queued.isPending}
+            onSend={(id) => queued.mutate({ id, action: "send" })}
+            onDelete={(id) => queued.mutate({ id, action: "delete" })}
+            onEdit={setEditing}
+          />
           <Composer
             onSend={(text) => {
               toBottom("smooth");
-              return send.mutateAsync(text);
+              return send.mutateAsync({ text, queue: running });
             }}
+            editing={editing}
+            onEdit={(text) =>
+              queued
+                .mutateAsync({ id: editing!.id, action: "edit", text })
+                .finally(() => setEditing(null))
+            }
+            onCancelEdit={() => setEditing(null)}
             onFiles={(files) => {
               setError("");
               void upload(files);
