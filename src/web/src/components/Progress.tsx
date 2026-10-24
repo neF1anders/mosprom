@@ -71,11 +71,8 @@ function TimelineRow({
 const steps = [
   { title: "Файлы прочитаны", prefix: "files." },
   { title: "STL проанализирован", prefix: "stl." },
-  { title: "Главные вопросы", prefix: "triage." },
-  { title: "ТЗ разобрано по аспектам", prefix: "interpretation." },
-  { title: "Сводка в карточку", prefix: "consolidation." },
-  { title: "Поиск несоответствий", prefix: "discrepancies." },
-  { title: "Итоговая оценка", prefix: "judge." },
+  { title: "Задание разобрано", prefix: "interpretation." },
+  { title: "Карточка проверена", prefix: "checking." },
 ];
 function latest(events: ProgressEvent[], prefix: string) {
   for (let index = events.length - 1; index >= 0; index--) {
