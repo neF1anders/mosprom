@@ -251,3 +251,26 @@ test("T13 ready card is handed to parameter selection", async ({ page }) => {
     page.getByRole("link", { name: "Скачать карточку JSON" }),
   ).toBeVisible();
 });
+test("T17 an edit after a ready card is processed", async ({ page }) => {
+  await send(page, "Шестерня привода");
+  await upload(page, "box.stl");
+  await settled(page);
+  await answer(page, "mm");
+  const done = page
+    .getByRole("status")
+    .filter({ hasText: "Первый этап завершён" });
+  await expect(done).toBeVisible();
+  const job = new URL(page.url()).searchParams.get("job");
+  const snapshot = async () =>
+    (await (await page.request.get(`/api/v1/jobs/${job}`)).json()).job;
+  const before = (await snapshot()).revision;
+  await send(page, "Допуск на посадочное отверстие 0,1 мм");
+  // Work queued for the ready card must not hold the edit back.
+  await expect
+    .poll(async () => {
+      const current = await snapshot();
+      return [current.revision, current.status];
+    })
+    .toEqual([before + 1, "completed"]);
+  await expect(done).toBeVisible();
+});
