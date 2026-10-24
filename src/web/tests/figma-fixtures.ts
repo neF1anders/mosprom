@@ -21,9 +21,13 @@ export const designStates = [
   "offline",
   "revision",
   "queued",
+  "model",
 ] as const;
 export type DesignState = (typeof designStates)[number];
 export async function designFixture(page: Page, state: DesignState) {
+  // The start screen of a release without a configured model.
+  const unconfigured = state === "model";
+  if (unconfigured) state = "start";
   const card: Card = {
     schema_version: "2.0",
     job_id: "design",
@@ -445,29 +449,36 @@ export async function designFixture(page: Page, state: DesignState) {
       ? { authenticated: true }
       : path.endsWith("/capabilities")
         ? {
-            model_configured: true,
+            model_configured: !unconfigured,
             project_folder: "C:\\Users\\user\\Documents\\STE_AIAssistant\\",
           }
-        : path.endsWith("/parameters")
-          ? parameters
-          : path.endsWith("/jobs")
-            ? [
-                job,
-                ...(state === "start"
-                  ? [
-                      "Корпус подшипника",
-                      "Кронштейн датчика",
-                      "Крышка редуктора",
-                    ]
-                  : ["Кронштейн датчика", "Крышка редуктора"]
-                ).map((title, i, all) => ({
-                  ...job,
-                  id: String(i),
-                  title,
-                  updated_at: `2026-10-${all.length === 3 ? [22, 21, 18][i] : [21, 18][i]}T12:00:00Z`,
-                })),
-              ]
-            : snapshot;
+        : path.endsWith("/model")
+          ? {
+              base_url: null,
+              model: null,
+              api_key_set: false,
+              configured: false,
+            }
+          : path.endsWith("/parameters")
+            ? parameters
+            : path.endsWith("/jobs")
+              ? [
+                  job,
+                  ...(state === "start"
+                    ? [
+                        "Корпус подшипника",
+                        "Кронштейн датчика",
+                        "Крышка редуктора",
+                      ]
+                    : ["Кронштейн датчика", "Крышка редуктора"]
+                  ).map((title, i, all) => ({
+                    ...job,
+                    id: String(i),
+                    title,
+                    updated_at: `2026-10-${all.length === 3 ? [22, 21, 18][i] : [21, 18][i]}T12:00:00Z`,
+                  })),
+                ]
+              : snapshot;
     return route.fulfill({ json: data });
   });
   return snapshot;

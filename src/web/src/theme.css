@@ -13,6 +13,8 @@
   --attachment: #ffffff;
   --window: #ffffff;
   --badge: #f5f5f7;
+  --field: #f5f5f7;
+  --scrim: rgba(255, 255, 255, 0.72);
   --text: #13141a;
   --text-2: #6b6e7b;
   --text-3: #a5a7b3;
@@ -49,6 +51,8 @@
     --attachment: #262733;
     --window: #1a1b23;
     --badge: #262733;
+    --field: #262733;
+    --scrim: rgba(15, 16, 22, 0.72);
     --text: #f1f1f6;
     --text-2: #9b9dae;
     --text-3: #6b6d7e;
@@ -83,6 +87,8 @@
   --attachment: #262733;
   --window: #1a1b23;
   --badge: #262733;
+  --field: #262733;
+  --scrim: rgba(15, 16, 22, 0.72);
   --text: #f1f1f6;
   --text-2: #9b9dae;
   --text-3: #6b6d7e;

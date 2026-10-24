@@ -28,6 +28,7 @@ import { useNow } from "./hooks/useNow";
 import { TaskCard } from "./components/TaskCard";
 import { Icon } from "./components/Icon";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { ModelSettings } from "./components/ModelSettings";
 import { useTheme } from "./hooks/useTheme";
 import styles from "./App.module.css";
 
@@ -72,7 +73,22 @@ export function App() {
   );
   const [error, setError] = useState("");
   const { theme, toggle: toggleTheme } = useTheme();
-  const themeSwitch = <ThemeToggle theme={theme} onToggle={toggleTheme} />;
+  // The model connection opens by itself once, while no model is configured.
+  const [modelOpen, setModelOpen] = useState(false);
+  const modelAsked = useRef(false);
+  const tools = (
+    <>
+      <button
+        className={styles.icon}
+        aria-label="Подключение модели"
+        title="Подключение модели"
+        onClick={() => setModelOpen(true)}
+      >
+        <Icon name="plug" size={20} />
+      </button>
+      <ThemeToggle theme={theme} onToggle={toggleTheme} />
+    </>
+  );
   const creating = useRef<Promise<string> | null>(null);
   const { threadRef, away, toBottom, onScroll, follow } = useFollow();
   const { events, thoughts, connected } = useJobEvents(
@@ -106,6 +122,12 @@ export function App() {
       ),
     enabled: !!session.data,
   });
+  const unconfigured = !!capability.data && !capability.data.model_configured;
+  useEffect(() => {
+    if (!unconfigured || modelAsked.current) return;
+    modelAsked.current = true;
+    setModelOpen(true);
+  }, [unconfigured]);
   const past = useHistory(
     selected,
     () => selectedRef.current,
@@ -324,10 +346,11 @@ export function App() {
     );
   return (
     <div className={styles.app}>
+      {modelOpen && <ModelSettings onClose={() => setModelOpen(false)} />}
       <header className={styles.header}>
         <h1>StereotechAI Plugin</h1>
         <div className={styles.mobileTools}>
-          {themeSwitch}
+          {tools}
           <button
             className={styles.icon}
             aria-label="Новое задание"
@@ -380,7 +403,7 @@ export function App() {
             onDelete={(id) => remove.mutate(id)}
             onMore={() => jobs.fetchNextPage()}
             onCollapse={() => setLeft(false)}
-            themeSwitch={themeSwitch}
+            tools={tools}
           />
         </div>
         <button
@@ -403,9 +426,6 @@ export function App() {
                 <Icon name="close" />
               </button>
             </div>
-          )}
-          {capability.data && !capability.data.model_configured && (
-            <p className={styles.warning}>Qwen пока не подключён к серверу</p>
           )}
           <div className={styles.threadArea}>
             <div
@@ -465,6 +485,20 @@ export function App() {
           <p className={styles.srOnly} role="status">
             {jobStatus(job)}
           </p>
+          {unconfigured && (
+            <section className={styles.notice} role="status">
+              <span className={styles.badge} data-state="warn">
+                <Icon name="attention" size={12} />
+              </span>
+              <p>LLM модель не подключена</p>
+              <button
+                className={styles.small}
+                onClick={() => setModelOpen(true)}
+              >
+                Подключить
+              </button>
+            </section>
+          )}
           {job?.error && (
             <section className={styles.notice} role="alert">
               <span className={styles.badge} data-state="error">
