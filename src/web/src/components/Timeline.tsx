@@ -177,7 +177,10 @@ function StageRow({
   const running = stage.agents.filter((a) => a.state === "run" && !a.code);
   const finished = stage.agents.filter((a) => a.state !== "run");
   const body =
-    stage.actions.length > 0 || stage.agents.length > 0 || !!stage.result;
+    stage.actions.length > 0 ||
+    stage.agents.length > 0 ||
+    stage.notes.length > 0 ||
+    !!stage.result;
   const future = stage.state === "wait" && !body;
   // A finished stage folds; the first one waiting for answers stays open.
   const folds =
@@ -244,6 +247,18 @@ function StageRow({
                 />
               ))}
             </div>
+          )}
+          {stage.notes.map((note) =>
+            note.role === "user" ? (
+              <p key={note.id} className={styles.noteUser}>
+                {note.text}
+              </p>
+            ) : (
+              <p key={note.id} className={styles.noteReply}>
+                <Icon name="redirect" />
+                <span>{note.text}</span>
+              </p>
+            ),
           )}
           {stage.state !== "run" &&
             finished.map((agent) => (

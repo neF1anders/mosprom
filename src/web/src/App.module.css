@@ -1743,6 +1743,109 @@ button.agentDone:hover {
   background: transparent;
 }
 
+/* Messages waiting for the end of the stage, Figma screen 04. */
+.queue {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  margin: 0 18px 6px;
+  padding: 0;
+}
+.plate {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 9px 12px 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--window);
+  font-size: 13px;
+  line-height: 16px;
+  animation: rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.plate[data-status="delivering"] {
+  opacity: 0.6;
+}
+.plate > .glyph:first-child {
+  color: var(--text-3);
+}
+.plate > span:not(.glyph) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.steer,
+.steer:hover {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.plate .icon,
+.plate .icon:hover {
+  min-width: 16px;
+  width: 16px;
+  height: 16px;
+}
+.plateMenu {
+  position: absolute;
+  z-index: 5;
+  right: 4px;
+  bottom: 40px;
+  display: grid;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--raised);
+  animation: rise 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.plateMenu button {
+  height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  text-align: left;
+}
+.plateMenu button:hover {
+  background: var(--surface);
+}
+.noteUser {
+  align-self: flex-end;
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--bubble);
+  font-size: 13px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.noteReply {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+.noteReply > .glyph {
+  margin-top: 1px;
+  color: var(--text-3);
+}
+
 /* Soft appearance of new rows; transform and opacity only. */
 .userMessage,
 .agentMessage,

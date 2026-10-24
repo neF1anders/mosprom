@@ -20,6 +20,7 @@ export const designStates = [
   "error",
   "offline",
   "revision",
+  "queued",
 ] as const;
 export type DesignState = (typeof designStates)[number];
 export async function designFixture(page: Page, state: DesignState) {
@@ -243,7 +244,7 @@ export async function designFixture(page: Page, state: DesignState) {
     );
   // The interpreter at work, as on Figma screens 03 and 12; times count from the first event.
   const call = "run1:interpreter:1";
-  if (["analysis", "offline", "revision"].includes(state))
+  if (["analysis", "offline", "revision", "queued"].includes(state))
     events.push(
       {
         ...base,
@@ -404,6 +405,17 @@ export async function designFixture(page: Page, state: DesignState) {
             },
           ],
     attachments,
+    queued:
+      state === "queued"
+        ? [
+            {
+              id: "q1",
+              text: "добавь проверку допусков на посадочное место",
+              status: "queued",
+              attempts: 0,
+            },
+          ]
+        : [],
     message_cursor: null,
   };
   await page.addInitScript(

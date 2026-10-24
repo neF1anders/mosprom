@@ -15,6 +15,9 @@ export function Composer({
   files,
   filesChanged,
   placeholder,
+  editing,
+  onEdit,
+  onCancelEdit,
 }: {
   onSend: (text: string) => Promise<unknown>;
   onFiles: (files: File[]) => void;
@@ -26,6 +29,10 @@ export function Composer({
   files: DraftFile[];
   filesChanged: boolean;
   placeholder?: string;
+  // A queued message being changed: its text is in the field until saved or cancelled.
+  editing?: { id: string; text: string } | null;
+  onEdit?: (text: string) => Promise<unknown>;
+  onCancelEdit?: () => void;
 }) {
   // Attached files wait for an explicit send, with or without a message.
   const sending = useRef(false);
@@ -35,6 +42,11 @@ export function Composer({
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!editing) return;
+    setText(editing.text);
+    field.current?.focus();
+  }, [editing?.id]);
   useEffect(() => {
     if (!connected || !waiting) return;
     setWaiting(false);
@@ -59,6 +71,12 @@ export function Composer({
         e.preventDefault();
         if (!connected) {
           setWaiting(true);
+          return;
+        }
+        if (editing && onEdit) {
+          if (!text.trim()) return;
+          await onEdit(text.trim()).catch(() => undefined);
+          setText("");
           return;
         }
         if (
@@ -97,6 +115,11 @@ export function Composer({
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
+          if (e.key === "Escape" && editing) {
+            setText("");
+            onCancelEdit?.();
+            return;
+          }
           // Enter sends, Shift+Enter starts a new line; IME composition keeps its Enter.
           if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing)
             return;
@@ -144,7 +167,7 @@ export function Composer({
           >
             <Icon name="mic" size={32} />
           </button>
-          {running && !text.trim() ? (
+          {running && !text.trim() && !editing ? (
             <button
               type="button"
               className={styles.icon}
