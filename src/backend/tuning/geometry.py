@@ -47,7 +47,20 @@ class _Bore(_Part):
 
 class _Revolution(_Part):
     is_revolution: bool = False
+    axis_direction: Point | None = None
+    symmetry_score: float | None = None
+    outer_diameter_mm: float | None = None
+    length_along_axis_mm: float | None = None
     bore: _Bore | None = None
+
+
+class _Orientation(_Part):
+    id: str
+    rotation: tuple[Point, Point, Point]
+    overhang_area_mm2: float | None = None
+    overhang_area_fraction: float | None = None
+    bed_contact_area_mm2: float | None = None
+    extents_mm: Point | None = None
 
 
 class _Report(_Part):
@@ -58,6 +71,19 @@ class _Report(_Part):
     partial_errors: dict[str, str] = Field(default_factory=dict)
     overhangs: _Overhangs | None = None
     revolution: _Revolution | None = None
+    orientations: list[_Orientation] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class Orientation:
+    """A bed orientation the STL report measured: its rotation and what it puts on the table."""
+
+    id: str
+    rotation: tuple[Point, Point, Point]
+    size: Point
+    overhang_area: float
+    overhang_fraction: float | None
+    bed_contact_area: float
 
 
 @dataclass(frozen=True)
@@ -72,6 +98,18 @@ class Geometry:
     bore_diameter: float | None = None
     bore_through: bool = False
     revolution: bool = False
+    # The axis the round sections are measured around, and how alike the part is around it.
+    axis: Point | None = None
+    symmetry: float | None = None
+    # Length along the axis over the outer diameter: a flat disc is well below 0.3.
+    length_to_diameter: float | None = None
+    orientations: tuple[Orientation, ...] = ()
+
+    @property
+    def slenderness(self) -> float:
+        """Height over the narrower side of the footprint: a tall thin part may tip over."""
+        width, depth, height = self.size
+        return height / min(width, depth) if min(width, depth) > 0 else 0.0
 
 
 @dataclass(frozen=True)
@@ -103,6 +141,12 @@ def read_geometry(analysis: StlAnalysis | None) -> GeometryReading:
         bore_diameter=_optional(bore.diameter_mm),
         bore_through=bore.through,
         revolution=revolution.is_revolution,
+        axis=revolution.axis_direction,
+        symmetry=revolution.symmetry_score,
+        length_to_diameter=_ratio(revolution.length_along_axis_mm, revolution.outer_diameter_mm),
+        orientations=tuple(
+            _orientation(found, size) for found in report.orientations if (size := found.extents_mm)
+        ),
     )
     if geometry.overhang_fraction is None:
         assumptions.append(
@@ -134,6 +178,23 @@ def _unit_assumption(unit: str) -> str:
 def _overhang_fraction(report: _Report) -> float | None:
     """Not rounded: the rules compare it with a threshold of 0.05."""
     return None if report.overhangs is None else report.overhangs.area_fraction
+
+
+def _orientation(found: _Orientation, size: Point) -> Orientation:
+    return Orientation(
+        id=found.id,
+        rotation=found.rotation,
+        size=size,
+        overhang_area=found.overhang_area_mm2 or 0.0,
+        overhang_fraction=found.overhang_area_fraction,
+        bed_contact_area=found.bed_contact_area_mm2 or 0.0,
+    )
+
+
+def _ratio(length: float | None, diameter: float | None) -> float | None:
+    if length is None or not diameter:
+        return None
+    return round(length / diameter, _DIGITS)
 
 
 def _rounded(value: float) -> float:

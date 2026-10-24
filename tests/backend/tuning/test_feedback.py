@@ -193,7 +193,7 @@ def test_excluding_the_only_orientation_is_reported(select):
     second = select(card(), review)
     assert {
         "requirement_id": "orientation",
-        "why": "единственный кандидат ориентации исключён этапом 3",
+        "why": "кандидат ориентации o1 исключён этапом 3",
     } in second["unsatisfied"]
 
 

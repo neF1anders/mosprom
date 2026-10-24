@@ -99,6 +99,7 @@ def effective(found: ParameterSet) -> dict[str, Any]:
         "speed": float(value("speed_print")),
         "material": found.materials["0"].id,
         "status": found.status,
+        "pose": found.models[0].orientation_candidate,
         "sent": sorted(found.settings),
         "warnings": [w for w in found.warnings if "is not used" in w],
     }
@@ -210,7 +211,9 @@ SEVEN = {
     "5_pump_impeller": {
         "stl": "5. Рабочее колесо насоса Wilo - 5D/Рабочее_колесо насоса Wilo IPL 80140-42. 2063106.STL",
         "part_class": "impeller_fan",
-        "modes": ["cylindrical", "cylindrical_full"],
+        # The label "5D" is the build's name of cylindrical_full; Stereotech prints its own
+        # Wilo impeller in cylindrical (5D Spiral), so both count.
+        "modes": ["cylindrical_full", "cylindrical"],
         "layer": (0.15, 0.2),
         "walls": (3, 5),
         "infill": (25, 100),
@@ -294,7 +297,9 @@ def seven_cases(bench: Path, parts: Path, cases: Path) -> list[dict[str, Any]]:
                 "id": name,
                 "got": got,
                 "score": score,
-                "base_diameter": found.settings.get("cylindrical_mode_base_diameter"),
+                "base_diameter": getattr(
+                    found.settings.get("cylindrical_mode_base_diameter"), "value", None
+                ),
                 "why_mode": found.printing_mode.why,
                 "revolution": {
                     key: rev.get(key)
@@ -373,13 +378,13 @@ def main() -> int:
                 f"{case['id']} {case['wish'][:8]:8} V={case['volume_cm3']:>7} "
                 f"L {g['layer']}/{h['layer']} I {g['infill']:g}/{h['infill']:g} "
                 f"S {int(g['support'])}/{int(h['support'])} A {g['adhesion']}/{h['adhesion']} "
-                f"W {g['walls']}/{h['walls']} v{g['speed']:g} {g['quality']} {g['material']}"
+                f"W {g['walls']}/{h['walls']} v{g['speed']:g} {g['pose']} {g['material']}"
             )
         for case in seven:
             g = case["got"]
             bad = [key for key, ok in case["score"].items() if not ok]
             print(
-                f"{case['id']:17} {g['mode']:16} L{g['layer']} W{g['walls']} I{g['infill']:g} "
+                f"{case['id']:17} {g['mode']:16} {g['pose']} L{g['layer']} W{g['walls']} I{g['infill']:g} "
                 f"S{int(g['support'])} {g['adhesion']:5} {g['material']:20} miss={bad} "
                 f"ovh={case['overhang']} rev={json.dumps(case['revolution'], ensure_ascii=False)[:160]}"
             )
