@@ -225,8 +225,10 @@ class ContentBuilder:
         return {"type": "image_url", "image_url": {"url": url}}
 
     async def _encode(self, artifact: str) -> str:
-        content = await self.files.read(artifact)
-        url = await asyncio.to_thread(crop, content, REGIONS["full"], REQUEST_PIXELS)
+        # A region the agent looked at closer is stored as "<file>#<region>".
+        key, _, region = artifact.partition("#")
+        content = await self.files.read(key)
+        url = await asyncio.to_thread(crop, content, REGIONS[region or "full"], REQUEST_PIXELS)
         self.ctx.images[url] = artifact
         return url
 
