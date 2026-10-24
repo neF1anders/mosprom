@@ -6,9 +6,8 @@ from src.backend.domain.models import (
     Question,
     Requirement,
     TaskCard,
-    Verdict,
 )
-from src.backend.domain.rules import assess, known, units_question
+from src.backend.domain.rules import assess, known
 
 pytestmark = pytest.mark.unit
 
@@ -38,10 +37,8 @@ def test_ready_card_allows_parameter_selection():
     "extra,failed,reason",
     [
         ({"geometry": None}, [], "Нужна читаемая модель STL"),
-        ({"requirements": [Requirement(key="t", value="1")]}, [], "Есть неподтверждённые"),
-        ({"questions": [units_question(Geometry(extents=[1, 2, 3]))]}, [], "В каких единицах"),
+        ({"questions": [Question(id="q", kind="clarify", title="Какая среда")]}, [], "Какая"),
         ({}, ["ТЗ.pdf"], "Не прочитаны файлы ТЗ.pdf"),
-        ({"verdict": Verdict(score=0.4, passed=False)}, [], "не прошла итоговую проверку"),
     ],
 )
 def test_blockers(extra, failed, reason):
@@ -68,6 +65,7 @@ def test_caveats_make_the_card_preliminary(extra):
     assert assess(card(**extra), []).readiness == "preliminary"
 
 
-def test_optional_unverified_requirement_does_not_block():
-    optional = Requirement(key="color", value="чёрный", mandatory=False)
-    assert assess(card(requirements=[optional]), []).readiness == "ready"
+def test_an_unverified_requirement_does_not_block():
+    # A value without a source is an assumption the user is told about, not a blocker.
+    unverified = Requirement(key="color", value="чёрный")
+    assert assess(card(requirements=[unverified]), []).readiness == "ready"

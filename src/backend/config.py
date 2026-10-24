@@ -21,7 +21,6 @@ class Settings(BaseSettings):
     qwen_model: str = "dashscope/qwen3.8-flash"
     qwen_api_key: str = ""
     qwen_max_tokens: int = Field(default=32768, ge=1024, le=131072)
-    judge_threshold: float = Field(default=0.7, ge=0, le=1)
     # Stage one targets five minutes; a run three times longer is stuck, not slow.
     stage1_timeout_seconds: float = Field(default=900, gt=0)
     # Selection and its check take well under a second; a minute means something is stuck.
