@@ -1,6 +1,5 @@
 {
-  "schema": "search_space/1",
-  "note": "t=0: cheap/fast/brittle, t=1: costly/slow/strong. The start point is the value the slicer would use anyway (quality profile, material, definition); rules move t from there. `baseline` names where that value comes from. Keys are the source keys of the slicer: mode variants (*_classic, *_cylindrical) follow them by formula.",
+  "note": "t=0: cheap/fast/brittle, t=1: costly/slow/strong. The start point is the value the slicer would use anyway (quality profile, material, definition); rules move t from there. `baseline` names where that value comes from. A discrete setting starts at the slicer value of `key` in the chosen mode, with a definition formula evaluated (infill_pattern from the density, adhesion_type from the mode). Keys are the source keys of the slicer: mode variants (*_classic, *_cylindrical) follow them by formula, except where `mode_keys` names the key to send in each mode.",
   "params": [
     {
       "id": "layer_height",
@@ -69,32 +68,32 @@
     {
       "id": "support_enable",
       "key": "support_enable",
-      "baseline": {"setting": "support_enable"},
       "candidates": [false, true]
     },
     {
       "id": "infill_pattern",
       "key": "infill_pattern",
-      "baseline": {"infill_pattern_formula": true},
       "candidates": ["grid", "lines", "gyroid", "triangles", "cubic", "concentric"]
     },
     {
       "id": "adhesion_type",
       "key": "adhesion_type",
-      "baseline": {"mode": "adhesion_default"},
       "candidates": ["brim", "skirt", "raft", "none"]
     },
     {
       "id": "cool_fan_enabled",
-      "key": {"mode": "fan_key"},
-      "baseline": {"setting": "cool_fan_enabled"},
+      "key": "cool_fan_enabled",
+      "mode_keys": {
+        "classic": "cool_fan_enabled_classic",
+        "cylindrical": "cool_fan_enabled_cylindrical",
+        "cylindrical_full": "cool_fan_enabled_cylindrical"
+      },
       "candidates": [true, false],
       "scope": "extruder:0"
     },
     {
       "id": "retraction_enable",
       "key": "retraction_enable",
-      "baseline": {"setting": "retraction_enable"},
       "candidates": [true, false],
       "scope": "extruder:0"
     }

@@ -1,43 +1,10 @@
 {
-  "schema": "intake_vocabulary/0",
-  "note": "Maps the stage-1 task card v1.1 onto task_card/0. Requirement keys are stage-1 codes; `range` picks the stricter end of a range (upper for minimum-type limits, lower for maximum-type limits). Phrase lists are lowercase substrings of free text; load_phrases is checked in order, first match wins.",
-  "requirements": {
-    "tg_min_c": {"key": "tg_min_c", "type": "number", "unit": "degC", "range": "upper"},
-    "service_temp_max_c": {"key": "service_temp_max_c", "type": "number", "unit": "degC", "range": "upper"},
-    "service_temperature": {"key": "service_temp_max_c", "type": "number", "unit": "degC", "range": "upper"},
-    "density_max_g_cm3": {"key": "density_max_g_cm3", "type": "number", "unit": "g/cm3", "range": "lower"},
-    "dimensional_tol_mm": {"key": "dimensional_tol_mm", "type": "number", "unit": "mm", "range": "lower"},
-    "hydrophobic": {"key": "hydrophobic", "type": "bool"},
-    "uv_stable": {"key": "uv_stable", "type": "bool"},
-    "flexible": {"key": "flexible", "type": "bool"},
-    "low_friction": {"key": "low_friction", "type": "bool"},
-    "abrasion_resistant": {"key": "abrasion_resistant", "type": "bool"},
-    "high_stiffness": {"key": "high_stiffness", "type": "bool"},
-    "no_visible_layers": {"key": "no_visible_layers", "type": "bool"},
-    "no_supports": {"key": "no_supports", "type": "bool"},
-    "food_safe": {"key": "food_safe", "type": "bool"},
-    "esd": {"key": "esd", "type": "bool"},
-    "chemical_resistance": {"key": "chemical_resistance", "type": "list"}
-  },
-  "units": {
-    "degC": ["°c", "c", "degc", "℃", "градусов"],
-    "mm": ["mm", "мм"],
-    "g/cm3": ["g/cm3", "g/cm³", "г/см3", "г/см³"]
-  },
+  "note": "Free text of the stage-1 task card that parameter selection reads. Requirement codes, kinds and units come from knowledge/requirement_keys.json. Phrases are lowercase substrings of free text; load_phrases is checked in order, first match wins. material_answers are ids of stage-1 questions whose answer names the material.",
   "booleans": {
     "true": ["true", "да", "yes", "требуется", "обязательно"],
     "false": ["false", "нет", "no", "не требуется"]
   },
-  "card_fields": {
-    "quantity": "quantity",
-    "load_bearing": "load",
-    "material": "material",
-    "printing_mode": "printing_mode"
-  },
-  "printing_modes": ["classic", "cylindrical", "cylindrical_full"],
-  "answers": {
-    "material_choice": "material"
-  },
+  "material_answers": ["material_choice"],
   "load_phrases": [
     ["none", ["не несёт", "не несет", "без нагруз", "не рассчитан"]],
     ["impact", ["удар"]],

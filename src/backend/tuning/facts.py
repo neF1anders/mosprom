@@ -1,26 +1,38 @@
-"""Flat fact dictionary that rule conditions are evaluated against."""
+"""Flat facts that rule conditions are evaluated against.
 
-_GEOMETRY_FACTS = ("overhang_area_fraction", "needs_repair", "min_wall_estimate_mm", "volume_mm3", "surface_area_mm2")
+``geometry.overhang_area_fraction``, which the support and 5D rules read, is not a fact yet:
+the STL report has no overhang measurement.
+"""
+
+from __future__ import annotations
+
+from .intake import TuningInput
+from .materials import Candidate
+from .rules import FactValue
 
 
-def build_facts(card, geometry):
-    # type: (dict, dict) -> dict
-    facts = {}
-    preferences = card.get("preferences", {})
-    priority = preferences.get("priority") or []
-    if priority:
-        facts["pref.priority_first"] = priority[0]
-    facts["pref.supports_allowed"] = preferences.get("supports_allowed", True)
-    facts["pref.quantity"] = preferences.get("quantity", 1)
-    if preferences.get("printing_mode"):
-        facts["pref.printing_mode"] = preferences["printing_mode"]
-    if card.get("part", {}).get("load"):
-        facts["part.load"] = card["part"]["load"]
-    for requirement in card.get("requirements", []):
-        key = requirement["key"]
-        facts["req." + key] = requirement["value"]
-        facts["reqhard." + key] = facts.get("reqhard." + key, False) or requirement["hard"]
-    for name in _GEOMETRY_FACTS:
-        if name in geometry:
-            facts["geometry." + name] = geometry[name]
+def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValue]:
+    facts: dict[str, FactValue] = {}
+    if request.priority:
+        facts["pref.priority_first"] = request.priority[0]
+    facts["pref.supports_allowed"] = request.supports_allowed
+    facts["pref.quantity"] = request.quantity
+    if request.mode is not None:
+        facts["pref.printing_mode"] = request.mode.mode
+    if request.load is not None:
+        facts["part.load"] = request.load
+    for requirement in request.requirements:
+        facts[f"req.{requirement.key}"] = requirement.value
+        hard = facts.get(f"reqhard.{requirement.key}", False)
+        facts[f"reqhard.{requirement.key}"] = bool(hard) or requirement.hard
+    geometry = request.geometry
+    measures = {
+        "geometry.needs_repair": geometry.needs_repair,
+        "geometry.min_wall_estimate_mm": geometry.min_wall_estimate,
+        "geometry.volume_mm3": geometry.volume,
+        "geometry.surface_area_mm2": geometry.surface_area,
+        "material.speed": material.speed,
+        "material.cooling_pct": material.cooling_percent,
+    }
+    facts.update({name: value for name, value in measures.items() if value is not None})
     return facts

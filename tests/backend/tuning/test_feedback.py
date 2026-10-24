@@ -1,9 +1,22 @@
 import pytest
-from stage1_factory import constraint, feedback, handoff, report, requirement
+from pydantic import ValidationError
 
-from tuning.contracts import parameter_set_errors
+from src.backend.domain.errors import AppError
+from src.backend.domain.parameters import Feedback, ParameterSet
+from tests.backend.tuning.cards import (
+    card,
+    constraint,
+    feedback,
+    feedback_payload,
+    report,
+    requirement,
+)
 
-STRONG = dict(requirements=[requirement("load_bearing", "ударная нагрузка")], preferences=["прочность"])
+pytestmark = pytest.mark.unit
+
+STRONG = dict(
+    requirements=[requirement("load_bearing", "ударная нагрузка")], preferences=["прочность"]
+)
 
 
 def applied(parameter_set):
@@ -11,19 +24,18 @@ def applied(parameter_set):
 
 
 def test_constraints_on_searched_settings_become_hard_limits_on_the_second_iteration(select):
-    code, first, err = select(handoff(**STRONG))
-    assert code == 0, err
+    first = select(card(**STRONG))
     assert first["settings"]["infill_sparse_density"]["value"] == 30
+    assert "applied_constraints" not in first
     review = feedback(
-        constraint("C1", "infill_sparse_density", "max", 25), constraint("C2", "wall_line_count", "min", 5)
+        constraint("C1", "infill_sparse_density", "max", 25),
+        constraint("C2", "wall_line_count", "min", 5),
     )
-    code, second, err = select(handoff(**STRONG), review)
-    assert code == 0, err
-    assert parameter_set_errors(second) == []
-    assert second["iteration"] == 2
+    second = select(card(**STRONG), review)
+    assert ParameterSet.model_validate(second).iteration == 2
     density = second["settings"]["infill_sparse_density"]
     assert density["value"] <= 25 and density["source"] == "constraint:C1"
-    # At least five walls; the strength rules still add on top of the validator's minimum.
+    # At least five walls; the strength rules still add on top of the check's minimum.
     assert second["settings"]["wall_thickness"]["value"] >= 2.0
     assert applied(second) == {"C1": "applied", "C2": "applied"}
 
@@ -34,15 +46,16 @@ def test_discrete_and_unmodelled_keys_follow_the_constraints(select):
         constraint("C2", "retraction_amount", "eq", 5.0),
         constraint("C3", "cool_fan_enabled_classic", "ne", False),
     )
-    code, second, err = select(handoff(**STRONG), review)
-    assert code == 0, err
-    settings = second["settings"]
+    settings = select(card(**STRONG), review)["settings"]
     assert settings["infill_pattern"] == {
         "value": "cubic",
         "why": settings["infill_pattern"]["why"],
         "source": "constraint:C1",
     }
-    assert settings["retraction_amount"]["value"] == 5.0 and settings["retraction_amount"]["source"] == "constraint:C2"
+    assert (settings["retraction_amount"]["value"], settings["retraction_amount"]["source"]) == (
+        5.0,
+        "constraint:C2",
+    )
     # The fan stays at the slicer default (on), so the switch is no longer sent.
     assert "cool_fan_enabled_classic" not in settings
 
@@ -53,9 +66,11 @@ def test_constraints_can_choose_mode_quality_and_material(select):
         constraint("C2", "quality_type", "eq", "draft"),
         constraint("C3", "material", "ne", "enduse_abs"),
     )
-    code, second, err = select(handoff(), review)
-    assert code == 0, err
-    assert second["printing_mode"]["source"] == "constraint:C1" and second["printing_mode"]["value"] == "cylindrical"
+    second = select(card(), review)
+    assert (second["printing_mode"]["value"], second["printing_mode"]["source"]) == (
+        "cylindrical",
+        "constraint:C1",
+    )
     assert second["quality"] == {
         "quality_type": "draft",
         "why": "профиль задан ограничением этапа 3",
@@ -66,8 +81,8 @@ def test_constraints_can_choose_mode_quality_and_material(select):
 
 
 def test_constraint_naming_a_catalog_material_selects_it(select):
-    code, second, err = select(handoff(), feedback(constraint("C1", "material", "eq", "enduse_pc")))
-    assert code == 0, err
+    # The original code raised TypeError here: "requirement:" + None.
+    second = select(card(), feedback(constraint("C1", "material", "eq", "enduse_pc")))
     material = second["materials"]["0"]
     assert (material["id"], material["source"]) == ("enduse_pc", "constraint:C1")
     assert material["why"].startswith("материал задан ограничением этапа 3; ")
@@ -76,40 +91,54 @@ def test_constraint_naming_a_catalog_material_selects_it(select):
 
 def test_choice_the_part_cannot_take_is_reported_as_not_applied(select):
     review = feedback(
-        constraint("C1", "printing_mode", "eq", "cylindrical"), constraint("C2", "material", "eq", "unobtainium")
+        constraint("C1", "printing_mode", "eq", "cylindrical"),
+        constraint("C2", "material", "eq", "unobtainium"),
     )
-    code, second, err = select(handoff(stl_report=report(size=(20.0, 20.0, 250.0))), review)
-    assert code == 0, err
+    second = select(card(stl_report=report(size=(20.0, 20.0, 250.0))), review)
     assert second["printing_mode"]["value"] == "classic"
     assert applied(second) == {"C1": "not_applied", "C2": "not_applied"}
-    assert sorted(item["requirement_id"] for item in second["unsatisfied"]) == ["constraint:C1", "constraint:C2"]
+    unmet = sorted(item["requirement_id"] for item in second["unsatisfied"])
+    assert unmet == ["constraint:C1", "constraint:C2"]
 
 
 def test_unsupported_constraint_is_reported_not_silently_dropped(select):
-    code, second, err = select(handoff(), feedback(constraint("C1", "speed_print", "ne", 60)))
-    assert code == 0, err
+    second = select(card(), feedback(constraint("C1", "speed_print", "ne", 60)))
     assert applied(second) == {"C1": "not_applied"}
     assert [item["requirement_id"] for item in second["unsatisfied"]] == ["constraint:C1"]
 
 
+def test_unmodelled_key_with_no_values_to_choose_from_is_not_applied(select):
+    # The original code took value[0] of the empty list and raised IndexError.
+    second = select(card(), feedback(constraint("C1", "retraction_amount", "in", [])))
+    assert applied(second) == {"C1": "not_applied"}
+    assert "retraction_amount" not in second["settings"]
+
+
 def test_excluding_the_only_orientation_is_reported(select):
-    review = feedback(exclude=[{"type": "orientation", "candidate": "o1", "reason": "поддержки в G-code"}])
-    code, second, err = select(handoff(), review)
-    assert code == 0, err
-    assert {"requirement_id": "orientation", "why": "единственный кандидат ориентации исключён этапом 3"} in second[
-        "unsatisfied"
-    ]
+    review = feedback(exclude=[{"type": "orientation", "candidate": "o1", "reason": "поддержки"}])
+    second = select(card(), review)
+    assert {
+        "requirement_id": "orientation",
+        "why": "единственный кандидат ориентации исключён этапом 3",
+    } in second["unsatisfied"]
+
+
+def test_feedback_on_the_last_iteration_is_refused(select):
+    with pytest.raises(AppError) as refused:
+        select(card(), feedback(iteration=2))
+    assert refused.value.code == "feedback_iteration"
 
 
 @pytest.mark.parametrize(
-    "fields, message",
+    "fields",
     [
-        ({"iteration": 2}, "only iteration 1 can be revised"),
-        ({"contract": "verdict/0"}, "stage3.feedback"),
-        ({"constraints": [constraint("C 1", "infill_sparse_density", "max", 10)]}, "must be letters"),
-        ({"constraints": [constraint("C1", "infill_sparse_density", "approx", 10)]}, "unknown op"),
+        {"contract": "verdict/0"},
+        {"version": "0.2"},
+        {"constraints": [constraint("C 1", "infill_sparse_density", "max", 10)]},
+        {"constraints": [constraint("C1", "infill_sparse_density", "approx", 10)]},
+        {"constraints": [constraint("C1", "infill_pattern", "in", "grid")]},
     ],
 )
-def test_malformed_or_late_feedback_is_refused(select, fields, message):
-    code, _, err = select(handoff(), feedback(**fields))
-    assert code == 2 and message in err
+def test_malformed_feedback_is_refused_at_the_boundary(fields):
+    with pytest.raises(ValidationError):
+        Feedback.model_validate(feedback_payload(**fields))

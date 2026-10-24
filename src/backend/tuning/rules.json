@@ -1,5 +1,4 @@
 {
-  "schema": "rules/1",
   "note": "Rules are data. `when` is a condition over facts, `then` a list of actions. `reason` is shown to the user (Russian). Knowledge labels in `source`: D = slicer definitions/code, S = task spec, G = general practice (unverified), H = hypothesis.",
   "rules": [
     {"id": "LAYER-MAX-NOZZLE", "source": "D: fdmprinter layer_height maximum_value_warning = 0.8 * nozzle", "reason": "слой не толще 0,8 диаметра сопла",

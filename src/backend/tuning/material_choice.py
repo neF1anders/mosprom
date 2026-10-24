@@ -1,126 +1,179 @@
-"""Pick the material: the one named in the card, or the best catalog candidate by requirements."""
+"""Pick the material: the one the card, an answer or a check constraint names, or the best
+catalog candidate by requirements."""
+
+from __future__ import annotations
 
 import itertools
-from typing import Any  # noqa: F401  (used in type comments)
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 
-from tuning.catalog import find_material, rank_materials
-from tuning.catalog.ranking import FAIL, UNKNOWN, WARN, evaluate
-from tuning.errors import TuningError
+from ..domain.errors import AppError
+from .constraints import MATERIAL_KEY, Choices
+from .intake import CardRequirement, MaterialRequest, RequirementValue, TuningInput
+from .materials import Candidate, Printable
+from .notes import Unmet
+from .ranking import Check, Evaluation, evaluate, rank_materials
 
 RANK_RULE_ID = "MATERIAL-RANK"
 
 
-class MaterialChoice(object):
+@dataclass(frozen=True)
+class Alternative:
+    id: str
+    why: str
+
+
+@dataclass(frozen=True)
+class MaterialChoice:
     """The chosen material and everything the user must hear about it."""
 
-    def __init__(self, material, block, unsatisfied, assumptions, infeasible):
-        # type: (Any, dict, list, list, bool) -> None
-        self.material = material
-        self.block = block
-        self.unsatisfied = unsatisfied
-        self.assumptions = assumptions
-        self.infeasible = infeasible
+    material: Candidate
+    source: str
+    why: str
+    alternatives: tuple[Alternative, ...]
+    checks: tuple[Check, ...]
+    unmet: tuple[Unmet, ...]
+    assumptions: tuple[str, ...]
+    warnings: tuple[str, ...]
+    infeasible: bool
 
 
-def choose_material(card, materials):
-    # type: (dict, dict) -> tuple
-    """Return (MaterialChoice, warnings). `materials` is already limited to what the extruder can print."""
-    requirements = card.get("requirements", [])
-    declared = card.get("material", {})
-    warnings = []  # type: list
-    if declared.get("name"):
-        material = find_material(materials, declared["name"])
-        if material is not None:
-            return _named(material, requirements, declared), warnings
-        warnings.append("material '%s' from the card is not in the catalog, ranking instead" % declared["name"])
-    return _ranked(materials, requirements), warnings
+def choose_material(request: TuningInput, printable: Printable, choices: Choices) -> MaterialChoice:
+    """A check constraint ``material eq`` overrides the material the card names."""
+    forced = choices.forced.get(MATERIAL_KEY)
+    named = request.material
+    if forced is not None:
+        named = MaterialRequest(str(forced.value), f"constraint:{forced.constraint_id}")
+    allowed = {
+        material_id: material
+        for material_id, material in printable.candidates.items()
+        if choices.permits(MATERIAL_KEY, material_id)
+    }
+    warnings = printable.warnings
+    found = printable.find(named.name, allowed) if named is not None else None
+    if named is not None and found is None:
+        warnings.append(
+            f"material '{named.name}' from the card is not in the catalog, ranking instead"
+        )
+    if named is None or found is None:
+        return _ranked(allowed, request.requirements, tuple(warnings))
+    choice = _named(found, request.requirements, named, tuple(warnings))
+    if forced is None or found.id != forced.value:
+        return choice
+    return replace(choice, why=f"материал задан ограничением этапа 3; {choice.why}")
 
 
-def _summary(evaluation):
+def _summary(evaluation: Evaluation) -> str:
     parts = []
-    for status, label in ((FAIL, "не выполнено"), (WARN, "частично"), (UNKNOWN, "нет данных")):
-        items = ["%s (%s)" % (c["requirement_id"], c["detail"]) for c in evaluation["checks"] if c["status"] == status]
+    for status, label in (
+        ("fail", "не выполнено"),
+        ("warn", "частично"),
+        ("unknown", "нет данных"),
+    ):
+        items = [
+            f"{check.requirement_id} ({check.detail})"
+            for check in evaluation.checks
+            if check.status == status
+        ]
         if items:
-            parts.append("%s: %s" % (label, "; ".join(items)))
-    return "оценка %.2f" % evaluation["score"] + ("; " + "; ".join(parts) if parts else "")
+            parts.append(f"{label}: {'; '.join(items)}")
+    return f"оценка {evaluation.score:.2f}" + ("; " + "; ".join(parts) if parts else "")
 
 
-def _check_assumptions(evaluation):
+def _check_assumptions(evaluation: Evaluation) -> list[str]:
     """Unverified and partly met requirements are told to the user, never shown as confirmed."""
     notes = []
-    for check in evaluation["checks"]:
-        if check["status"] == UNKNOWN:
-            notes.append("требование %s не проверено по каталогу: %s" % (check["requirement_id"], check["detail"]))
-        elif check["status"] == WARN and check["hard"]:
+    for check in evaluation.checks:
+        if check.status == "unknown":
             notes.append(
-                "обязательное требование %s материал выполняет лишь частично: %s"
-                % (check["requirement_id"], check["detail"])
+                f"требование {check.requirement_id} не проверено по каталогу: {check.detail}"
+            )
+        if check.status == "warn" and check.hard:
+            notes.append(
+                f"обязательное требование {check.requirement_id} материал выполняет "
+                f"лишь частично: {check.detail}"
             )
     return notes
 
 
-def _source_assumptions(requirements):
+def _shown(value: RequirementValue) -> str:
+    return str(list(value)) if isinstance(value, tuple) else str(value)
+
+
+def _source_assumptions(requirements: Sequence[CardRequirement]) -> list[str]:
     return [
-        "требование %s = %s — допущение, а не подтверждённый факт" % (r["id"], r["value"])
+        f"требование {r.id} = {_shown(r.value)} — допущение, а не подтверждённый факт"
         for r in requirements
-        if r.get("source") == "assumption"
+        if r.basis == "assumption"
     ]
 
 
-def _named(material, requirements, declared):
+def _named(
+    material: Candidate,
+    requirements: Sequence[CardRequirement],
+    named: MaterialRequest,
+    warnings: tuple[str, ...],
+) -> MaterialChoice:
     evaluation = evaluate(material, requirements)
-    unsatisfied = [
-        {"requirement_id": c["requirement_id"], "why": "материал %s не выполняет: %s" % (material.id, c["detail"])}
-        for c in evaluation["checks"]
-        if c["status"] == FAIL
-    ]
-    block = {
-        "id": material.id,
-        "source": declared.get("source") or "requirement:" + declared.get("requirement_id", "material"),
-        "why": "материал указан в задании (%s); %s" % (declared["name"], _summary(evaluation)),
-        "alternatives": [],
-        "checks": evaluation["checks"],
-    }
-    assumptions = _source_assumptions(requirements) + _check_assumptions(evaluation)
-    return MaterialChoice(material, block, unsatisfied, assumptions, False)
+    unmet = tuple(
+        Unmet(check.requirement_id, f"материал {material.id} не выполняет: {check.detail}")
+        for check in evaluation.checks
+        if check.status == "fail"
+    )
+    return MaterialChoice(
+        material=material,
+        source=named.source,
+        why=f"материал указан в задании ({named.name}); {_summary(evaluation)}",
+        alternatives=(),
+        checks=evaluation.checks,
+        unmet=unmet,
+        assumptions=(*_source_assumptions(requirements), *_check_assumptions(evaluation)),
+        warnings=warnings,
+        infeasible=False,
+    )
 
 
-def _ranked(materials, requirements):
+def _ranked(
+    materials: Mapping[str, Candidate],
+    requirements: Sequence[CardRequirement],
+    warnings: tuple[str, ...],
+) -> MaterialChoice:
     ranked = rank_materials(materials, requirements)
     if not ranked:
-        raise TuningError("material catalog has no printable candidates")
+        raise AppError("В каталоге нет материалов, которыми можно печатать", "catalog_materials")
     best = ranked[0]
-    chosen = materials[best["material"]]
-    unsatisfied = _catalog_conflicts(ranked, [r for r in requirements if r.get("hard")])
-    block = {
-        "id": chosen.id,
-        "source": "rule:" + RANK_RULE_ID,
-        "why": "лучший из %d материалов каталога по требованиям задания; %s" % (len(ranked), _summary(best)),
-        "alternatives": [{"id": e["material"], "why": _summary(e)} for e in ranked[1:3]],
-        "checks": best["checks"],
-    }
-    assumptions = _source_assumptions(requirements) + _check_assumptions(best)
-    return MaterialChoice(chosen, block, unsatisfied, assumptions, bool(unsatisfied))
+    unmet = tuple(_catalog_conflicts(ranked))
+    return MaterialChoice(
+        material=best.material,
+        source=f"rule:{RANK_RULE_ID}",
+        why=f"лучший из {len(ranked)} материалов каталога по требованиям задания; {_summary(best)}",
+        alternatives=tuple(Alternative(e.material.id, _summary(e)) for e in ranked[1:3]),
+        checks=best.checks,
+        unmet=unmet,
+        assumptions=(*_source_assumptions(requirements), *_check_assumptions(best)),
+        warnings=warnings,
+        infeasible=bool(unmet),
+    )
 
 
-def _failed_ids(evaluation):
-    return set(c["requirement_id"] for c in evaluation["checks"] if c["hard"] and c["status"] == FAIL)
+def _failed_ids(evaluation: Evaluation) -> set[str]:
+    return {c.requirement_id for c in evaluation.checks if c.hard and c.status == "fail"}
 
 
-def _catalog_conflicts(ranked, hard):
+def _catalog_conflicts(ranked: Sequence[Evaluation]) -> list[Unmet]:
     """Hard requirements no material meets alone, and pairs no single material meets together."""
-    failures = [_failed_ids(e) for e in ranked]
-    checkable = set(c["requirement_id"] for e in ranked for c in e["checks"] if c["hard"])
+    failures = [_failed_ids(evaluation) for evaluation in ranked]
+    checkable = {c.requirement_id for e in ranked for c in e.checks if c.hard}
     alone = sorted(i for i in checkable if all(i in failed for failed in failures))
-    found = [{"requirement_id": i, "why": "ни один материал каталога его не выполняет"} for i in alone]
+    found = [Unmet(i, "ни один материал каталога его не выполняет") for i in alone]
     rest = sorted(checkable - set(alone))
     for first, second in itertools.combinations(rest, 2):
         if all(first in failed or second in failed for failed in failures):
             found.append(
-                {
-                    "requirement_id": first,
-                    "conflicts_with": second,
-                    "why": "ни один материал каталога не выполняет оба обязательных требования",
-                }
+                Unmet(
+                    first,
+                    "ни один материал каталога не выполняет оба обязательных требования",
+                    conflicts_with=second,
+                )
             )
     return found
