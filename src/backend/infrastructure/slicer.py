@@ -1,4 +1,4 @@
-"""STE Slicer through the MCP server of its AI Assistant plugin (branch ``feat/ste-plugin``).
+"""STE Slicer through the MCP server of its AI Assistant plugin (``src/plugin/AIAssistant``).
 
 The plugin listens on 127.0.0.1 with a port and a token it writes to
 ``Documents/STE_AIAssistant/server.json`` and reads and writes files by paths of its own

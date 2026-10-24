@@ -4,6 +4,11 @@
 
 | ID | Что умеет пользователь | E2E-проверка |
 | --- | --- | --- |
+| PLUGIN-CHAT | Открывает чат плагина в браузере из меню Extensions → AI Assistant; страница отдаётся локальным сервером, API закрыт токеном и проверкой Host | `tests/e2e/test_ai_assistant.py`: `test_page_is_served_without_a_token`, `test_api_needs_the_token_and_a_local_host` |
+| PLUGIN-MCP | Подключает MCP-клиент к плагину (`initialize`, `tools/list`, `tools/call`) и видит инструменты слайсера | `test_mcp_handshake_and_tool_list` |
+| PLUGIN-SETTINGS | Меняет принтер, режим печати 3D/5D и настройки слайсера через инструменты; недопустимые значения и режимы отклоняются | `test_settings_roundtrip_and_guards` |
+| PLUGIN-SLICE | Загружает модель, анализирует и меняет ориентацию, нарезает, сохраняет G-code и проект `.3mf`, открывает проект обратно | `test_model_to_gcode_and_project` |
+| PLUGIN-LLM-CHAT | Пишет задачу в чат (с картинкой), LLM вызывает инструменты, пользователь видит вызовы, список изменений и ответ | `test_chat_runs_tools_and_explains` |
 | STL-001 | Анализировать STL командой: проверки сетки, геометрия, сечения, выборочные хорды и отчёты JSON/Markdown/PNG | `tests/e2e/test_stl_cli.py` — пакет файлов, Unicode, повреждённый STL, отчёты и изображение |
 | WEB-001 | Создать чат, загрузить STL/PDF/DOCX/TXT/MD/JPG/PNG, увидеть ошибки файлов; страницы, фото и рисунки из DOCX читает мультимодальная модель | `src/web/tests/chat.spec.ts`, `recovery.spec.ts` |
 | WEB-002 | Сразу подтвердить единицы STL, ответить на пакет вопросов агентов, выбрать значение при расхождении источников и изменить ответ «Не знаю» | `src/web/tests/chat.spec.ts` — T07/T08 |
