@@ -1,0 +1,129 @@
+{
+ "assumptions": [
+  {
+   "basis": "карточка этапа 1",
+   "id": "A1",
+   "text": "единицы STL неизвестны: координаты приняты за миллиметры"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A2",
+   "text": "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A3",
+   "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
+  }
+ ],
+ "card_ref": {
+  "job_id": "job-1",
+  "revision": 1
+ },
+ "contract": "stage2.parameter_set",
+ "idempotency_key": "job-1:1",
+ "iteration": 1,
+ "materials": {
+  "0": {
+   "alternatives": [
+    {
+     "id": "enduse_pc",
+     "why": "оценка 1.00"
+    },
+    {
+     "id": "fiberpart_abs_g13",
+     "why": "оценка 1.00"
+    }
+   ],
+   "checks": [
+    {
+     "detail": "tg_c=105",
+     "hard": true,
+     "key": "tg_min_c",
+     "requirement_id": "tg_min_c",
+     "status": "ok"
+    },
+    {
+     "detail": "tg_c=105",
+     "hard": true,
+     "key": "tg_min_c",
+     "requirement_id": "tg_min_c-2",
+     "status": "ok"
+    }
+   ],
+   "id": "enduse_abs",
+   "source": "rule:MATERIAL-RANK",
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 1.00"
+  }
+ },
+ "models": [
+  {
+   "attachment_id": "att-1",
+   "extruder": 0,
+   "id": "m1",
+   "orientation_candidate": "o1",
+   "source": "assumption:A3",
+   "transform": {
+    "position": [
+     -9.5,
+     0.0,
+     10.0
+    ],
+    "rotation": [
+     [
+      1,
+      0,
+      0
+     ],
+     [
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      1
+     ]
+    ],
+    "scale": [
+     1,
+     1,
+     1
+    ]
+   },
+   "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
+  }
+ ],
+ "printer": "hte530v5.2.4",
+ "printing_mode": {
+  "source": "rule:MODE-DEFAULT-CLASSIC",
+  "value": "classic",
+  "why": "режим 3D (classic) по умолчанию: 5D не запрошен"
+ },
+ "quality": {
+  "quality_type": "normal",
+  "source": "default",
+  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм"
+ },
+ "settings": {
+  "cool_fan_enabled_classic": {
+   "scope": "extruder:0",
+   "source": "rule:FAN-OFF-NO-COOLING",
+   "value": false,
+   "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "speed_print": {
+   "source": "rule:SPEED-MATERIAL-MAX",
+   "unit": "mm/s",
+   "value": 50.0,
+   "why": "скорость печати не выше рекомендованной в файле материала"
+  }
+ },
+ "status": "proposed",
+ "unsatisfied": [],
+ "version": "0.1",
+ "warnings": [
+  "stl report: Self-intersections and intersections/nesting between shells are not checked."
+ ]
+}
