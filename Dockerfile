@@ -47,6 +47,6 @@ COPY --from=appfiles / /app/
 COPY --from=frontend /web src/web
 COPY scripts/ scripts/
 COPY tests/ tests/
-COPY docs/task-card-v2.0.schema.json docs/
+COPY docs/*.schema.json docs/
 COPY pytest.ini .coveragerc ./
 CMD ["python", "scripts/run_tests.py"]

@@ -1,0 +1,524 @@
+{
+  "$defs": {
+    "Alternative": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "why"
+      ],
+      "title": "Alternative",
+      "type": "object"
+    },
+    "AppliedConstraint": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "result": {
+          "enum": [
+            "applied",
+            "not_applied"
+          ],
+          "title": "Result",
+          "type": "string"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "result",
+        "why"
+      ],
+      "title": "AppliedConstraint",
+      "type": "object"
+    },
+    "CardRef": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "title": "Job Id",
+          "type": "string"
+        },
+        "revision": {
+          "title": "Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "job_id",
+        "revision"
+      ],
+      "title": "CardRef",
+      "type": "object"
+    },
+    "Material": {
+      "additionalProperties": false,
+      "properties": {
+        "alternatives": {
+          "items": {
+            "$ref": "#/$defs/Alternative"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/MaterialCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "source": {
+          "pattern": "^(requirement|rule|constraint|assumption):[\\w\\-.]+$|^default$",
+          "title": "Source",
+          "type": "string"
+        },
+        "why": {
+          "pattern": "\\S",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "why",
+        "source",
+        "id"
+      ],
+      "title": "Material",
+      "type": "object"
+    },
+    "MaterialCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "title": "Detail",
+          "type": "string"
+        },
+        "hard": {
+          "title": "Hard",
+          "type": "boolean"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "requirement_id": {
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ok",
+            "warn",
+            "fail",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "key",
+        "hard",
+        "status",
+        "detail"
+      ],
+      "title": "MaterialCheck",
+      "type": "object"
+    },
+    "PlacedModel": {
+      "additionalProperties": false,
+      "properties": {
+        "attachment_id": {
+          "title": "Attachment Id",
+          "type": "string"
+        },
+        "extruder": {
+          "title": "Extruder",
+          "type": "integer"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "orientation_candidate": {
+          "title": "Orientation Candidate",
+          "type": "string"
+        },
+        "source": {
+          "pattern": "^(requirement|rule|constraint|assumption):[\\w\\-.]+$|^default$",
+          "title": "Source",
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/Transform"
+        },
+        "why": {
+          "pattern": "\\S",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "why",
+        "source",
+        "id",
+        "attachment_id",
+        "extruder",
+        "orientation_candidate",
+        "transform"
+      ],
+      "title": "PlacedModel",
+      "type": "object"
+    },
+    "PrintingMode": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "pattern": "^(requirement|rule|constraint|assumption):[\\w\\-.]+$|^default$",
+          "title": "Source",
+          "type": "string"
+        },
+        "value": {
+          "enum": [
+            "classic",
+            "cylindrical",
+            "cylindrical_full"
+          ],
+          "title": "Value",
+          "type": "string"
+        },
+        "why": {
+          "pattern": "\\S",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "why",
+        "source",
+        "value"
+      ],
+      "title": "PrintingMode",
+      "type": "object"
+    },
+    "Quality": {
+      "additionalProperties": false,
+      "properties": {
+        "quality_type": {
+          "title": "Quality Type",
+          "type": "string"
+        },
+        "source": {
+          "pattern": "^(requirement|rule|constraint|assumption):[\\w\\-.]+$|^default$",
+          "title": "Source",
+          "type": "string"
+        },
+        "why": {
+          "pattern": "\\S",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "why",
+        "source",
+        "quality_type"
+      ],
+      "title": "Quality",
+      "type": "object"
+    },
+    "SelectionAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "title": "Basis",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "basis"
+      ],
+      "title": "SelectionAssumption",
+      "type": "object"
+    },
+    "Setting": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope"
+        },
+        "source": {
+          "pattern": "^(requirement|rule|constraint|assumption):[\\w\\-.]+$|^default$",
+          "title": "Source",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {},
+              "type": "array"
+            }
+          ],
+          "title": "Value"
+        },
+        "why": {
+          "pattern": "\\S",
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "why",
+        "source",
+        "value"
+      ],
+      "title": "Setting",
+      "type": "object"
+    },
+    "Transform": {
+      "additionalProperties": false,
+      "properties": {
+        "position": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Position",
+          "type": "array"
+        },
+        "rotation": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Rotation",
+          "type": "array"
+        },
+        "scale": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Scale",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rotation",
+        "position",
+        "scale"
+      ],
+      "title": "Transform",
+      "type": "object"
+    },
+    "Unsatisfied": {
+      "additionalProperties": false,
+      "properties": {
+        "conflicts_with": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conflicts With"
+        },
+        "requirement_id": {
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "why": {
+          "title": "Why",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "why"
+      ],
+      "title": "Unsatisfied",
+      "type": "object"
+    }
+  },
+  "$id": "https://mosprom.local/schemas/parameter-set-0.2.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "applied_constraints": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/AppliedConstraint"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Applied Constraints"
+    },
+    "assumptions": {
+      "items": {
+        "$ref": "#/$defs/SelectionAssumption"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "card_ref": {
+      "$ref": "#/$defs/CardRef"
+    },
+    "contract": {
+      "const": "stage2.parameter_set",
+      "default": "stage2.parameter_set",
+      "title": "Contract",
+      "type": "string"
+    },
+    "iteration": {
+      "maximum": 2,
+      "minimum": 1,
+      "title": "Iteration",
+      "type": "integer"
+    },
+    "materials": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Material"
+      },
+      "title": "Materials",
+      "type": "object"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/PlacedModel"
+      },
+      "title": "Models",
+      "type": "array"
+    },
+    "printer": {
+      "title": "Printer",
+      "type": "string"
+    },
+    "printing_mode": {
+      "$ref": "#/$defs/PrintingMode"
+    },
+    "quality": {
+      "$ref": "#/$defs/Quality"
+    },
+    "settings": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Setting"
+      },
+      "title": "Settings",
+      "type": "object"
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "infeasible"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "unsatisfied": {
+      "items": {
+        "$ref": "#/$defs/Unsatisfied"
+      },
+      "title": "Unsatisfied",
+      "type": "array"
+    },
+    "version": {
+      "const": "0.2",
+      "default": "0.2",
+      "title": "Version",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "card_ref",
+    "iteration",
+    "printer",
+    "printing_mode",
+    "quality",
+    "materials",
+    "settings",
+    "models",
+    "status"
+  ],
+  "title": "ParameterSet",
+  "type": "object"
+}

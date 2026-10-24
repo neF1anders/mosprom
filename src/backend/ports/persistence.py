@@ -6,6 +6,7 @@ from types import TracebackType
 from typing import Any, Protocol
 
 from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
+from ..domain.pipeline import Step
 
 
 class Jobs(Protocol):
@@ -49,6 +50,7 @@ class Events(Protocol):
 class Queue(Protocol):
     async def stage1(self, job_id: str, revision: int) -> None: ...
     async def stage2(self, job_id: str, revision: int) -> None: ...
+    async def cancel_pending(self, job_id: str) -> None: ...
 
 
 class Library(Protocol):
@@ -58,6 +60,14 @@ class Library(Protocol):
 
 class Traces(Protocol):
     async def record(self, call: AgentCall) -> None: ...
+
+
+class StageResults(Protocol):
+    async def add(
+        self, job_id: str, revision: int, step: Step, payload: dict[str, Any]
+    ) -> None: ...
+    async def get(self, job_id: str, revision: int, step: Step) -> dict[str, Any] | None: ...
+    async def latest(self, job_id: str, revision: int, stage: str) -> dict[str, Any] | None: ...
 
 
 class UnitOfWork(Protocol):
@@ -70,6 +80,7 @@ class UnitOfWork(Protocol):
     queue: Queue
     knowledge: Library
     traces: Traces
+    stage_results: StageResults
 
     async def __aenter__(self) -> "UnitOfWork": ...
     async def __aexit__(

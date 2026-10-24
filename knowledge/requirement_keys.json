@@ -1,0 +1,23 @@
+{
+  "keys": [
+    {"key": "service_temp_max_c", "kind": "number", "unit": "°C", "strict": "upper", "title": "Максимальная рабочая температура детали"},
+    {"key": "tg_min_c", "kind": "number", "unit": "°C", "strict": "upper", "title": "Минимальная температура стеклования материала"},
+    {"key": "density_max_g_cm3", "kind": "number", "unit": "g/cm3", "strict": "lower", "title": "Максимальная плотность материала"},
+    {"key": "dimensional_tol_mm", "kind": "number", "unit": "mm", "strict": "lower", "title": "Допуск размеров детали"},
+    {"key": "hydrophobic", "kind": "flag", "title": "Материал не должен впитывать влагу"},
+    {"key": "uv_stable", "kind": "flag", "title": "Стойкость к ультрафиолету"},
+    {"key": "flexible", "kind": "flag", "title": "Деталь должна быть гибкой или эластичной"},
+    {"key": "low_friction", "kind": "flag", "title": "Низкое трение"},
+    {"key": "abrasion_resistant", "kind": "flag", "title": "Стойкость к истиранию"},
+    {"key": "high_stiffness", "kind": "flag", "title": "Высокая жёсткость"},
+    {"key": "no_visible_layers", "kind": "flag", "title": "Без видимых слоёв на поверхности"},
+    {"key": "no_supports", "kind": "flag", "title": "Печать без поддержек"},
+    {"key": "food_safe", "kind": "flag", "title": "Контакт с пищевыми продуктами"},
+    {"key": "esd", "kind": "flag", "title": "Антистатические свойства"},
+    {"key": "chemical_resistance", "kind": "list", "title": "Стойкость к средам, перечень через запятую"},
+    {"key": "quantity", "kind": "number", "strict": "upper", "title": "Количество деталей"},
+    {"key": "load_bearing", "kind": "choice", "options": ["none", "static", "cyclic", "impact"], "title": "Характер нагрузки на деталь"},
+    {"key": "material", "kind": "text", "title": "Материал, который назвал пользователь или задание"},
+    {"key": "printing_mode", "kind": "choice", "options": ["classic", "cylindrical", "cylindrical_full"], "title": "Режим печати 3D, 5D Spiral или 5D"}
+  ]
+}

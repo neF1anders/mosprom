@@ -15,7 +15,7 @@ TEST_DATABASE = os.environ.get(
 )
 TABLES = (
     "jobs, messages, attachments, events, receipts, operation_cache, knowledge, agent_calls, "
-    "procrastinate_jobs, procrastinate_events"
+    "stage_results, procrastinate_jobs, procrastinate_events"
 )
 
 

@@ -262,6 +262,26 @@ async def test_job_of_a_dead_worker_returns_to_the_queue(pg, http):
     assert status == "todo"
 
 
+async def test_an_edit_after_a_ready_card_reaches_the_stage_one_worker(pg, http):
+    """Work queued for an earlier revision held the job lock, so the edit was never fetched."""
+    from procrastinate.jobs import Status as JobStatus
+
+    job_id = await new_job(http)
+    await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "x"})
+    async with pg.queue.open_async():
+        worker = await pg.queue.job_manager.register_worker()
+        first = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
+        assert first is not None
+        # Stage one finishes the revision and hands the ready card to stage two.
+        async with pg.uow() as uow:
+            await uow.queue.stage2(job_id, 1)
+            await uow.commit()
+        await pg.queue.job_manager.finish_job(first, JobStatus.SUCCEEDED, delete_job=False)
+        await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "y"})
+        edit = await pg.queue.job_manager.fetch_job(queues=["stage1"], worker_id=worker)
+    assert edit is not None and edit.task_kwargs == {"job_id": job_id, "revision": 2}
+
+
 async def test_rename_and_delete_a_chat(pg, http):
     job_id = await new_job(http)
     renamed = await http.post(
