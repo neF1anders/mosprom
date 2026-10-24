@@ -2,10 +2,10 @@
 import json
 import math
 import os
+import threading
 import time
 
 from PyQt5.QtCore import QUrl
-
 from UM.Application import Application
 from UM.Backend.Backend import BackendState
 from UM.Logger import Logger
@@ -22,6 +22,15 @@ from . import settings
 from .mainthread import run_on_main
 
 DEFAULT_PRINTER = "hte530v5.2.4"  # Stereotech Hybrid 530 V5.2.4
+
+# slice_model in all, the settings check before it included; the app waits 330 s for the answer
+SLICE_SECONDS = 300
+# How long a call waits for the one before it; the app gives other calls 60 s
+CALL_WAIT_SECONDS = 50
+# The "What changed" panel keeps this many latest changes
+MAX_CHANGES = 200
+LIST_KINDS = {"[int]": int, "[float]": float}
+TEXT_KINDS = ("str", "polygon", "polygons")
 
 PRINT_MODES = {
     "classic": "3D",
@@ -104,9 +113,15 @@ class Session(object):
 
     def record(self, name, old, new, reason):
         self.changes.append({"name": name, "old": old, "new": new, "reason": reason})
+        del self.changes[:-MAX_CHANGES]
 
 
 SESSION = Session()
+# One call at a time: the chat of the plugin and the app share one scene and one set of settings
+_CALLS = threading.Lock()
+# The chat page polls the state every 2 s; a poll that finds another one running reuses its answer
+_STATE = threading.Lock()
+_LAST_STATE = {"printer": None, "slicing": None}
 
 
 def _app():
@@ -120,11 +135,20 @@ def _stack():
     return stack
 
 
+def _first_extruder(stack):
+    """Extruder 0. The Hybrid 530 has two, and on Python 3.5 a dict keeps no order."""
+    extruders = stack.extruders
+    if "0" in extruders:
+        return extruders["0"]
+    ordered = sorted(extruders.values(), key=lambda extruder: int(extruder.getMetaDataEntry("position") or 0))
+    return ordered[0] if ordered else None
+
+
 def _value(key):
     stack = _stack()
     try:
         if stack.getProperty(key, "settable_per_extruder") and stack.extruders:
-            return list(stack.extruders.values())[0].getProperty(key, "value")
+            return _first_extruder(stack).getProperty(key, "value")
         return stack.getProperty(key, "value")
     except Exception:
         return None
@@ -208,7 +232,9 @@ def set_printer(definition_id=DEFAULT_PRINTER):
       {"type": P("string", "Filter by material type, e.g. PLA, PETG, ABS, TPU"), "limit": P("integer", "Maximum rows", default=25)})
 def list_materials(type=None, limit=25):
     stack = _stack()
-    extruder = list(stack.extruders.values())[0]
+    extruder = _first_extruder(stack)
+    if extruder is None:
+        raise ToolError("The active printer has no extruders")
     available = _app().getMaterialManager().getAvailableMaterialsForMachineExtruder(stack, extruder) or {}
     registry = ContainerRegistry.getInstance()
     rows = []
@@ -227,12 +253,45 @@ def list_materials(type=None, limit=25):
       {"material_id": P("string", "Material id"), "reason": P("string", "Why this material, one sentence")},
       ["material_id", "reason"])
 def set_material(material_id, reason=""):
+    stack = _stack()
     manager = _app().getMachineManager()
-    old = manager.activeMaterialId
+    if _first_extruder(stack) is None:
+        raise ToolError("The active printer has no extruders")
+    if _material_node(stack, material_id) is None:
+        # setMaterialById would silently put an empty material in its place
+        raise ToolError("Material %s does not fit the nozzle of extruder 0. Use list_materials." % material_id)
+    old, quality = _material_root(stack), manager.activeQualityType
     manager.setMaterialById("0", material_id)
-    new = manager.activeMaterialId
+    new = _material_root(stack)
+    if new != material_id:
+        raise ToolError("The slicer kept material %s instead of %s" % (new, material_id))
     SESSION.record("material", old, new, reason)
-    return "material: %s -> %s" % (old, new)
+    answer = "material: %s -> %s" % (old, new)
+    if quality and manager.activeQualityType != quality:
+        # The slicer picks another quality profile when the new material has none of this type
+        group = _app().getQualityManager().getQualityGroups(stack).get(quality)
+        if group is not None and group.is_available:
+            manager.setQualityGroupByQualityType(quality)
+        else:
+            answer += "; quality profile %s does not fit it, the slicer chose %s" % (quality, manager.activeQualityType)
+    return answer
+
+
+def _material_root(stack):
+    extruder = _first_extruder(stack)
+    material = extruder.material if extruder is not None else None
+    if material is None or material.getId() == "empty_material":
+        return None
+    return material.getMetaDataEntry("base_file") or material.getId()
+
+
+def _material_node(stack, material_id):
+    """The node MachineManager.setMaterialById looks up for extruder 0."""
+    extruder = _first_extruder(stack)
+    buildplate = stack.variant.getName() if stack.variant.getId() != "empty_variant" else None
+    return _app().getMaterialManager().getMaterialNode(
+        stack.definition.getId(), extruder.variant.getName(), buildplate,
+        extruder.getApproximateMaterialDiameter(), material_id)
 
 
 @tool("Quality profiles of the active printer and material.")
@@ -251,9 +310,15 @@ def list_quality_profiles():
       ["quality_type", "reason"])
 def set_quality_profile(quality_type, reason=""):
     manager = _app().getMachineManager()
+    group = _app().getQualityManager().getQualityGroups(_stack()).get(quality_type)
+    if group is None or not group.is_available:
+        raise ToolError("Quality profile %s is not available for this printer and material. Use list_quality_profiles."
+                        % quality_type)
     old = manager.activeQualityType
     manager.setQualityGroupByQualityType(quality_type)
     new = manager.activeQualityType
+    if new != quality_type:
+        raise ToolError("The slicer kept quality profile %s instead of %s" % (new, quality_type))
     SESSION.record("quality profile", old, new, reason)
     return "quality: %s -> %s" % (old, new)
 
@@ -315,18 +380,45 @@ def _coerce(definition, value):
             raise ToolError("%s must be one of %s" % (definition.key, sorted(definition.options)))
         return value
     if kind in ("float", "int"):
-        number = float(value)
-        stack = _stack()
-        low = stack.getProperty(definition.key, "minimum_value")
-        high = stack.getProperty(definition.key, "maximum_value")
-        if isinstance(low, (int, float)):
-            number = max(number, low)
-        if isinstance(high, (int, float)):
-            number = min(number, high)
-        return int(round(number)) if kind == "int" else number
-    if kind == "str":
-        return str(value)
+        return _clamped_number(definition.key, value, kind)
+    if kind in LIST_KINDS:
+        return _number_list(definition.key, value, LIST_KINDS[kind])
+    if kind in ("extruder", "optional_extruder"):
+        return _extruder_number(definition.key, value)
+    if kind in TEXT_KINDS:
+        return value if isinstance(value, str) else json.dumps(value)
     raise ToolError("Settings of type %s cannot be changed with this tool" % kind)
+
+
+def _clamped_number(key, value, kind):
+    number = float(value)
+    stack = _stack()
+    low = stack.getProperty(key, "minimum_value")
+    high = stack.getProperty(key, "maximum_value")
+    if isinstance(low, (int, float)):
+        number = max(number, low)
+    if isinstance(high, (int, float)):
+        number = min(number, high)
+    return int(round(number)) if kind == "int" else number
+
+
+def _extruder_number(key, value):
+    """The slicer keeps the extruder as a string, "-1" for "not set" in optional_extruder."""
+    try:
+        return str(int(float(value)))
+    except (TypeError, ValueError):
+        raise ToolError("%s must be an extruder number" % key)
+
+
+def _number_list(key, value, cast):
+    """A list setting such as infill_angles is a string in the slicer, as "[0, 90]"."""
+    try:
+        items = json.loads(value) if isinstance(value, str) else value
+        if not isinstance(items, list):
+            raise ValueError(value)
+        return json.dumps([cast(item) for item in items])
+    except (TypeError, ValueError):
+        raise ToolError("%s must be a list of numbers, as [0, 90]" % key)
 
 
 @tool("Discard every print setting changed by the user or by earlier tool calls, so the profile and material values apply again. "
@@ -600,18 +692,30 @@ def _start_slice():
     return "slicing started"
 
 
+def _restart_slice():
+    SESSION.restarts += 1
+    SESSION.last_start = time.time()
+    SESSION.backend.forceSlice()
+
+
 def _stack_check_pending():
     return bool(_app().getMachineErrorChecker().needToWaitForResult)
 
 
-def _wait_for_stack_check(timeout=60, quiet_polls=3):
-    """Wait until the slicer has finished checking the settings after the last change.
+def _left(deadline, cap=60):
+    """Seconds a call to the main thread may take before the deadline of the slicing."""
+    return max(1, min(cap, deadline - time.time()))
+
+
+def _wait_for_stack_check(deadline, quiet_polls=3):
+    """Wait until the slicer has finished checking the settings after the last change, at most 60 s.
     When the check ends the backend clears the G-code of a slicing in progress (needsSlicing ->
-    _clearLayerData), and the next message of the engine fails with KeyError: 0 and takes the slicer down."""
-    begin = time.time()
+    _clearLayerData), and the next message of the engine fails with KeyError: 0 and takes the slicer down.
+    So it is waited for before every start of the engine, the first one and each restart."""
+    end = min(deadline, time.time() + 60)
     quiet = 0
-    while time.time() - begin < timeout:
-        quiet = 0 if run_on_main(_stack_check_pending) else quiet + 1
+    while time.time() < end:
+        quiet = 0 if run_on_main(_stack_check_pending, _left(end)) else quiet + 1
         if quiet >= quiet_polls:
             return
         time.sleep(0.5)
@@ -623,16 +727,13 @@ def _gcode():
 
 
 def _poll_slice():
-    """Slicing is aborted whenever the scene changes, so it is restarted when it falls back to NotStarted."""
+    """Slicing is aborted whenever the scene changes, so it asks for a restart when it falls back to NotStarted."""
     if SESSION.slice_state == BackendState.Error:
         return "error"
     if SESSION.slice_state == BackendState.Done and _gcode():
         return "done"
     if SESSION.slice_state == BackendState.NotStarted and time.time() - SESSION.last_start > 4 and SESSION.restarts < 5:
-        SESSION.restarts += 1
-        SESSION.last_start = time.time()
-        SESSION.backend.forceSlice()
-        return "restarted"
+        return "restart"
     return "waiting"
 
 
@@ -641,7 +742,7 @@ def _print_info():
     duration = info.currentPrintTime
     seconds = int(duration.days) * 86400 + int(duration.hours) * 3600 + int(duration.minutes) * 60 + int(duration.seconds)
     weights = [float(w) for w in info.materialWeights]
-    lengths = [float(l) for l in info.materialLengths]
+    lengths = [float(length) for length in info.materialLengths]
     return {"print_time_seconds": seconds, "print_time": duration.getDisplayString(),
             "material_grams": round(sum(weights), 2), "material_meters": round(sum(lengths), 2)}
 
@@ -659,16 +760,20 @@ def get_slicing_status():
 @tool("Slice the scene with the current settings and wait for the result. Returns print time and material use. Takes up to a few minutes; 5D modes need an activated STE Slicer license.",
       on_main=False)
 def slice_model():
-    _wait_for_stack_check()
-    run_on_main(_start_slice)
+    deadline = time.time() + SLICE_SECONDS
+    _wait_for_stack_check(deadline)
+    run_on_main(_start_slice, _left(deadline))
     begin = time.time()
-    while time.time() - begin < 300:
-        state = run_on_main(_poll_slice)
+    while time.time() < deadline:
+        state = run_on_main(_poll_slice, _left(deadline))
         if state == "done":
             time.sleep(1.5)
-            return run_on_main(get_slicing_status)
+            return run_on_main(get_slicing_status, _left(deadline, 10))
         if state == "error":
             raise ToolError("Slicing failed. Check the model, the printer profile and the STE Slicer license.")
+        if state == "restart":
+            _wait_for_stack_check(deadline)
+            run_on_main(_restart_slice, _left(deadline))
         if SESSION.slice_state is None and time.time() - begin > 25:
             raise ToolError("Slicing did not start. In 5D modes check the STE Slicer license window.")
         time.sleep(1)
@@ -685,15 +790,21 @@ def _result_path(name, path):
     return os.path.join(settings.data_dir("results", base), name)
 
 
-@tool("Save the G-code of the last slicing. The default path is Documents/STE_AIAssistant/results/<model>/result.gcode.",
-      {"path": P("string", "Output .gcode path (optional)")})
+@tool("Save the G-code of the last slicing the way the slicer's own export does, with the print mode and the changed "
+      "settings in it. The default path is Documents/STE_AIAssistant/results/<model>/result.gcode.",
+      {"path": P("string", "Output .gcode path (optional)")}, on_main=False)
 def export_gcode(path=None):
-    lines = _gcode()
-    if not lines:
+    if not run_on_main(_gcode):
         raise ToolError("There is no G-code. Run slice_model first.")
-    path = _result_path("result.gcode", path)
+    path = run_on_main(lambda: _result_path("result.gcode", path))
+    # like the 3MF writer below, it hops to the Qt thread for its preview image, so it must not be called from it
+    writer = run_on_main(lambda: _app().getMeshFileHandler().getWriter("GCodeWriter"))
+    if writer is None:
+        raise ToolError("G-code writer not found")
     with open(path, "w", encoding="utf-8") as stream:
-        stream.write("".join(lines))
+        written = writer.write(stream, None)
+    if not written:
+        raise ToolError("The G-code was not saved: %s" % (writer.getInformation() or "the writer refused"))
     return {"path": path, "bytes": os.path.getsize(path)}
 
 
@@ -707,7 +818,9 @@ def save_project(path=None):
         raise ToolError("3MF workspace writer not found")
     root = run_on_main(lambda: _app().getController().getScene().getRoot())
     with open(path, "wb") as stream:
-        writer.write(stream, [root])
+        written = writer.write(stream, [root])
+    if not written:
+        raise ToolError("The project was not saved: %s" % (writer.getInformation() or "the writer refused"))
     return {"path": path, "bytes": os.path.getsize(path)}
 
 
@@ -717,6 +830,8 @@ def call(name, arguments):
         raise ToolError("Unknown tool: %s" % name)
     entry = TOOLS[name]
     arguments = arguments or {}
+    if not _CALLS.acquire(timeout=CALL_WAIT_SECONDS):
+        raise ToolError("The slicer is busy with another call, for example a slicing. Try again later.")
     try:
         if entry.on_main:
             result = run_on_main(lambda: (_hook_backend(), entry.handler(**arguments))[1])
@@ -724,5 +839,22 @@ def call(name, arguments):
             result = entry.handler(**arguments)
     except TypeError as error:
         raise ToolError("Bad arguments for %s: %s" % (name, error))
+    finally:
+        _CALLS.release()
     Logger.log("d", "AI Assistant tool %s(%s)", name, json.dumps(arguments, ensure_ascii=False))
     return result
+
+
+def state():
+    """Printer and slicing state for the chat page, without waiting for a tool call that is running."""
+    if not _STATE.acquire(False):
+        return dict(_LAST_STATE)
+    try:
+        for key, func in (("printer", get_state), ("slicing", get_slicing_status)):
+            try:
+                _LAST_STATE[key] = run_on_main(func, 5)
+            except Exception:
+                _LAST_STATE[key] = None
+        return dict(_LAST_STATE)
+    finally:
+        _STATE.release()
