@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 from ..domain.errors import AppError
 from .constraints import MATERIAL_KEY, Choices
 from .intake import CardRequirement, MaterialRequest, RequirementValue, TuningInput
-from .materials import Candidate, Printable
+from .materials import Candidate, Printable, mentioned
 from .notes import Unmet
 from .ranking import Check, Evaluation, evaluate, rank_materials
 
@@ -54,6 +54,9 @@ def choose_material(
     }
     warnings = printable.warnings
     found = printable.find(named.name, allowed) if named is not None else None
+    loose = None
+    if named is not None and found is None:
+        found = loose = mentioned(named.name, allowed)
     if named is not None and found is None:
         warnings.append(
             f"material '{named.name}' from the card is not in the catalog, ranking instead"
@@ -61,6 +64,12 @@ def choose_material(
     if named is None or found is None:
         return _ranked(allowed, request.requirements, tuple(warnings), preferred)
     choice = _named(found, request.requirements, named, tuple(warnings))
+    if loose is not None:
+        note = (
+            f"материал «{named.name}» понят как {loose.label} ({loose.id}): "
+            "в каталоге нет материала с таким названием, взят названный в нём материал каталога"
+        )
+        choice = replace(choice, assumptions=(note, *choice.assumptions))
     if forced is None or found.id != forced.value:
         return choice
     return replace(choice, why=f"материал задан ограничением этапа 3; {choice.why}")

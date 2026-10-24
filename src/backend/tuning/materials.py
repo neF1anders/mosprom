@@ -7,6 +7,7 @@ a print temperature cannot be printed from and is skipped with a warning.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,8 @@ from ..domain.errors import AppError
 from ..domain.models import Value
 
 _DIAMETER_TOLERANCE_MM = 1e-6
+# Latin words and numbers of a material name; Cyrillic words around it are left out.
+_WORD = re.compile(r"[a-z0-9]+")
 Level = Literal["low", "medium", "high"]
 Grade = Literal["good", "fair", "poor"]
 
@@ -108,6 +111,30 @@ class Printable:
                 "material_without_temperature",
             )
         return found
+
+
+def mentioned(text: str, allowed: Mapping[str, Candidate]) -> Candidate | None:
+    """A material whose whole label stands in the text as words: «зелёный PLA» is PLA.
+
+    The longest label wins («Enduse PETG» over «PETG»); among labels of one length the one named
+    first, so «PLA+PC» is PLA, the base of a blend the catalog does not have.
+    """
+    words = _WORD.findall(text.lower())
+    found: list[tuple[int, int, str, Candidate]] = []
+    for material in allowed.values():
+        label = _WORD.findall(material.label.lower())
+        at = _position(words, label)
+        if label and at is not None:
+            found.append((-len(label), at, material.id, material))
+    return min(found, key=lambda item: item[:3])[3] if found else None
+
+
+def _position(words: list[str], label: list[str]) -> int | None:
+    """Where the label's words stand one after another in the text, if they do."""
+    for start in range(len(words) - len(label) + 1):
+        if words[start : start + len(label)] == label:
+            return start
+    return None
 
 
 def printable_materials(catalog: Catalog, filament: float) -> Printable:
