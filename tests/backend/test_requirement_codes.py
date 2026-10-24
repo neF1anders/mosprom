@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from src.backend.agents.card import WorkingCard, clean_key, fill, to_question
+from src.backend.agents.card import (
+    WorkingCard,
+    clean_key,
+    fill,
+    stable_references,
+    to_question,
+)
 from src.backend.agents.context import ContentBuilder, codes_block, collect
 from src.backend.agents.runner import parse_output
 from src.backend.agents.schemas import Review, ReviewQuestion, draft_with_codes
@@ -31,7 +37,9 @@ def ctx():
     current.sources.update(
         {
             "m1": Source(id="m1", ref="msg-1", kind="message", text=MESSAGE),
-            "f1p1": Source(id="f1p1", ref="att-1:1", kind="document", text=DOCUMENT),
+            "f1p1": Source(
+                id="f1p1", ref="att-1:1", kind="document", text=DOCUMENT, page=1, image="p1.png"
+            ),
             "kb:pa12": Source(id="kb:pa12", ref="kb:pa12", kind="knowledge", text="PA12"),
         }
     )
@@ -280,3 +288,18 @@ def test_the_score_counts_requirements_that_use_a_code():
     result = module.score("1", card, CODES)
     assert result["codes"] == "2/5" and result["matched"] == result["facts"] == 5
     assert module.score("1", {}, CODES)["codes"] == "0/0"
+
+
+def test_a_cited_page_keeps_its_image_for_the_card():
+    working = WorkingCard.from_draft(draft(), CODES)
+    card = TaskCard(job_id="j", revision=1)
+    current = ctx()
+    fill(card, working, working.requirements_for(CODES, current))
+    stable_references(card, current)
+    torque = next(r for r in card.requirements if r.key == "torque_nominal")
+    assert torque.sources[0].model_dump(exclude={"quote"}) == {
+        "source_id": "att-1:1",
+        "page": 1,
+        "method": "text",
+        "artifact_id": "p1.png",
+    }
