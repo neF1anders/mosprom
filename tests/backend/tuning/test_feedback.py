@@ -101,6 +101,51 @@ def test_choice_the_part_cannot_take_is_reported_as_not_applied(select):
     assert unmet == ["constraint:C1", "constraint:C2"]
 
 
+def test_choice_constraints_are_checked_against_the_final_choice(select):
+    review = feedback(
+        constraint("C1", "quality_type", "min", "draft"),
+        constraint("C2", "printing_mode", "in", ["cylindrical", "cylindrical_full"]),
+        constraint("C3", "material", "in", ["enduse_petg", "enduse_pp"]),
+    )
+    second = select(card(stl_report=report(size=(20.0, 20.0, 250.0))), review)
+    assert applied(second) == {"C1": "not_applied", "C2": "not_applied", "C3": "applied"}
+    notes = {entry["id"]: entry["why"] for entry in second["applied_constraints"]}
+    assert notes["C1"] == "op min does not apply to quality_type"
+    assert notes["C2"].startswith("printing_mode in ['cylindrical', 'cylindrical_full']")
+    assert second["materials"]["0"]["id"] in ("enduse_petg", "enduse_pp")
+
+
+def test_discrete_constraints_choose_ban_or_cannot_be_met(select):
+    review = feedback(
+        constraint("C1", "support_enable", "in", [True]),
+        constraint("C2", "infill_pattern", "in", ["honeycomb"]),
+        constraint("C3", "adhesion_type", "max", "raft"),
+        constraint("C4", "retraction_enable", "ne", True),
+    )
+    second = select(card(), review)
+    settings = second["settings"]
+    assert (settings["support_enable"]["value"], settings["support_enable"]["source"]) == (
+        True,
+        "constraint:C1",
+    )
+    assert (settings["retraction_enable"]["value"], settings["retraction_enable"]["scope"]) == (
+        False,
+        "extruder:0",
+    )
+    assert "infill_pattern" not in settings
+    assert {
+        "requirement_id": "discrete:infill_pattern",
+        "why": "все допустимые значения запрещены",
+    } in second["unsatisfied"]
+    assert applied(second)["C3"] == "not_applied"
+
+
+def test_wall_thickness_constraint_counts_lines(select):
+    second = select(card(), feedback(constraint("C1", "wall_thickness", "min", 2.0)))
+    walls = second["settings"]["wall_thickness"]
+    assert (walls["value"], walls["source"]) == (2.0, "constraint:C1")
+
+
 def test_unsupported_constraint_is_reported_not_silently_dropped(select):
     second = select(card(), feedback(constraint("C1", "speed_print", "ne", 60)))
     assert applied(second) == {"C1": "not_applied"}

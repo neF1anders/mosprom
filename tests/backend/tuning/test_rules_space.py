@@ -2,13 +2,24 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from src.backend.domain.catalog import PRINTING_MODES
 from src.backend.tuning.axes import SPACE, AxisContext, build_axes, t_interval_for_limits
 from src.backend.tuning.constraints import wall_lines
+from src.backend.tuning.planning import build_plan, find_conflicts, plan_unmet, resolve_t
 from src.backend.tuning.printer import load_printer
-from src.backend.tuning.rules import RULES, Condition, holds
+from src.backend.tuning.rules import (
+    RULE_BY_ID,
+    RULES,
+    Condition,
+    Rule,
+    RuleBook,
+    holds,
+    reason,
+    requirement_keys,
+    source_of,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -130,3 +141,58 @@ def test_default_quality_is_the_preferred_one_of_the_build(catalog):
     definitions = json.loads((BUILD / "definitions/fdmprinter.def.json").read_text())
     preferred = definitions["metadata"]["preferred_quality_type"]
     assert load_printer(catalog).default_quality == preferred
+
+
+def test_rule_book_refuses_repeated_rule_ids():
+    rule = {"id": "R1", "source": "G", "reason": "r", "when": {}, "then": []}
+    with pytest.raises(ValidationError):
+        RuleBook.model_validate({"note": "", "rules": [rule, rule]})
+
+
+def test_rules_name_the_requirement_codes_their_conditions_read():
+    assert requirement_keys(RULE_BY_ID["INFILL-GYROID"]) == ["flexible"]
+    assert requirement_keys(RULE_BY_ID["SUPPORT-OVERHANG"]) == ["no_supports"]
+    assert requirement_keys(RULE_BY_ID["TOL-HARD-FINE-LAYER"]) == ["dimensional_tol_mm"]
+    assert requirement_keys(RULE_BY_ID["MODE-DEFAULT-CLASSIC"]) == []
+
+
+def test_reasons_and_sources_of_values():
+    assert (reason(None), source_of(None)) == ("значение слайсера", "default")
+    assert reason("constraint:C1") == "ограничение этапа 3 (constraint:C1)"
+    assert (source_of("constraint:C1"), source_of("STIFF-HARD")) == (
+        "constraint:C1",
+        "rule:STIFF-HARD",
+    )
+
+
+def test_bound_and_unsatisfied_actions_shape_the_plan():
+    rule = Rule.model_validate(
+        {
+            "id": "SYNTHETIC",
+            "source": "G",
+            "reason": "r",
+            "when": {"fact": "req.no_supports", "op": "==", "value": True},
+            "then": [
+                {"op": "bound", "param": "print_speed", "min_t": 0.6, "max_t": 0.4},
+                {"op": "unsatisfied", "requirement_key": "no_supports", "why": "нависания"},
+            ],
+        }
+    )
+    plan = build_plan([rule], build_axes(CONTEXT), CONTEXT)
+    entry = plan.axes["print_speed"]
+    assert (entry.low, entry.high, entry.low_rule, entry.high_rule) == (
+        0.6,
+        0.4,
+        "SYNTHETIC",
+        "SYNTHETIC",
+    )
+    assert resolve_t(entry, 0.0) == (0.5, "SYNTHETIC")
+    conflicts = find_conflicts(plan)
+    unmet = plan_unmet(plan, conflicts, {"no_supports": ["no_supports"]}, {"SYNTHETIC": rule})
+    assert [(item.requirement_id, item.conflicts_with) for item in unmet] == [
+        ("no_supports", None),
+        ("no_supports", None),
+    ]
+    assert unmet[0].why == "нависания"
+    without_card = plan_unmet(plan, [], {}, {"SYNTHETIC": rule})
+    assert [item.requirement_id for item in without_card] == ["rule:SYNTHETIC"]

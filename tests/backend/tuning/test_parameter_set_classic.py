@@ -5,7 +5,7 @@ import pytest
 from src.backend.domain.parameters import ParameterSet
 from src.backend.tuning.constraints import wall_lines
 from src.backend.tuning.printer import load_printer
-from tests.backend.tuning.cards import card, report, requirement
+from tests.backend.tuning.cards import card, constraint, feedback, report, requirement
 
 pytestmark = pytest.mark.unit
 TOLERANCE = 1e-9
@@ -167,3 +167,29 @@ def test_a_batch_is_told_to_be_one_model_in_the_project(select):
     parameter_set = select(card(requirements=[requirement("quantity", "15", "шт")]))
     texts = [entry["text"] for entry in parameter_set["assumptions"]]
     assert "партия 15 шт.: в проекте одна модель, копии в раскладку не добавлены" in texts
+
+
+def test_layer_is_sent_only_when_no_profile_fits_the_limits(select):
+    narrow = feedback(
+        constraint("C1", "layer_height", "min", 0.12),
+        constraint("C2", "layer_height", "max", 0.13),
+    )
+    parameter_set = select(card(), narrow)
+    layer = parameter_set["settings"]["layer_height"]
+    assert 0.12 <= layer["value"] <= 0.13 and layer["unit"] == "mm"
+    assert layer["why"].startswith("ни один профиль не укладывается в ограничения")
+    assert parameter_set["quality"]["quality_type"] in ("normal", "fast")
+
+
+def test_coarse_profile_keeps_three_skin_layers(select):
+    coarse = select(card(), feedback(constraint("C1", "quality_type", "eq", "verydraft")))
+    skin = coarse["settings"]["top_bottom_thickness"]
+    # 0.3 mm layers: the 0.8 mm default holds only two, three need 0.9 mm.
+    assert (skin["value"], skin["source"]) == (0.9, "rule:SKIN-MIN-3-LAYERS")
+
+
+def test_banned_default_profile_gives_the_nearest_one(select):
+    quality = select(card(), feedback(constraint("C1", "quality_type", "ne", "normal")))["quality"]
+    assert quality["quality_type"] in ("high", "fast")
+    assert quality["why"].startswith("значение слайсера; ближайший профиль")
+    assert quality["source"] == "default"
