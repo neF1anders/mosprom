@@ -4,7 +4,7 @@ import type { ProgressEvent } from "../types";
 
 // Events that change the snapshot or the chat list; progress and tool calls do not.
 const STATE_EVENTS =
-  /^(job\.|answers\.|stage1\.|operation\.|triage\.completed|files\.(completed|failed)|stl\.(completed|failed)|parameters\.|validation\.|pipeline\.)/;
+  /^(job\.|answers\.|stage1\.|operation\.|files\.(completed|failed)|stl\.(completed|failed)|parameters\.|validation\.|pipeline\.)/;
 
 // The server starts the stream at the current revision and resumes it by Last-Event-ID.
 export function useJobEvents(selected: string, enabled: boolean) {
