@@ -41,7 +41,6 @@
   "revision": 1
  },
  "contract": "stage2.parameter_set",
- "idempotency_key": "job-1:1",
  "iteration": 1,
  "materials": {
   "0": {
@@ -76,25 +75,25 @@
     ],
     "rotation": [
      [
-      1,
-      0,
-      0
+      1.0,
+      0.0,
+      0.0
      ],
      [
-      0,
-      1,
-      0
+      0.0,
+      1.0,
+      0.0
      ],
      [
-      0,
-      0,
-      1
+      0.0,
+      0.0,
+      1.0
      ]
     ],
     "scale": [
-     1,
-     1,
-     1
+     1.0,
+     1.0,
+     1.0
     ]
    },
    "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
@@ -109,7 +108,7 @@
  "quality": {
   "quality_type": "normal",
   "source": "default",
-  "why": "профиль по умолчанию принтера: Fine, слой 0.1 мм; правило «слой тоньше 0,1 мм почти не улучшает качество, а время растёт» профиль не изменило: слой упёрся в допустимые пределы"
+  "why": "профиль принтера по умолчанию: Fine, слой 0.15 мм задан отдельно: пожелание по точности размеров: тоньше слой"
  },
  "settings": {
   "cool_fan_enabled_classic": {
@@ -123,6 +122,12 @@
    "unit": "%",
    "value": 30.0,
    "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв"
+  },
+  "layer_height": {
+   "source": "rule:TOL-SOFT-FINE-LAYER",
+   "unit": "mm",
+   "value": 0.15,
+   "why": "пожелание по точности размеров: тоньше слой"
   },
   "material_print_temperature": {
    "scope": "extruder:0",
@@ -152,7 +157,7 @@
  },
  "status": "proposed",
  "unsatisfied": [],
- "version": "0.1",
+ "version": "0.2",
  "warnings": [
   "stl report: Self-intersections and intersections/nesting between shells are not checked."
  ]

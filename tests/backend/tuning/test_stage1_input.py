@@ -383,7 +383,7 @@ def test_priority_code_comes_before_the_wishes(keys, select):
         "priority priority (priority): quality not one of strength, accuracy, speed, cost"
         in request.warnings
     )
-    assert select(coded)["quality"]["source"] == "rule:PRIORITY-SPEED"
+    assert select(coded)["settings"]["layer_height"]["source"] == "rule:PRIORITY-SPEED-LAYER"
 
 
 def test_unconfirmed_priority_code_is_told_as_an_assumption(keys):
@@ -499,3 +499,15 @@ def test_contract_example_is_selected_with_overhangs_and_priority(select):
         "параметров",
         "обязательное требование no_dust (Без микропыли) не учтено подбором параметров",
     ]
+
+
+def test_choice_code_is_read_only_from_its_options(keys):
+    coded = card(
+        requirements=[
+            requirement("print_quality", "Fine"),
+            requirement("print_quality", "ultra", mandatory=False),
+        ]
+    )
+    request = read_card(coded, keys, READ_CODES)
+    assert [(item.key, item.value) for item in request.requirements] == [("print_quality", "fine")]
+    assert any("print_quality-2" in text and "ultra" in text for text in request.warnings)
