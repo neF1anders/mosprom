@@ -14,6 +14,7 @@ from .repositories import (
     KnowledgeRepository,
     MessageRepository,
     ReceiptRepository,
+    StageResultRepository,
     TraceRepository,
 )
 
@@ -33,6 +34,7 @@ class PostgresUnitOfWork:
         self.queue = ProcrastinateQueue(self._session, self._app)
         self.knowledge = KnowledgeRepository(self._session)
         self.traces = TraceRepository(self._session)
+        self.stage_results = StageResultRepository(self._session)
         return self
 
     async def __aexit__(
