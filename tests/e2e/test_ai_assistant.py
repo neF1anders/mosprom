@@ -19,7 +19,7 @@ REQUIRED_TOOLS = {
     "get_state", "list_printers", "set_printer", "list_materials", "set_material", "list_quality_profiles",
     "set_quality_profile", "save_profile", "set_print_mode", "search_settings", "get_setting", "set_setting",
     "load_model", "list_models", "move_model", "rotate_model", "scale_model", "delete_model", "arrange_models",
-    "analyze_orientation", "orient_model", "open_project", "remove_printer", "slice_model", "get_slicing_status", "export_gcode", "save_project",
+    "analyze_orientation", "orient_model", "open_project", "remove_printer", "reset_settings", "slice_model", "get_slicing_status", "export_gcode", "save_project",
 }
 CUBE_FACES = [((0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)), ((0, 0, 1), (0, 1, 1), (1, 1, 1), (1, 0, 1)),
               ((0, 0, 0), (0, 0, 1), (1, 0, 1), (1, 0, 0)), ((1, 0, 0), (1, 0, 1), (1, 1, 1), (1, 1, 0)),

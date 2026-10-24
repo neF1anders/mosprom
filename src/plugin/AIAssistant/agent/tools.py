@@ -329,6 +329,22 @@ def _coerce(definition, value):
     raise ToolError("Settings of type %s cannot be changed with this tool" % kind)
 
 
+@tool("Discard every print setting changed by the user or by earlier tool calls, so the profile and material values apply again. "
+      "The printer, material, quality profile, print mode and printer (machine_*) settings are kept.")
+def reset_settings():
+    stack = _stack()
+    containers = [stack.userChanges] + [e.userChanges for e in stack.extruders.values()]
+    removed = set()
+    for container in containers:
+        for key in list(container.getAllKeys()):
+            if key == "printing_mode" or key.startswith("machine_"):
+                continue
+            container.removeInstance(key)
+            removed.add(key)
+    SESSION.record("settings", len(removed), 0, "reset to the profile values")
+    return "reset %d setting(s): %s" % (len(removed), ", ".join(sorted(removed)) or "nothing to reset")
+
+
 @tool("Change one print setting (global or extruder level). Values outside the allowed range are clamped. Printer (machine_*) settings and the print mode are not available here.",
       {"key": P("string", "Setting key from search_settings"), "value": P(["number", "string", "boolean"], "New value"),
        "reason": P("string", "Why, one sentence in the user's language")}, ["key", "value", "reason"])
