@@ -1,0 +1,79 @@
+{
+ "allowed_actions": [
+  "select_parameters"
+ ],
+ "assumptions": [],
+ "blocked_actions": {},
+ "files": [],
+ "geometry": null,
+ "job_id": "job-1",
+ "preferences": [],
+ "production_constraints": [],
+ "purpose": "test bracket",
+ "questions": [],
+ "readiness": "ready",
+ "requirements": [],
+ "revision": 1,
+ "schema_version": "2.0",
+ "stl_analysis": {
+  "attachment_id": "att-1",
+  "report": {
+   "file": {
+    "encoding": "binary",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "triangles": 12
+   },
+   "geometry": {
+    "bounds": [
+     [
+      0.0,
+      0.0,
+      0.0
+     ],
+     [
+      20.0,
+      20.0,
+      20.0
+     ]
+    ],
+    "extents": [
+     20.0,
+     20.0,
+     20.0
+    ],
+    "surface_area": 2400.0,
+    "volume": 8000.0
+   },
+   "normal_chords": {
+    "minimum_sampled": 20.0,
+    "status": "estimated"
+   },
+   "partial_errors": {},
+   "schema_version": "1.0",
+   "topology": {
+    "components": [
+     {
+      "signed_volume": 8000.0
+     }
+    ],
+    "watertight": true,
+    "winding_consistent": true
+   },
+   "units": {
+    "coordinate_unit": "mm",
+    "input_unit": "mm",
+    "scale_applied": 1
+   },
+   "validation": {
+    "defects": []
+   },
+   "warnings": [
+    "Self-intersections and intersections/nesting between shells are not checked."
+   ]
+  },
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+ },
+ "unknowns": [],
+ "verdict": null,
+ "versions": {}
+}
