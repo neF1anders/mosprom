@@ -18,23 +18,24 @@ from uuid import uuid4
 
 path = Path(".env")
 if not path.exists() and not os.environ.get("SESSION_SECRET"):
-    template = Path(".env.example").read_text()
+    template = Path(".env.example").read_text(encoding="utf-8")
     path.write_text(
         template.replace(
             "SESSION_SECRET=\n", "SESSION_SECRET=" + secrets.token_urlsafe(48) + "\n"
-        ).replace("SLICER_HOST_FOLDER=\n", "")
+        ).replace("SLICER_HOST_FOLDER=\n", ""),
+        encoding="utf-8",
     )
     path.chmod(0o600)
-if path.exists() and "SLICER_HOST_FOLDER=" not in (current := path.read_text()):
+if path.exists() and "SLICER_HOST_FOLDER=" not in (current := path.read_text(encoding="utf-8")):
     # The plugin keeps server.json in Documents/STE_AIAssistant of the user's home.
     folder = Path.home() / "Documents" / "STE_AIAssistant"
     # A last line without its line break would otherwise swallow the new key.
     separator = "\n" if current and not current.endswith("\n") else ""
-    with path.open("a") as stream:
+    with path.open("a", encoding="utf-8") as stream:
         stream.write(f"{separator}SLICER_HOST_FOLDER={folder}\n")
 values = {}
 if path.exists():
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         if "=" in line and not line.lstrip().startswith("#"):
             key, value = line.split("=", 1)
             values[key.strip()] = value.strip().strip('"').strip("'")
@@ -51,7 +52,9 @@ plugin_folder = Path(
 try:
     plugin_folder.mkdir(parents=True, exist_ok=True)
     config = plugin_folder / "mosprom.json"
-    config.write_text(json.dumps({"origin": origin, "secret": secret, "user_id": user_id}))
+    config.write_text(
+        json.dumps({"origin": origin, "secret": secret, "user_id": user_id}), encoding="utf-8"
+    )
     config.chmod(0o600)
 except OSError as exc:
     print(f"The plugin config was not written to {plugin_folder}: {exc}", file=sys.stderr)

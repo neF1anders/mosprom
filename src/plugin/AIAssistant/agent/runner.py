@@ -57,6 +57,15 @@ class Chat(object):
             if self._busy:
                 raise RuntimeError("Wait for the answer to the previous message")
             self._busy = True
+        try:
+            self._start(text, upload_ids, scenario)
+        except Exception:
+            # the loop thread did not start, so nothing else would clear the flag
+            with self._lock:
+                self._busy = False
+            raise
+
+    def _start(self, text, upload_ids, scenario):
         notes = []
         images = []
         for upload_id in upload_ids:
@@ -71,8 +80,11 @@ class Chat(object):
         if images:
             parts = [{"type": "text", "text": content}]
             for image in images:
-                with open(image["path"], "rb") as stream:
-                    encoded = base64.b64encode(stream.read()).decode("ascii")
+                try:
+                    with open(image["path"], "rb") as stream:
+                        encoded = base64.b64encode(stream.read()).decode("ascii")
+                except (IOError, OSError) as error:
+                    raise ValueError("The attached file %s cannot be read: %s" % (image["name"], error))
                 mime = MIME[os.path.splitext(image["name"])[1].lower()]
                 parts.append({"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (mime, encoded)}})
             content = parts
