@@ -1250,8 +1250,13 @@
   overflow-wrap: anywhere;
 }
 /* One selected setting, requirement or assumption per line. */
-.cardSummary dd > span {
+.cardSummary dd > span,
+.cardSummary dd details > span {
   display: block;
+}
+.cardSummary dd summary {
+  cursor: pointer;
+  color: #6b6e7b;
 }
 .chats nav {
   grid-template-columns: minmax(0, 1fr);
