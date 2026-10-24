@@ -31,21 +31,30 @@ export async function send(page: Page, text: string) {
   await page.getByLabel("Сообщение", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Отправить", exact: true }).click();
 }
+// The gate starts the work only with a model attached, so a task goes with one.
+export async function task(page: Page, text: string, model = "box.stl") {
+  await attach(page, model);
+  await send(page, text);
+}
+// The pipeline ended: parameters are selected and checked, with or without remarks.
+export const PIPELINE_DONE =
+  /Проект готов|Проект требует внимания|Проект не создан|Параметры требуют внимания/;
+// Nothing runs: the chat waits for the user, the run failed or the pipeline ended.
+const SETTLED = new RegExp(
+  `Нужны уточнения|Параметры подобраны|Ошибка обработки|${PIPELINE_DONE.source}`,
+);
 export async function settled(page: Page) {
   await expect(
-    page.getByRole("status").filter({
-      hasText:
-        /Нужны уточнения|Параметры подобраны|Параметры требуют внимания|Ошибка обработки/,
-    }),
+    page.getByRole("status").filter({ hasText: SETTLED }),
   ).toBeVisible();
 }
-export async function attach(page: Page, name: string) {
+export async function attach(page: Page, ...names: string[]) {
   await page
     .getByLabel("Выбрать файлы", { exact: true })
-    .setInputFiles(fixture(name));
+    .setInputFiles(names.map(fixture));
 }
-export async function upload(page: Page, name: string) {
-  await attach(page, name);
+export async function upload(page: Page, ...names: string[]) {
+  await attach(page, ...names);
   const sendButton = page.getByRole("button", {
     name: "Отправить",
     exact: true,
@@ -74,9 +83,6 @@ export async function answered(page: Page, question: string, value: string) {
     .last();
   await expect(pair.getByRole("definition")).toHaveText(value);
 }
-// The pipeline ended: parameters are selected and checked, with or without remarks.
-export const PIPELINE_DONE =
-  /Проект готов|Проект требует внимания|Проект не создан|Параметры требуют внимания/;
 export async function pipelineDone(page: Page) {
   await expect(
     page.getByRole("status").filter({ hasText: PIPELINE_DONE }),
