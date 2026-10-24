@@ -626,7 +626,12 @@
 }
 .userMessage > .attachments {
   justify-content: flex-end;
+  max-width: 100%;
   margin-bottom: 8px;
+}
+/* On the page, a sent file stands out as the bubble does. */
+.userMessage .attachment {
+  background: var(--bubble);
 }
 .replying {
   display: flex;
