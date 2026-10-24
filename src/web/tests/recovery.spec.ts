@@ -23,7 +23,7 @@ test("T12 reconnect catches up and reopens same task", async ({
 });
 
 test("T11 stop at safe point, resume, retain correction", async ({ page }) => {
-  // With a model the gate starts the work, so the stop lands in a real run.
+  // With a model the assistant starts the work, so the stop lands in a real run.
   await task(page, "TEST_DELAY Шестерня");
   await expect(
     page.getByRole("status").filter({ hasText: "Обрабатываю" }),

@@ -31,7 +31,7 @@ export async function send(page: Page, text: string) {
   await page.getByLabel("Сообщение", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Отправить", exact: true }).click();
 }
-// The gate starts the work only with a model attached, so a task goes with one.
+// The assistant starts a project only with a model attached, so a task goes with one.
 export async function task(page: Page, text: string, model = "box.stl") {
   await attach(page, model);
   await send(page, text);
