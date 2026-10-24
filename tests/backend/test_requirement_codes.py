@@ -45,7 +45,7 @@ class Store:
     def __init__(self, job: Job):
         self.current = job
 
-    async def update(self, ctx, change):
+    async def update(self, job_id, revision, change):
         change(self.current)
         return self.current
 
