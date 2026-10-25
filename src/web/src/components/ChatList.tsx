@@ -2,6 +2,8 @@ import { chatDate } from "../chat";
 import type { Job } from "../types";
 import { jobStatus } from "../types";
 import { ChatItem } from "./ChatItem";
+import type { ReactNode } from "react";
+import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
 export function ChatList({
@@ -17,6 +19,7 @@ export function ChatList({
   onDelete,
   onMore,
   onCollapse,
+  tools,
 }: {
   jobs: Job[];
   selected: string;
@@ -30,9 +33,15 @@ export function ChatList({
   onDelete: (id: string) => void;
   onMore: () => void;
   onCollapse: () => void;
+  // The model connection and the theme switch, next to the title.
+  tools?: ReactNode;
 }) {
   return (
     <aside className={styles.chats} aria-label="Чаты" inert={!open}>
+      <div className={styles.brand}>
+        <h1>StereotechAI Plugin</h1>
+        <div className={styles.actions}>{tools}</div>
+      </div>
       <div className={styles.row}>
         <h2>Чаты</h2>
         <div className={styles.actions}>
@@ -42,14 +51,14 @@ export function ChatList({
             disabled={!canCreate}
             onClick={onCreate}
           >
-            <img src="/figma/new-chat.svg" alt="" />
+            <Icon name="new-chat" size={20} />
           </button>
           <button
             className={styles.icon}
             aria-label="Свернуть чаты"
             onClick={onCollapse}
           >
-            <img src="/figma/collapse-left.svg" alt="" />
+            <Icon name="collapse-left" size={20} />
           </button>
         </div>
       </div>

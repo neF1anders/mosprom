@@ -24,6 +24,9 @@ services:
       QWEN_BASE_URL: ${QWEN_BASE_URL:-https://api.timeweb.ai/v1}
       QWEN_MODEL: ${QWEN_MODEL:-dashscope/qwen3.8-flash}
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8000}
+      # The slicer plugin's folder as this computer names it: the worker opens files by it,
+      # the chat shows it as the folder of the saved projects.
+      SLICER_HOST_FOLDER: ${SLICER_HOST_FOLDER:-}
     command: [sh, -c, "alembic upgrade head && python scripts/import_knowledge.py && uvicorn src.backend.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
     ports: ["127.0.0.1:8000:8000"]
     volumes: ["files:/data"]
@@ -44,7 +47,6 @@ services:
       # STE Slicer with the AI Assistant plugin runs on this computer: its folder with
       # server.json is mounted here, and the slicer opens files by the computer's paths.
       SLICER_FOLDER: /slicer
-      SLICER_HOST_FOLDER: ${SLICER_HOST_FOLDER:-}
       SLICER_HOST: host.docker.internal
     extra_hosts: ["host.docker.internal:host-gateway"]
     volumes: ["files:/data", "${SLICER_HOST_FOLDER:-./artifacts/slicer}:/slicer"]

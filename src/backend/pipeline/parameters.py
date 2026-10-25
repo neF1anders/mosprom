@@ -32,7 +32,10 @@ from ..domain.slicing import GcodeCheck, SliceReport
 from ..domain.transitions import transition
 from ..ports.operations import Slicer
 from ..ports.persistence import UnitOfWork, UowFactory
-from .store import JobStore, ensure_current
+from .store import JobStore, SafePoint, ensure_current, no_safe_point
+
+# The summary of a finished revision, written after the pipeline's last transaction.
+Report = Callable[[str, int], Awaitable[None]]
 
 Select = Callable[[TaskCard, Feedback | None], ParameterSet]
 Check = Callable[[ParameterSet], CheckResult]
@@ -70,11 +73,15 @@ class ParameterPipeline:
         slicer: Slicer,
         check_gcode: CheckGcode,
         settings: PipelineSettings,
+        *,
+        safe_point: SafePoint = no_safe_point,
+        report: Report | None = None,
     ):
-        self.store = ParameterStore(uow)
+        # Without a report of its own the finished pipeline says its outcome in one line.
+        self.store = ParameterStore(uow, say=report is None)
         self.catalog, self.select, self.check = catalog, select, check
         self.slicer, self.check_gcode = slicer, check_gcode
-        self.settings = settings
+        self.settings, self.safe_point, self.report = settings, safe_point, report
 
     async def run(self, job_id: str, revision: int) -> None:
         try:
@@ -102,9 +109,15 @@ class ParameterPipeline:
                 feedback = run.feedback if run else None
                 run = Run(await self._select(job, step, card, feedback))
                 step = await self._selected(job, step, run)
-                continue
-            assert run is not None, "every pass starts with a selection"
-            step = await self._steps[step.stage](job, step, run)
+            else:
+                assert run is not None, "every pass starts with a selection"
+                step = await self._steps[step.stage](job, step, run)
+            if step is None and self.report is not None:
+                await self.report(job_id, revision)
+            # Messages queued meanwhile are read before the next step spends its time, and
+            # after the last one, when the job is done.
+            if await self.safe_point(job_id, revision):
+                return
 
     @property
     def _steps(self) -> dict[str, Callable[[Job, Step, Run], Awaitable[Step | None]]]:
@@ -209,6 +222,10 @@ class ParameterPipeline:
 
 
 class ParameterStore(JobStore):
+    def __init__(self, uow: UowFactory, say: bool = True):
+        super().__init__(uow)
+        self.say = say
+
     async def result(self, job_id: str, revision: int, step: Step) -> dict[str, Any] | None:
         async with self.uow() as uow:
             return await uow.stage_results.get(job_id, revision, step)
@@ -227,7 +244,7 @@ class ParameterStore(JobStore):
             # A new pass makes the slicing of the one before stale.
             current.parameters, current.result = summary, None
             await _event(uow, current, "parameters.completed", _selection_text(summary), step)
-            await _advance(uow, current, following, run)
+            await _advance(uow, current, following, run, self.say)
             await uow.commit()
 
     async def checked(self, job: Job, step: Step, run: Run, following: Step | None) -> None:
@@ -239,7 +256,7 @@ class ParameterStore(JobStore):
             ok = run.check.feedback.result == "ok"
             status = "completed" if ok else "warning"
             await _event(uow, current, "validation.completed", _check_text(run.check), step, status)
-            await _advance(uow, current, following, run)
+            await _advance(uow, current, following, run, self.say)
             await uow.commit()
 
     async def sliced(self, job: Job, step: Step, run: Run, following: Step | None) -> None:
@@ -260,7 +277,7 @@ class ParameterStore(JobStore):
             clean = report.status == "sliced" and not report.clamped and not report.unsupported
             status = "completed" if clean else "warning"
             await _event(uow, current, "slicing.completed", _slice_text(report), step, status)
-            await _advance(uow, current, following, run)
+            await _advance(uow, current, following, run, self.say)
             await uow.commit()
 
     async def gcode_checked(
@@ -274,7 +291,7 @@ class ParameterStore(JobStore):
             current.result.gcode_check = "ok" if ok else "attention"
             status = "completed" if ok else "warning"
             await _event(uow, current, "gcode.completed", _gcode_text(gcode), step, status)
-            await _advance(uow, current, following, run)
+            await _advance(uow, current, following, run, self.say)
             await uow.commit()
 
 
@@ -314,17 +331,22 @@ async def _locked(uow: UnitOfWork, job: Job) -> Job:
     return current
 
 
-async def _advance(uow: UnitOfWork, job: Job, following: Step | None, run: Run) -> None:
+async def _advance(
+    uow: UnitOfWork, job: Job, following: Step | None, run: Run, say: bool = True
+) -> None:
     """The job waits at its next stage; after the last step the pipeline is done."""
     if following is not None:
         job.stage = following.stage
     else:
-        await _complete(uow, job, run)
+        await _complete(uow, job, run, say)
     await uow.jobs.save(job)
 
 
-async def _complete(uow: UnitOfWork, job: Job, run: Run) -> None:
-    """The last step finishes the job; anything left unmet asks for the user's attention."""
+async def _complete(uow: UnitOfWork, job: Job, run: Run, say: bool = True) -> None:
+    """The last step finishes the job; anything left unmet asks for the user's attention.
+
+    ``say`` puts the outcome into the chat; a report written afterwards says it instead.
+    """
     parameter_set, summary = run.parameter_set, job.parameters
     assert summary is not None
     check_ok = run.check is not None and run.check.feedback.result == "ok"
@@ -334,9 +356,10 @@ async def _complete(uow: UnitOfWork, job: Job, run: Run) -> None:
     job.stage = "done"
     job.status = transition(job.status, Status.COMPLETED)
     text = _outcome_text(job.parameters, parameter_set, check_ok, job.result)
-    await uow.messages.add(
-        Message(job_id=job.id, revision=job.revision, role="assistant", text=text)
-    )
+    if say:
+        await uow.messages.add(
+            Message(job_id=job.id, revision=job.revision, role="assistant", text=text)
+        )
     status = "ok" if job.outcome == "ready" else "attention"
     await _event(uow, job, "pipeline.completed", text, None, status)
 

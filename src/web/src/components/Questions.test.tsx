@@ -30,7 +30,7 @@ describe("question window", () => {
       <Questions questions={[question]} onAnswer={answer} pending={false} />,
     );
     expect(answer).not.toHaveBeenCalled();
-    expect(screen.queryByText(/Вопрос 1 из/)).toBeNull();
+    expect(screen.queryByText(/1 из/)).toBeNull();
   });
   it.each(["mm", "cm", "Не знаю"])("accepts explicit %s", async (value) => {
     const answer = vi.fn();
@@ -84,7 +84,7 @@ describe("question window", () => {
         pending={false}
       />,
     );
-    expect(screen.getByText("Вопрос 1 из 2")).toBeVisible();
+    expect(screen.getByText("1 из 2")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Какая среда" })).toBeVisible();
   });
   it("a suggested option is highlighted without becoming an answer", async () => {
@@ -128,7 +128,7 @@ describe("question window", () => {
     await userEvent.keyboard("{Enter}");
     expect(answer).toHaveBeenCalledWith({ units: "inch", q2: "cm" });
   });
-  it("shows sources and the confirmation heading for discrepancies", () => {
+  it("shows the confirmation heading for discrepancies", () => {
     render(
       <Questions
         questions={[
@@ -144,7 +144,7 @@ describe("question window", () => {
       />,
     );
     expect(screen.getByText("Нужно ваше подтверждение")).toBeVisible();
-    expect(screen.getByText("Момент 25 Нм")).toBeInTheDocument();
+    expect(screen.queryByText("1 из 1")).toBeNull();
   });
   it("Enter on an option never sends a field that was typed into and cleared", async () => {
     const answer = vi.fn();

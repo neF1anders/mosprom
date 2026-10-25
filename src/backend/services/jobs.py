@@ -11,6 +11,7 @@ from ..domain.transitions import transition
 from ..ports.operations import Notifier
 from ..ports.persistence import UnitOfWork, UowFactory
 from .commands import Commands
+from .queued import queued_view
 
 EVENT_PAGE = 100
 # A quiet stream still sends a heartbeat this often, so proxies and browsers keep it open.
@@ -79,13 +80,14 @@ class JobService:
             job = await uow.jobs.get(job_id, user_id=user_id)
             messages = await uow.messages.list(job_id, before)
             attachments = await uow.attachments.list(job_id)
+            queued = await uow.queued.list(job_id)
         # The full STL report is for the card export and stage two, not for the chat view.
         return {
             "job": job.model_dump(mode="json", exclude={"card": {"stl_analysis"}}),
             "messages": messages,
-            "attachments": [
-                a.model_dump(mode="json", exclude={"fragments"}) for a in attachments if a.active
-            ],
+            "queued": queued_view(queued),
+            # Removed files too: an earlier message still shows what it was sent with.
+            "attachments": [a.model_dump(mode="json", exclude={"fragments"}) for a in attachments],
             "message_cursor": messages[0]["seq"] if len(messages) == 100 else None,
         }
 

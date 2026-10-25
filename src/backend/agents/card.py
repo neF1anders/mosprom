@@ -17,6 +17,7 @@ from ..domain.models import (
     Source,
     Superseded,
     TaskCard,
+    WaivedQuestion,
 )
 from ..domain.requirement_keys import RequirementKeys
 from ..domain.rules import known
@@ -147,7 +148,9 @@ class WorkingCard(BaseModel):
             "production_constraints": self.production_constraints,
             "assumptions": [a.model_dump() for a in self.assumptions],
             "unknowns": self.unknowns,
-            "questions": [q.model_dump() for q in self.questions],
+            "questions": [
+                {"id": f"q{number}", **q.model_dump()} for number, q in enumerate(self.questions, 1)
+            ],
         }
 
     def apply(self, review: Review, keys: RequirementKeys) -> None:
@@ -308,6 +311,27 @@ def to_question(question: ReviewQuestion) -> Question:
         requirement_key=question.requirement_key,
         blocking=True,
     )
+
+
+def settle_questions(
+    proposed: list[DraftQuestion], review: Review
+) -> tuple[list[ReviewQuestion], list[WaivedQuestion]]:
+    """Each proposed question is kept, waived with a reason, or asked as it was proposed.
+
+    The checker may drop a question only by saying why; one it passes over in silence is
+    not lost, the user gets it as the interpreter put it.
+    """
+    ids = {f"q{number}": q for number, q in enumerate(proposed, 1)}
+    kept = {q.source for q in review.questions if q.source}
+    reasons = {w.id: w.reason.strip() for w in review.waived if w.id in ids and w.id not in kept}
+    reasons = {key: reason for key, reason in reasons.items() if reason}
+    restored = [
+        ReviewQuestion(**q.model_dump(), source=key)
+        for key, q in ids.items()
+        if key not in kept and key not in reasons
+    ]
+    waived = [WaivedQuestion(title=ids[key].title, reason=r) for key, r in reasons.items()]
+    return [*review.questions, *restored], waived
 
 
 def merged(questions: list[Question], answers: dict[str, str]) -> list[Question]:

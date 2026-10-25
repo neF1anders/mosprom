@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Identity,
     Index,
     Integer,
     MetaData,
@@ -105,3 +106,12 @@ stage_results = Table(
     Column("payload", JSONB, nullable=False),
     PrimaryKeyConstraint("job_id", "revision", "stage", "iteration"),
 )
+queued_messages = Table(
+    "queued_messages",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("seq", BigInteger, Identity(), nullable=False),
+    Column("job_id", String, nullable=False),
+    Column("payload", JSONB, nullable=False),
+)
+Index("ix_queued_messages_job_seq", queued_messages.c.job_id, queued_messages.c.seq)

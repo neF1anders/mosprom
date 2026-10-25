@@ -1,17 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Attachments, type DraftFile } from "./Attachments";
+import { Icon } from "./Icon";
+import { useDictation } from "../hooks/useDictation";
 import styles from "../App.module.css";
 
-type Recognition = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: { results: { transcript: string }[][] }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-};
 export function Composer({
   onSend,
   onFiles,
@@ -19,9 +11,13 @@ export function Composer({
   onStop,
   pending,
   running,
+  connected = true,
   files,
   filesChanged,
   placeholder,
+  editing,
+  onEdit,
+  onCancelEdit,
 }: {
   onSend: (text: string) => Promise<unknown>;
   onFiles: (files: File[]) => void;
@@ -29,16 +25,33 @@ export function Composer({
   onStop: () => void;
   pending: boolean;
   running: boolean;
+  connected?: boolean;
   files: DraftFile[];
   filesChanged: boolean;
   placeholder?: string;
+  // A queued message being changed: its text is in the field until saved or cancelled.
+  editing?: { id: string; text: string } | null;
+  onEdit?: (text: string) => Promise<unknown>;
+  onCancelEdit?: () => void;
 }) {
   // Attached files wait for an explicit send, with or without a message.
   const sending = useRef(false);
   const [text, setText] = useState("");
-  const [listening, setListening] = useState(false);
+  // A send without connection waits in the field and goes out once the stream is back.
+  const [waiting, setWaiting] = useState(false);
+  const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!editing) return;
+    setText(editing.text);
+    field.current?.focus();
+  }, [editing?.id]);
+  useEffect(() => {
+    if (!connected || !waiting) return;
+    setWaiting(false);
+    form.current?.requestSubmit();
+  }, [connected, waiting]);
   // The field grows with Shift+Enter lines up to the CSS max height.
   useLayoutEffect(() => {
     const element = field.current;
@@ -47,46 +60,25 @@ export function Composer({
     element.style.height = `${element.scrollHeight}px`;
   }, [text]);
   const uploading = files.some((file) => file.uploading);
-  const recognizer = useRef<Recognition | null>(null);
-  const Speech =
-    (
-      window as unknown as {
-        SpeechRecognition?: new () => Recognition;
-        webkitSpeechRecognition?: new () => Recognition;
-      }
-    ).SpeechRecognition ||
-    (window as unknown as { webkitSpeechRecognition?: new () => Recognition })
-      .webkitSpeechRecognition;
-  useEffect(
-    () => () => {
-      recognizer.current?.stop();
-    },
-    [],
+  const dictation = useDictation((spoken) =>
+    setText((t) => [t, spoken].filter(Boolean).join(" ")),
   );
-  function dictate() {
-    if (listening) {
-      recognizer.current?.stop();
-      return;
-    }
-    if (!Speech) return;
-    const recognition = new Speech();
-    recognizer.current = recognition;
-    recognition.lang = "ru-RU";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.onresult = (event) =>
-      setText((t) =>
-        [t, event.results[0][0].transcript].filter(Boolean).join(" "),
-      );
-    recognition.onerror = recognition.onend = () => setListening(false);
-    recognition.start();
-    setListening(true);
-  }
   return (
     <form
+      ref={form}
       className={styles.composer}
       onSubmit={async (e) => {
         e.preventDefault();
+        if (!connected) {
+          setWaiting(true);
+          return;
+        }
+        if (editing && onEdit) {
+          if (!text.trim()) return;
+          await onEdit(text.trim()).catch(() => undefined);
+          setText("");
+          return;
+        }
         if (
           (!text.trim() && !filesChanged) ||
           pending ||
@@ -123,6 +115,11 @@ export function Composer({
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
+          if (e.key === "Escape" && editing) {
+            setText("");
+            onCancelEdit?.();
+            return;
+          }
           // Enter sends, Shift+Enter starts a new line; IME composition keeps its Enter.
           if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing)
             return;
@@ -151,40 +148,42 @@ export function Composer({
           disabled={pending}
           onClick={() => fileInput.current?.click()}
         >
-          <img src="/figma/clip.svg" alt="" />
+          <Icon name="clip" />
         </button>
         <div className={styles.actions}>
           <button
             type="button"
             className={styles.icon}
-            aria-label={listening ? "Остановить диктовку" : "Голосовой ввод"}
-            disabled={!Speech}
+            aria-label={
+              dictation.listening ? "Остановить диктовку" : "Голосовой ввод"
+            }
+            disabled={!dictation.available}
             title={
-              Speech
+              dictation.available
                 ? "Голосовой ввод"
                 : "Голосовой ввод недоступен в этом браузере"
             }
-            onClick={dictate}
+            onClick={dictation.toggle}
           >
-            <img src="/figma/mic.svg" alt="" />
+            <Icon name="mic" size={32} />
           </button>
-          {running && !text.trim() ? (
+          {running && !text.trim() && !editing ? (
             <button
               type="button"
               className={styles.icon}
               onClick={onStop}
               aria-label="Остановить"
             >
-              <img src="/figma/stop.svg" alt="" />
+              <Icon name="stop" size={32} />
             </button>
           ) : (
             <button
               type="submit"
-              className={styles.icon}
+              className={`${styles.icon} ${styles.send}`}
               disabled={pending || uploading || (!text.trim() && !filesChanged)}
               aria-label="Отправить"
             >
-              <img src="/figma/send.svg" alt="" />
+              <Icon name="arrow-up" size={32} />
             </button>
           )}
         </div>

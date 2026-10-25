@@ -10,10 +10,10 @@ test("T12 reconnect catches up and reopens same task", async ({
   await settled(page);
   const url = page.url();
   await context.setOffline(true);
-  await page.getByText("Соединение потеряно, переподключаемся").waitFor();
+  await page.getByText("Соединение потеряно, переподключаюсь").waitFor();
   await context.setOffline(false);
   await expect(
-    page.getByText("Соединение потеряно, переподключаемся"),
+    page.getByText("Соединение потеряно, переподключаюсь"),
   ).not.toBeVisible();
   const second = await context.newPage();
   await second.goto(url);
@@ -23,7 +23,7 @@ test("T12 reconnect catches up and reopens same task", async ({
 });
 
 test("T11 stop at safe point, resume, retain correction", async ({ page }) => {
-  // With a model the gate starts the work, so the stop lands in a real run.
+  // With a model the assistant starts the work, so the stop lands in a real run.
   await task(page, "TEST_DELAY Шестерня");
   await expect(
     page.getByRole("status").filter({ hasText: "Обрабатываю" }),
@@ -54,10 +54,7 @@ test("T01 remove corrupt attachment unblocks document preparation", async ({
     page.getByText("Не прочитаны файлы corrupt.pdf").first(),
   ).toBeAttached();
   await page
-    .getByRole("region", { name: "Вложения" })
-    .getByLabel("Действия с файлом", { exact: true })
-    .click();
-  await page
+    .getByRole("region", { name: "Файлы проекта" })
     .getByRole("button", { name: "Убрать corrupt.pdf", exact: true })
     .click();
   await expect(
@@ -97,7 +94,7 @@ test("T13 downloaded card embeds the full STL report of the active file", async 
   await task(page, "Фигурка");
   await pipelineDone(page);
   const href = await page
-    .getByRole("link", { name: "Скачать карточку JSON" })
+    .getByRole("link", { name: "карточка_задания.json" })
     .getAttribute("href");
   const result = await page.request.get(href!);
   expect(result.ok()).toBe(true);

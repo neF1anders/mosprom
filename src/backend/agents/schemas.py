@@ -173,6 +173,15 @@ class CodeFix(Output):
 class ReviewQuestion(DraftQuestion):
     kind: str = "clarify"
     requirement_key: str | None = None
+    # The id of the interpreter's question it keeps, q1 and so on.
+    source: str | None = None
+
+
+class Waived(Output):
+    """An interpreter's question the checker does not ask, and why."""
+
+    id: str
+    reason: str
 
 
 class Review(Output):
@@ -184,3 +193,4 @@ class Review(Output):
     code_fixes: list[CodeFix] = Field(default_factory=list)
     assumptions: list[DraftAssumption] = Field(default_factory=list)
     questions: list[ReviewQuestion] = Field(default_factory=list)
+    waived: list[Waived] = Field(default_factory=list)

@@ -1,4 +1,4 @@
-import type { Attachment, Job } from "./types";
+import type { Attachment, Job, Message, ProgressEvent } from "./types";
 import { answered } from "./types";
 
 export function chatDate(timestamp: string, selected: boolean) {
@@ -16,7 +16,7 @@ export function composerPlaceholder(
   connected: boolean,
   attachments: Attachment[],
 ) {
-  if (!connected) return "Нет связи. Текст останется в поле ввода";
+  if (!connected) return "Сообщение отправится после переподключения";
   if (job?.error) return "Или напишите сообщение…";
   if (job?.files_changed) return "Напишите сообщение или отправьте файлы";
   if (attachments.some((file) => file.status === "failed"))
@@ -24,7 +24,7 @@ export function composerPlaceholder(
   if (job?.status === "completed") return "Написать правку или вопрос…";
   if (job?.status === "waiting_user")
     return job.card?.questions.some((question) => !answered(question))
-      ? "Или ответьте текстом…"
+      ? "Написать сообщение…"
       : "Можно написать сообщение…";
   if (job?.status === "running" || job?.status === "queued")
     return "Можно написать сообщение, я отвечу после текущего шага";
@@ -71,4 +71,34 @@ export function answerPairs(text: string, job: Job | undefined) {
       ? { question: "", answer: line }
       : { question: line.slice(0, cut), answer: line.slice(cut + 2) };
   });
+}
+// Messages sent before the work began come before the timeline, the rest after it.
+export function splitAt(
+  messages: Message[],
+  start: string | undefined,
+): [Message[], Message[]] {
+  if (!start) return [messages, []];
+  const from = Date.parse(start);
+  const later = (message: Message) =>
+    !!message.created_at && Date.parse(message.created_at) >= from;
+  return [messages.filter((m) => !later(m)), messages.filter(later)];
+}
+const CHAT_AGENTS = new Set(["assistant", "analyst", "report"]);
+// The assistant is answering: the last message waits for its reply, or one of its calls runs.
+export function answering(
+  events: ProgressEvent[],
+  messages: Message[],
+  running: boolean,
+): boolean {
+  const last = messages.at(-1);
+  if (!running && last?.role === "user" && (last.kind ?? "chat") === "chat")
+    return true;
+  const open = new Set<string>();
+  for (const event of events) {
+    const data = event.data as { agent?: string; call?: string };
+    if (!CHAT_AGENTS.has(data.agent || "") || !data.call) continue;
+    if (event.type === "agent.started") open.add(data.call);
+    if (event.type === "agent.finished") open.delete(data.call);
+  }
+  return open.size > 0;
 }
