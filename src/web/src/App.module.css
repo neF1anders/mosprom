@@ -641,7 +641,12 @@
   font-size: 13px;
   line-height: 20px;
 }
-.replying > span {
+/* A turn of the assistant opens above the reply it led to. */
+.agentMessage > .agentDone {
+  margin-bottom: 10px;
+}
+/* Only the text fades in: the spinner keeps its own rotation. */
+.replying > .phrase {
   animation: phrase 400ms ease;
 }
 .answerList {

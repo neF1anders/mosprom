@@ -22,9 +22,9 @@ import { forget } from "./preview";
 import { Questions } from "./components/Questions";
 import { QueuedMessages } from "./components/QueuedMessages";
 import { Replying } from "./components/Replying";
-import { Timeline } from "./components/Timeline";
+import { AgentCard, Timeline } from "./components/Timeline";
 import { AgentDetail } from "./components/AgentDetail";
-import { buildTimeline, summaries } from "./timeline";
+import { buildTimeline, chatRuns, runsByReply, summaries } from "./timeline";
 import { useNow } from "./hooks/useNow";
 import { TaskCard } from "./components/TaskCard";
 import { Icon } from "./components/Icon";
@@ -350,7 +350,11 @@ export function App() {
   );
   // A message on its way to the assistant already waits for its reply.
   const replying = answering(events, messages, running) || awaiting;
-  const agents = (stages || []).flatMap((stage) => stage.agents);
+  // The assistant's turns show their reasoning as the agents of a stage do.
+  const turns = chatRuns(events, thoughts);
+  const thinking = turns.filter((turn) => turn.state === "run");
+  const thought = runsByReply(messages, turns);
+  const agents = [...(stages || []).flatMap((stage) => stage.agents), ...turns];
   const working = agents.filter(
     (agent) => agent.state === "run" && !agent.code,
   );
@@ -491,6 +495,8 @@ export function App() {
                 hidden={hidden}
                 files={byId}
                 load={load}
+                thought={thought}
+                onAgent={setAgentView}
               />
               <Timeline
                 stages={stages}
@@ -504,8 +510,18 @@ export function App() {
                 hidden={hidden}
                 files={byId}
                 load={load}
+                thought={thought}
+                onAgent={setAgentView}
               />
-              {replying && <Replying thoughts={thoughts} />}
+              {thinking.map((turn) => (
+                <AgentCard
+                  key={turn.id}
+                  agent={turn}
+                  highlighted={highlighted === turn.id}
+                  onOpen={() => setAgentView(turn.id)}
+                />
+              ))}
+              {replying && !thinking.length && <Replying />}
               {job?.status === "stopped" && (
                 <button onClick={() => control.mutate("retry")}>
                   Продолжить

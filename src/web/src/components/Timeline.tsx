@@ -108,8 +108,14 @@ export function AgentCard({
     </button>
   );
 }
-// A finished agent in an opened stage, Figma screen 16.
-function AgentDone({ agent, onOpen }: { agent: AgentRun; onOpen: () => void }) {
+// A finished agent in an opened stage, Figma screen 16, and a turn of the assistant.
+export function AgentDone({
+  agent,
+  onOpen,
+}: {
+  agent: AgentRun;
+  onOpen: () => void;
+}) {
   const took = agent.finished ? seconds(agent.finished - agent.started) : "";
   const content = (
     <>

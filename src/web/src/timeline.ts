@@ -74,7 +74,11 @@ const AGENTS: Record<string, { title: string; icon: string }> = {
   interpreter: { title: "Интерпретатор ТЗ", icon: "file-search" },
   checker: { title: "Проверка карточки", icon: "list-checks" },
   steer: { title: "Корректировка", icon: "redirect" },
+  assistant: { title: "Ассистент", icon: "message" },
+  analyst: { title: "Разбор работы", icon: "search" },
 };
+// The chat's own agents that reason; their train of thought opens like a stage agent's.
+const CHAT_AGENTS = new Set(["assistant", "analyst"]);
 // The gate only talks in the chat, so it gets no card of its own.
 // The chat's own agents answer in the chat, not in a stage.
 const HIDDEN_AGENTS = new Set(["gate", "assistant", "analyst", "report"]);
@@ -300,6 +304,7 @@ function agentRuns(
   events: ProgressEvent[],
   thoughts: Record<string, CallThoughts>,
   actions: Action[],
+  shown: (agent: string) => boolean = (agent) => !HIDDEN_AGENTS.has(agent),
 ): AgentRun[] {
   const runs = new Map<string, AgentRun>();
   for (const event of events) {
@@ -308,7 +313,7 @@ function agentRuns(
     const data = event.data as Record<string, unknown>;
     const agent = String(data.agent || "");
     const call = String(data.call || "");
-    if (HIDDEN_AGENTS.has(agent) || !call) continue;
+    if (!shown(agent) || !call) continue;
     const id = call.slice(0, call.lastIndexOf(":"));
     const look = agentLook(agent, String(data.title || ""));
     const at = time(event) ?? 0;
@@ -345,6 +350,31 @@ function agentRuns(
     run.actions = actions.filter((a) => a.agent === run.agent);
   }
   return [...runs.values()];
+}
+// The assistant's turns in the chat, each with what it thought about on the way.
+export function chatRuns(
+  events: ProgressEvent[],
+  thoughts: Record<string, CallThoughts>,
+): AgentRun[] {
+  return agentRuns(events, thoughts, [], (agent) => CHAT_AGENTS.has(agent));
+}
+// A finished turn belongs to the first reply written after it ended.
+export function runsByReply(
+  messages: Message[],
+  runs: AgentRun[],
+): Map<string, AgentRun[]> {
+  const replies = messages.filter(
+    (m) => m.role === "assistant" && m.created_at,
+  );
+  const found = new Map<string, AgentRun[]>();
+  for (const run of runs) {
+    if (run.finished === undefined) continue;
+    const reply = replies.find(
+      (m) => Date.parse(m.created_at!) >= run.finished! - 1000,
+    );
+    if (reply) found.set(reply.id, [...(found.get(reply.id) || []), run]);
+  }
+  return found;
 }
 function step(call: string) {
   return Number(call.slice(call.lastIndexOf(":") + 1));

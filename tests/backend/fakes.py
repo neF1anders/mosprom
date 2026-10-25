@@ -42,7 +42,6 @@ class ScriptedModel:
         thinking: bool,
         budget: int | None = None,
         on_reasoning=None,
-        tool_choice: str | None = None,
     ) -> ModelReply:
         self.requests[agent].append(
             {
@@ -50,7 +49,6 @@ class ScriptedModel:
                 "tools": tools,
                 "thinking": thinking,
                 "budget": budget,
-                "tool_choice": tool_choice,
             }
         )
         replies = self.script[agent]
