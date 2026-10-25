@@ -6,16 +6,9 @@
 
 Ядро второго этапа, подбор параметров печати по готовой карточке, лежит в `src/backend/tuning`. Как выбирается каждый параметр, описано в [методике](docs/tuning/METHODOLOGY.md), принятые решения — в [DECISIONS.md](docs/tuning/DECISIONS.md).
 
-```bash
-python3 scripts/bootstrap.py
-# QWEN_API_KEY в .env можно не заполнять, ключ вводится в чате
-docker compose up --build -d
-python3 scripts/bootstrap.py <user_id>
-```
+**Портативная версия.** Установка: распаковать `AIAssistant-portable.zip` в `%APPDATA%\steslicer\7.10\plugins`, открыть STE Slicer и выбрать «AI Assistant → Открыть StereotechAI». Приложение работает одним процессом на SQLite, без Docker и Postgres. Подробности и сборка в [PORTABLE.md](docs/PORTABLE.md). Запуск из исходников: `uv sync --locked`, затем `uv run uvicorn src.backend.api.app:create_app --factory --port 8000` с заполненным `SESSION_SECRET` в `.env`. В браузер передаётся только одноразовый токен локальной сессии; ключ модели остаётся на сервере.
 
-Откройте ссылку из последней команды. В браузер передаётся только одноразовый токен локальной сессии; ключ модели остаётся на сервере.
-
-Подходит любой OpenAI-совместимый API. При первом запуске адрес API, имя модели и ключ вводятся в окне чата. Они сохраняются в `DATA_DIR/model.json` (в Docker это том `files`, общий для API и воркера) и действуют со следующего вызова модели, без перезапуска. `QWEN_BASE_URL`, `QWEN_MODEL` и `QWEN_API_KEY` из `.env` остаются значениями по умолчанию, пока в чате ничего не сохранено.
+Подходит любой OpenAI-совместимый API. Адрес API, имя модели и ключ вводятся в окне чата. Они сохраняются в `DATA_DIR/model.json` и действуют со следующего вызова модели, без перезапуска. Пока в чате ничего не сохранено, действуют значения по умолчанию: в портативной сборке их передаёт плагин из «AI Assistant → Настройки», при запуске из исходников это `QWEN_BASE_URL`, `QWEN_MODEL` и `QWEN_API_KEY` из `.env`.
 
 После карточки конвейер подбирает параметры, проверяет их, нарезает в STE Slicer через плагин AI Assistant и проверяет G-code; итог это `project.3mf` и `result.gcode`. Как это устроено и как проверить на Windows с настоящим слайсером, описано в [PIPELINE.md](docs/PIPELINE.md). Без слайсера (например на Mac) его заменяет `scripts/fake_ste_slicer.py`.
 

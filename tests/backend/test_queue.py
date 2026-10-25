@@ -1,4 +1,4 @@
-"""Messages queued while the job works and their delivery at its safe points, on PostgreSQL.
+"""Messages queued while the job works and their delivery at its safe points, on SQLite.
 
 Only the provider is scripted; the assistant decides as the agent ``assistant``.
 """
@@ -493,7 +493,7 @@ async def test_a_second_send_now_finds_nothing_to_claim(pg, http):
         assert (await act(http, job_id, message["id"], "send")).status_code == 200
     tasks = await rows(
         pg,
-        "SELECT task_name, lock, args FROM procrastinate_jobs WHERE queue_name = 'steer'",
+        "SELECT task AS task_name, lock, args FROM task_queue WHERE task = 'steer.deliver'",
     )
     assert (
         tasks

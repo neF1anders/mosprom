@@ -29,3 +29,7 @@ test-results/
 # Slicing results
 *.gcode
 *.3mf
+
+# Portable build output
+build/
+dist/

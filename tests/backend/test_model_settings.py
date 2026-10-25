@@ -13,8 +13,6 @@ from src.backend.domain.model_settings import ModelSettings
 from src.backend.domain.tokens import sign_token
 from src.backend.infrastructure.model_settings import ModelSettingsFile
 
-from .conftest import TEST_DATABASE
-
 pytestmark = pytest.mark.unit
 ENV = ModelSettings("https://env.example/v1", "env-model", "env-key")
 
@@ -102,7 +100,6 @@ def app_settings(tmp_path, **values) -> Settings:
         _env_file=None,
         session_secret="x" * 40,
         data_dir=tmp_path,
-        database_url=TEST_DATABASE,
         **values,
     )
 

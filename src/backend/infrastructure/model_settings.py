@@ -14,10 +14,11 @@ FIELDS = ("base_url", "model", "api_key")
 
 
 class ModelSettingsFile:
-    """The settings saved from the chat, in DATA_DIR shared by the API and the worker.
+    """The settings saved from the chat, in DATA_DIR.
 
-    A value the file lacks comes from env. The file is read again only when it changes, so
-    a save reaches the next model call in either process.
+    A value the file lacks comes from env, which the portable build's plugin fills from its
+    own settings. The file is read again only when it changes, so a save reaches the next
+    model call.
     """
 
     def __init__(self, folder: Path, defaults: ModelSettings):

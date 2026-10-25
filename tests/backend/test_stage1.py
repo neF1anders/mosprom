@@ -1,4 +1,4 @@
-"""Stage one end to end on PostgreSQL and real file processes; only the provider is scripted."""
+"""Stage one end to end on SQLite and real file processes; only the provider is scripted."""
 
 import asyncio
 import json
@@ -10,8 +10,10 @@ from sqlalchemy import text
 
 from src.backend.domain.errors import AppError
 from src.backend.domain.models import Status
+from src.backend.infrastructure.queue import STAGE1_TASK, STAGE2_TASK, STEER_TASK
 from src.backend.services.commands import changed
 
+from .conftest import decoded
 from .fakes import ScriptedModel, call, reply
 
 pytestmark = pytest.mark.integration
@@ -150,7 +152,7 @@ async def answer(http, job, answers: dict):
 
 async def rows(pg, sql: str, **params):
     async with pg.engine.connect() as connection:
-        return [dict(r._mapping) for r in await connection.execute(text(sql), params)]
+        return [decoded(dict(r._mapping)) for r in await connection.execute(text(sql), params)]
 
 
 async def chat(http, job_id: str) -> list[dict]:
@@ -200,7 +202,7 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     # The report replaces the summary; the projections still show the shape.
     assert "<stl>" not in checking[0]["text"] and checking[-1]["type"] == "image_url"
     queued = await rows(
-        pg, "SELECT task_name, args FROM procrastinate_jobs WHERE queue_name = 'stage2'"
+        pg, "SELECT task AS task_name, args FROM task_queue WHERE task = 'stage2.select_parameters'"
     )
     assert queued == [
         {
@@ -231,8 +233,9 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
 
 
 async def todo(pg, queue: str) -> list[dict]:
+    task = {"stage1": STAGE1_TASK, "stage2": STAGE2_TASK, "steer": STEER_TASK}[queue]
     found = await rows(
-        pg, "SELECT args FROM procrastinate_jobs WHERE queue_name = :q AND status = 'todo'", q=queue
+        pg, "SELECT args FROM task_queue WHERE task = :t AND status = 'todo' ORDER BY id", t=task
     )
     return [row["args"] for row in found]
 
@@ -373,7 +376,7 @@ async def test_checker_questions_wait_for_answers_in_the_same_dialog(pg, http):
     assert job.status == Status.WAITING and job.stage == "understanding"
     [question] = job.card.questions
     assert question.id.startswith("clarify.") and question.blocking
-    assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'stage2'") == []
+    assert await rows(pg, "SELECT id FROM task_queue WHERE task = 'stage2.select_parameters'") == []
     await answer(http, job, {question.id: "вода"})
     fix = {
         "code_fixes": [

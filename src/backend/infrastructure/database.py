@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 from types import TracebackType
 
-from procrastinate import App
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
-from .queue import ProcrastinateQueue
+from .notifier import Notifier
+from .queue import SqlQueue
 from .repositories import (
     AttachmentRepository,
     CacheRepository,
@@ -18,14 +25,24 @@ from .repositories import (
     StageResultRepository,
     TraceRepository,
 )
+from .tables import metadata
+
+BUSY_TIMEOUT_MS = 30_000
 
 
-class PostgresUnitOfWork:
-    def __init__(self, factory: async_sessionmaker[AsyncSession], app: App):
-        self._factory, self._app = factory, app
+class UnitOfWork:
+    def __init__(
+        self,
+        factory: async_sessionmaker[AsyncSession],
+        notifier: Notifier,
+        wake: asyncio.Event,
+    ):
+        self._factory, self._notifier, self._wake = factory, notifier, wake
 
-    async def __aenter__(self) -> "PostgresUnitOfWork":
+    async def __aenter__(self) -> "UnitOfWork":
         self._session = self._factory()
+        self._session.info["notify"] = set()
+        self._session.info["wake"] = False
         self.jobs = JobRepository(self._session)
         self.messages = MessageRepository(self._session)
         self.queued = QueuedRepository(self._session)
@@ -33,7 +50,7 @@ class PostgresUnitOfWork:
         self.receipts = ReceiptRepository(self._session)
         self.cache = CacheRepository(self._session)
         self.events = EventRepository(self._session)
-        self.queue = ProcrastinateQueue(self._session, self._app)
+        self.queue = SqlQueue(self._session)
         self.knowledge = KnowledgeRepository(self._session)
         self.traces = TraceRepository(self._session)
         self.stage_results = StageResultRepository(self._session)
@@ -50,9 +67,42 @@ class PostgresUnitOfWork:
 
     async def commit(self) -> None:
         await self._session.commit()
+        # Delivered after the commit: open event streams fetch at once instead of polling,
+        # and the runner claims the work that was just queued.
+        for job_id in self._session.info["notify"]:
+            self._notifier.notify(job_id)
+        self._session.info["notify"] = set()
+        if self._session.info["wake"]:
+            self._wake.set()
+            self._session.info["wake"] = False
 
 
-def database(url: str, app: App):
-    engine = create_async_engine(url, pool_size=5, max_overflow=5, pool_pre_ping=True)
+def _configure(engine: AsyncEngine) -> None:
+    """One local user: WAL lets readers run beside the writer, and every transaction takes the
+    write lock at once, so a read that turns into a write never fails with a busy database."""
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def on_connect(connection, record):
+        connection.isolation_level = None
+        cursor = connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA busy_timeout=%d" % BUSY_TIMEOUT_MS)
+        cursor.close()
+
+    @event.listens_for(engine.sync_engine, "begin")
+    def on_begin(connection):
+        connection.exec_driver_sql("BEGIN IMMEDIATE")
+
+
+def database(url: str, notifier: Notifier, wake: asyncio.Event):
+    engine = create_async_engine(url)
+    _configure(engine)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    return engine, lambda: PostgresUnitOfWork(factory, app)
+    return engine, lambda: UnitOfWork(factory, notifier, wake)
+
+
+async def create_schema(engine: AsyncEngine) -> None:
+    async with engine.begin() as connection:
+        await connection.run_sync(metadata.create_all)
