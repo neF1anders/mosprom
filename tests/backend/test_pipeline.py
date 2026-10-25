@@ -21,9 +21,9 @@ from src.backend.domain.errors import AppError
 from src.backend.domain.models import Requirement, Status, StlAnalysis, TaskCard
 from src.backend.domain.parameters import CheckResult, Exclusion, Feedback, Issue, ParameterSet
 from src.backend.domain.projects import part_name
+from src.backend.domain.results import folder_name
 from src.backend.domain.slicing import GcodeCheck, GcodeFinding, SliceReport
 from src.backend.infrastructure.catalog import load_catalog
-from src.backend.infrastructure.results import folder_name
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
 from src.backend.services.commands import changed
 from src.mesh_analysis import analyze_stl

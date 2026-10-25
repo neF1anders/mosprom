@@ -5,7 +5,8 @@ import io
 import pytest
 from PIL import Image
 
-from src.backend.infrastructure.results import RESULTS, LocalResultFolders, folder_name
+from src.backend.domain.results import RESULTS, folder_name
+from src.backend.infrastructure.results import LocalResultFolders
 from src.backend.services.transcript import BUBBLE, PAD, PAGE, WIDTH, _font, entries, render, wrap
 
 pytestmark = pytest.mark.unit

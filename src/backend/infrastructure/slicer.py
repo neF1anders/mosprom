@@ -20,10 +20,10 @@ from typing import Any
 import httpx
 
 from ..domain.parameters import ParameterSet
+from ..domain.results import shown_path
 from ..domain.slicing import CallOutcome, Clamped, SlicerCall, SliceReport
 from ..slicing import GcodeFacts, build_plan, read_gcode
 from .files import LocalFiles
-from .results import shown_path
 
 logger = logging.getLogger(__name__)
 EXCHANGE = "mosprom"
