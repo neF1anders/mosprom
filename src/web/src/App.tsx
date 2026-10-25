@@ -171,6 +171,8 @@ export function App() {
     onError: (e) => setError(e.message),
   });
   // While the job works a message waits in the queue for the end of the stage.
+  // A message on its way to the assistant, until the chat that has it is loaded.
+  const [awaiting, setAwaiting] = useState(false);
   const send = useMutation({
     mutationFn: async ({ text, queue }: { text: string; queue: boolean }) => {
       const id = await ensureJob();
@@ -347,9 +349,7 @@ export function App() {
     stages ? current[0]?.created_at : undefined,
   );
   // A message on its way to the assistant already waits for its reply.
-  const replying =
-    answering(events, messages, running) ||
-    (send.isPending && !send.variables?.queue);
+  const replying = answering(events, messages, running) || awaiting;
   const agents = (stages || []).flatMap((stage) => stage.agents);
   const working = agents.filter(
     (agent) => agent.state === "run" && !agent.code,
@@ -590,7 +590,12 @@ export function App() {
           <Composer
             onSend={(text) => {
               toBottom("smooth");
-              return send.mutateAsync({ text, queue: running });
+              // Set in the click itself, so the reply row is on the page as the click ends;
+              // the mutation's own state arrives a task later.
+              if (!running) setAwaiting(true);
+              return send
+                .mutateAsync({ text, queue: running })
+                .finally(() => setAwaiting(false));
             }}
             editing={editing}
             onEdit={(text) =>

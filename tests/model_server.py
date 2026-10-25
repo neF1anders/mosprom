@@ -235,18 +235,36 @@ def check(messages: list[dict[str, Any]]) -> dict:
 
 
 def answered(turn: str) -> dict:
-    """An answer the user does not know becomes an assumption, as the prompt asks."""
+    """An answer the user does not know becomes an assumption, and a value the user typed
+    corrects its code, as the prompt asks."""
     answers = turn.split("<answers>")[-1].split("</answers>")[0]
+    sources = SOURCE.findall(answers)
     unknown = [
         body.removesuffix(UNKNOWN).strip()
-        for source, body in SOURCE.findall(answers)
+        for source, body in sources
         if source.startswith("a:") and body.endswith(UNKNOWN)
+    ]
+    fixes = [
+        {
+            "code": code,
+            "value": match.group(1),
+            "unit": unit,
+            "source_id": source,
+            "quote": line,
+            "inferred": False,
+        }
+        for source, body in sources
+        if source.startswith("m")
+        for line in body.splitlines()
+        for code, unit, pattern in CODES
+        if (match := pattern.search(line))
     ]
     return {
         "assumptions": [
             {"text": f"{title}, принято без ответа", "basis": "Пользователь не знает ответа"}
             for title in unknown
         ],
+        "code_fixes": fixes,
         "questions": [],
     }
 
