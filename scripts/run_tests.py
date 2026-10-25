@@ -2,9 +2,7 @@ import os
 import subprocess
 import sys
 
-migration_env = dict(os.environ, DATABASE_URL=os.environ["TEST_DATABASE_URL"])
-subprocess.run(["alembic", "upgrade", "head"], env=migration_env, check=True)
-
+# Every test creates its own SQLite database, so there is nothing to migrate first.
 commands = [
     [sys.executable, "scripts/make_fixtures.py"],
     [
