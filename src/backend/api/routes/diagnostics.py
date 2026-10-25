@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from ...config import Settings
 from ...domain.models import CARD_SCHEMA_VERSION
+from ...domain.results import RESULTS, shown_path
 from ..dependencies import Services
 
 router = APIRouter(tags=["diagnostics"])
@@ -28,7 +29,7 @@ async def capabilities(services: Services):
 
 
 def project_folder(settings: Settings) -> str | None:
-    """Where the slicer saves projects, as the user's computer names it, when it is known."""
-    if settings.slicer_host_folder:
-        return settings.slicer_host_folder
-    return str(settings.slicer_folder) if settings.slicer_folder.is_dir() else None
+    """Where finished projects are kept, as the user's computer names it, when it is known."""
+    if settings.slicer_host_folder or settings.slicer_folder.is_dir():
+        return shown_path(settings.slicer_folder, settings.slicer_host_folder, RESULTS)
+    return None
