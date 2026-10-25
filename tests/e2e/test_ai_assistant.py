@@ -1,12 +1,8 @@
-import base64
 import http.client
 import json
 import os
 import tempfile
-import threading
-import time
 import unittest
-from http.server import BaseHTTPRequestHandler, HTTPServer
 
 SERVER_JSON = os.path.join(os.path.expanduser("~"), "Documents", "STE_AIAssistant", "server.json")
 ENABLED = os.environ.get("AIASSISTANT_E2E") == "1" and os.path.isfile(SERVER_JSON)
@@ -102,62 +98,19 @@ class Client(object):
         return result["isError"], text
 
 
-class FakeLLM(object):
-    """Скриптовый сервер, совместимый с OpenAI."""
-
-    def __init__(self, script):
-        self.requests = []
-        outer = self
-
-        class Handler(BaseHTTPRequestHandler):
-            def do_POST(self):
-                length = int(self.headers.get("Content-Length") or 0)
-                outer.requests.append(json.loads(self.rfile.read(length).decode("utf-8")))
-                reply = script[min(len(outer.requests), len(script)) - 1]
-                body = json.dumps({"choices": [{"message": reply}]}).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def log_message(self, *args):
-                pass
-
-        self.httpd = HTTPServer(("127.0.0.1", 0), Handler)
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
-
-    def url(self):
-        return "http://127.0.0.1:%d/v1" % self.httpd.server_address[1]
-
-    def close(self):
-        self.httpd.shutdown()
-
-
-def call(call_id, name, arguments):
-    return {
-        "id": call_id,
-        "type": "function",
-        "function": {"name": name, "arguments": json.dumps(arguments)},
-    }
-
-
 @unittest.skipUnless(ENABLED, "needs AIASSISTANT_E2E=1 and a running STE Slicer with the plugin")
 class AssistantE2E(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = Client()
 
-    def test_page_is_served_without_a_token(self):
-        status, raw = self.client.request("GET", "/", token=False)
-        self.assertEqual(status, 200)
-        self.assertIn("AI помощник печати", raw.decode("utf-8"))
-
-    def test_api_needs_the_token_and_a_local_host(self):
-        self.assertEqual(self.client.request("GET", "/api/config", token=False)[0], 401)
+    def test_mcp_needs_the_token_and_a_local_host(self):
+        body = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+        self.assertEqual(self.client.request("POST", "/mcp", body, token=False)[0], 401)
         self.assertEqual(
-            self.client.request("GET", "/api/config", headers={"Host": "evil.example"})[0], 403
+            self.client.request("POST", "/mcp", body, headers={"Host": "evil.example"})[0], 403
         )
+        self.assertEqual(self.client.request("GET", "/")[0], 404)
 
     def test_mcp_handshake_and_tool_list(self):
         init = self.client.mcp("initialize")["result"]
@@ -234,72 +187,3 @@ class AssistantE2E(unittest.TestCase):
         self.assertFalse(error, text)
         reopened = json.loads(text)
         self.assertEqual((reopened["opened_as"], len(reopened["models"])), ("project", 1))
-
-    def test_chat_runs_tools_and_explains(self):
-        fake = FakeLLM(
-            [
-                {"role": "assistant", "content": "", "tool_calls": [call("c1", "get_state", {})]},
-                {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [
-                        call(
-                            "c2",
-                            "set_setting",
-                            {
-                                "key": "infill_sparse_density",
-                                "value": 30,
-                                "reason": "нагрузка на деталь",
-                            },
-                        )
-                    ],
-                },
-                {"role": "assistant", "content": "Заполнение 30%: деталь под нагрузкой."},
-            ]
-        )
-        try:
-            status, _ = self.client.json(
-                "POST",
-                "/api/config",
-                {"base_url": fake.url(), "api_key": "test-key", "model": "fake", "persist": False},
-            )
-            self.assertEqual(status, 200)
-            self.client.json("POST", "/api/reset", {})
-            picture = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode("ascii")
-            status, upload = self.client.json(
-                "POST", "/api/upload", {"name": "part.png", "data": picture}
-            )
-            self.assertEqual((status, upload["kind"]), (200, "image"))
-            status, _ = self.client.json(
-                "POST",
-                "/api/chat",
-                {"text": "Кронштейн под нагрузку", "uploads": [upload["id"]], "scenario": 0},
-            )
-            self.assertEqual(status, 200)
-            events, after = [], 0
-            deadline = time.time() + 60
-            while time.time() < deadline and not any(e["type"] == "done" for e in events):
-                time.sleep(0.5)
-                data = self.client.json("GET", "/api/events?after=%d" % after)[1]
-                events.extend(data["events"])
-                after = data["next"]
-        finally:
-            fake.close()
-            self.client.json("POST", "/api/config", {"forget_session": True})
-        kinds = [e["type"] for e in events]
-        self.assertIn("done", kinds, events)
-        self.assertEqual(
-            [e["name"] for e in events if e["type"] == "tool_call"], ["get_state", "set_setting"]
-        )
-        self.assertTrue(all(e["ok"] for e in events if e["type"] == "tool_result"), events)
-        change = [e for e in events if e["type"] == "changes"][-1]["changes"][0]
-        self.assertEqual((change["name"], change["new"]), ("infill_sparse_density", 30))
-        self.assertIn("30%", [e for e in events if e["type"] == "assistant"][-1]["text"])
-        first = fake.requests[0]
-        image_parts = [p for p in first["messages"][-1]["content"] if p["type"] == "image_url"]
-        self.assertEqual(len(image_parts), 1)
-        self.assertTrue(REQUIRED_TOOLS <= {t["function"]["name"] for t in first["tools"]})
-
-
-if __name__ == "__main__":
-    unittest.main()

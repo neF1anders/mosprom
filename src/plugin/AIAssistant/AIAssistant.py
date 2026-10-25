@@ -32,7 +32,6 @@ class AIAssistant(Extension):
         self._sidecar = sidecar.Sidecar() if sidecar.available() else None
         self.setMenuName("AI Assistant")
         self.addMenuItem("Открыть StereotechAI", self.showApp)
-        self.addMenuItem("Чат плагина", self.showChat)
         # сервер нужен всегда
         app.engineCreatedSignal.connect(self._ensureServer)
 
@@ -46,7 +45,7 @@ class AIAssistant(Extension):
                 Logger.logException("e", "AI Assistant server did not start")
                 return None
             self._server = server
-            Logger.log("i", "AI Assistant listening on %s", server.url())
+            Logger.log("i", "AI Assistant listening on port %d", server.port())
         return self._server
 
     def _ensureBackend(self):
@@ -74,10 +73,3 @@ class AIAssistant(Extension):
             Message(text=NO_CONFIG, title="AI Assistant").show()
             return
         webbrowser.open(url)
-
-    def showChat(self):
-        server = self._ensureServer()
-        if server is None:
-            Message(text=NO_SERVER, title="AI Assistant").show()
-            return
-        webbrowser.open(server.url())
