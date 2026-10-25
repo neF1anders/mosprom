@@ -228,9 +228,14 @@ class Assistant:
         reply = await self.runner.talk(ANALYST, messages, [], self.context(job, turn))
         return chat_text(reply.content) or "В журнале ответа на этот вопрос нет"
 
-    async def report(self, job: Job) -> str:
-        """The summary of a finished project; the template says the same if the model fails."""
+    async def report(self, job: Job, folder: str | None = None) -> str:
+        """The summary of a finished project; the template says the same if the model fails.
+
+        ``folder`` is where the project's files are kept for the user, once it is sliced.
+        """
         facts = await self.journal.facts(job)
+        if folder and facts.get("slicing"):
+            facts["slicing"]["folder"] = folder
         messages = [
             {"role": "system", "content": prompt("report")},
             {

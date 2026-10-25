@@ -12,15 +12,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import re
 import shutil
 from dataclasses import dataclass
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from ..domain.parameters import ParameterSet
+from ..domain.results import shown_path
 from ..domain.slicing import CallOutcome, Clamped, SlicerCall, SliceReport
 from ..slicing import GcodeFacts, build_plan, read_gcode
 from .files import LocalFiles
@@ -265,11 +265,7 @@ class McpSlicer:
 
     def _host(self, *parts: str) -> str:
         """A path inside the shared folder as the slicer sees it."""
-        if not self.settings.host_folder:
-            return str(self.settings.folder.joinpath(EXCHANGE, *parts))
-        windows = re.match(r"^[A-Za-z]:|^\\\\", self.settings.host_folder)
-        base: PurePath = (PureWindowsPath if windows else PurePosixPath)(self.settings.host_folder)
-        return str(base.joinpath(EXCHANGE, *parts))
+        return shown_path(self.settings.folder, self.settings.host_folder, EXCHANGE, *parts)
 
 
 async def _rpc(

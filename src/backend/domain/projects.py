@@ -5,6 +5,7 @@ A chat without projects is the chat of before: every file and message is its one
 
 from __future__ import annotations
 
+from pathlib import PurePath
 from typing import Any
 
 from .models import Attachment, Job, Project
@@ -88,3 +89,12 @@ def earlier_answers(job: Job) -> dict[str, str]:
     for project in job.projects[:-1]:
         answers.update(project.answers)
     return answers
+
+
+def part_name(job: Job) -> str:
+    """What the folder of a finished project is called: the part, as the chat names it."""
+    if job.project is not None:
+        return job.project.title
+    files = job.card.files if job.card else []
+    models = [f.filename for f in files if f.filename.lower().endswith(".stl")]
+    return PurePath(models[0]).stem if models else job.title
