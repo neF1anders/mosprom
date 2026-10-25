@@ -42,7 +42,7 @@ package = false
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["research", "src/mesh_analysis.py", "tests/test_mesh_analysis.py", "tests/verify_stl_reports.py", "tests/e2e/test_stl_cli.py"]
+extend-exclude = ["src/mesh_analysis.py", "tests/test_mesh_analysis.py", "tests/verify_stl_reports.py", "tests/e2e/test_stl_cli.py"]
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "C901"]
 [tool.ruff.lint.mccabe]

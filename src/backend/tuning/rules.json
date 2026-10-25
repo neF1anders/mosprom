@@ -57,7 +57,7 @@
      "when": {"fact": "part.load", "op": "in", "value": ["cyclic", "impact"]}, "then": [
        {"op": "shift", "param": "wall_line_count", "delta": 0.25},
        {"op": "shift", "param": "skin_thickness", "delta": 0.1}]},
-    {"id": "LOAD-INFILL-MIN", "source": "G, other teams of the case: a loaded part gets 40 % (printplan, Karfogen) to 60-100 % (Marzus-S, HandBloodы); Stereotech datasheets give 25-35 % as the least infill of a functional part. The lower 30 % is taken as a start, not a limit: walls carry the load first (LOAD-WALLS) and a check constraint of stage 3 may still lower it", "reason": "циклическая или ударная нагрузка: заполнение от 30 %, чтобы сердцевина держала стенки",
+    {"id": "LOAD-INFILL-MIN", "source": "G, common practice: a loaded part gets 40-100 %; Stereotech datasheets give 25-35 % as the least infill of a functional part. The lower 30 % is taken as a start, not a limit: walls carry the load first (LOAD-WALLS) and a check constraint of stage 3 may still lower it", "reason": "циклическая или ударная нагрузка: заполнение от 30 %, чтобы сердцевина держала стенки",
      "when": {"fact": "part.load", "op": "in", "value": ["cyclic", "impact"]}, "then": [
        {"op": "start", "param": "infill_density", "value": 30}]},
     {"id": "TOL-HARD-FINE-LAYER", "source": "G", "reason": "жёсткий допуск 0,15 мм и точнее: слой не толще 0,15 мм и печать медленнее",
@@ -75,10 +75,10 @@
      "when": {"all": [{"fact": "req.high_stiffness", "op": "==", "value": true}, {"fact": "reqhard.high_stiffness", "op": "==", "value": false}]}, "then": [
        {"op": "shift", "param": "wall_line_count", "delta": 0.25},
        {"op": "shift", "param": "infill_density", "delta": 0.1}]},
-    {"id": "SHAFT-TORSION-INFILL", "source": "G, competitors' practice for shafts under torsion: printplan torsion rule (infill 40-50 %), HandBloodы and Marzus-S projects of the Krones axis (70-100 %); the lower bound is taken", "reason": "вал передаёт крутящий момент через всё сечение: заполнение не ниже 40 %",
+    {"id": "SHAFT-TORSION-INFILL", "source": "G, common practice for shafts under torsion: infill 40-100 %; the lower bound is taken", "reason": "вал передаёт крутящий момент через всё сечение: заполнение не ниже 40 %",
      "when": {"fact": "req.part_class", "op": "==", "value": "shaft"}, "then": [
        {"op": "limit", "param": "infill_density", "min": 40}]},
-    {"id": "WALLS-FIT-SECTION", "source": "D: walls are laid from both faces of a wall, lines past its middle overlap (normal_chords median of the STL report); competitors cap walls of thin parts too (boots 2-3, blades 5)", "reason": "периметров не больше, чем помещается в типичную стенку детали с двух сторон",
+    {"id": "WALLS-FIT-SECTION", "source": "D: walls are laid from both faces of a wall, lines past its middle overlap (normal_chords median of the STL report); thin parts get fewer walls (boots 2-3, blades 5)", "reason": "периметров не больше, чем помещается в типичную стенку детали с двух сторон",
      "when": {"fact": "geometry.wall_thickness_mm", "op": "exists"}, "then": [
        {"op": "limit", "param": "wall_line_count", "max": {"ref": "geometry.wall_lines_fit"}}]},
     {"id": "NO-LAYERS-HARD", "source": "G", "reason": "обязательно без видимых слоёв: самый тонкий допустимый слой",

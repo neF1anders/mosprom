@@ -20,14 +20,15 @@ test-results/
 *.py[cod]
 *.egg-info/
 
-# Case materials and working data (never committed, see CONTRIBUTING)
+# материалы кейса
 /.scratch/
 *.zip
 
-# Slicing results
+# результаты нарезки
 *.gcode
 *.3mf
+!/results/**
 
-# Portable build output
+# сборка архива
 build/
 dist/

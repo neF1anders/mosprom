@@ -1,6 +1,6 @@
 # Методология подбора параметров печати (этап 2)
 
-Как `select_parameters` (`src/backend/tuning/select.py`) превращает карточку этапа 1 `TaskCard` 2.0 и, во втором заходе, обратную связь этапа 3 `stage3.feedback` 0.1 в `stage2.parameter_set` 0.2 для **Stereotech Hybrid 530 V5.2.4** (`hte530v5.2.4`). Здесь описано, что вычисляется, из каких полей входа и по какому правилу. Поля выхода и обратной связи заданы моделями `src/backend/domain/parameters.py` и схемами [parameter-set-v0.2](../parameter-set-v0.2.schema.json) и [stage3-feedback-v0.1](../stage3-feedback-v0.1.schema.json), решения — в [DECISIONS.md](DECISIONS.md), история изменений и замеры — в [IMPROVEMENTS.md](IMPROVEMENTS.md).
+Как `select_parameters` (`src/backend/tuning/select.py`) превращает карточку этапа 1 `TaskCard` 2.0 и, во втором заходе, обратную связь этапа 3 `stage3.feedback` 0.1 в `stage2.parameter_set` 0.2 для **Stereotech Hybrid 530 V5.2.4** (`hte530v5.2.4`). Здесь описано, что вычисляется, из каких полей входа и по какому правилу. Поля выхода и обратной связи заданы моделями `src/backend/domain/parameters.py` и схемами [parameter-set-v0.2](../parameter-set-v0.2.schema.json) и [stage3-feedback-v0.1](../stage3-feedback-v0.1.schema.json), решения — в [DECISIONS.md](DECISIONS.md).
 
 ```python
 select_parameters(card: TaskCard, catalog: Catalog, keys: RequirementKeys, feedback: Feedback | None = None) -> ParameterSet
@@ -11,7 +11,7 @@ select_parameters(card: TaskCard, catalog: Catalog, keys: RequirementKeys, feedb
 Метки знаний:
 - **D** — определения и код STE Slicer: ресурсы выданной сборки 5.2.4, плагины `StartSliceJob`;
 - **S** — Stereotech: типовые проекты 3MF технологов, паспорта материалов и памятки wiki.stereotech.org, метки режима организаторов, спецификация задачи;
-- **V** — прогон валидации на 41 проекте SeeMeCNC (настройки человека, ветка `fedor/validation-ste`) и готовые 3MF двух команд по семи деталям кейса;
+- **V** — прогон валидации на 41 проекте SeeMeCNC (настройки человека) и эталонные 3MF по семи деталям кейса;
 - **G** — общая практика печати, на эталонах не проверена;
 - **H** — гипотеза.
 
@@ -193,7 +193,7 @@ ParameterSet 0.2
 ### 2.10 `material_bed_temperature`, `cool_fan_speed`, `cool_fan_enabled_<режим>`
 - **Температура стола и скорость обдува** — значения файла материала, слайсер берёт их сам (`default_material_bed_temperature`, `cool_fan_speed`, D). Не отправляются. В 5D стол не греется (`machine_heated_bed`), температура стола там не отправляется никогда.
 - **`FAN-OFF-NO-COOLING`:** обдув 0 % в файле → `cool_fan_enabled_classic` (3D) или `cool_fan_enabled_cylindrical` (5D) = `false`, `scope: extruder:0`. Ключ режима (`mode_keys` в `search_space.json`) нужен, потому что у `cool_fan_enabled` ключи режима не связаны с общим формулой (D).
-- **Известное расхождение:** у Fiberpart PP G30 в файле 0 %, в паспорте Stereotech 10–30 %, в проекте Wilo 15 %. Правило выключит обдув; поправка по паспорту пока не сделана (IMPROVEMENTS.md, «Что не сделано»).
+- **Известное расхождение:** у Fiberpart PP G30 в файле 0 %, в паспорте Stereotech 10–30 %, в проекте Wilo 15 %. Правило выключит обдув; поправка по паспорту пока не сделана.
 - **Шестерня:** `cool_fan_enabled_classic` = false.
 
 ### 2.11 `retraction_enable`
@@ -213,7 +213,7 @@ ParameterSet 0.2
 - Порядок правил в файле: для дискретной настройки побеждает последнее сработавшее.
 
 ### 2.14 5D-ключи
-- **Диаметр основания.** `cylindrical_mode_base_diameter` — диаметр цилиндра, которым слайсер режет модель в 5D: внутри 3D, снаружи 5D, `StartSliceJob` (D). Он равен диаметру отверстия детали из `revolution.bore.diameter_mm` отчёта STL, округлённому вниз до 0,5 мм, `source: assumption:stl.revolution.bore`. Берётся только сквозное отверстие (`bore.through`) детали, симметричной вокруг него: тело вращения (`is_revolution`) или `symmetry_score ≥ 0,9` (рабочее колесо с лопатками не «круглое» по сечениям, но симметрично). Без такого отверстия или при значении меньше 4 мм (`minimum_value` сборки) остаются 6 мм сборки с допущением. Ограничение этапа 3 на этот ключ важнее отверстия. На деталях кейса: колесо 15,5 мм, Wilo 7,5 мм, ось Krones 6 мм (отверстия нет) — у команды HandBloodы 15,5 / 7,5 / 6,0 (V).
+- **Диаметр основания.** `cylindrical_mode_base_diameter` — диаметр цилиндра, которым слайсер режет модель в 5D: внутри 3D, снаружи 5D, `StartSliceJob` (D). Он равен диаметру отверстия детали из `revolution.bore.diameter_mm` отчёта STL, округлённому вниз до 0,5 мм, `source: assumption:stl.revolution.bore`. Берётся только сквозное отверстие (`bore.through`) детали, симметричной вокруг него: тело вращения (`is_revolution`) или `symmetry_score ≥ 0,9` (рабочее колесо с лопатками не «круглое» по сечениям, но симметрично). Без такого отверстия или при значении меньше 4 мм (`minimum_value` сборки) остаются 6 мм сборки с допущением. Ограничение этапа 3 на этот ключ важнее отверстия. На деталях кейса: колесо 15,5 мм, Wilo 7,5 мм, ось Krones 6 мм (отверстия нет).
 - **Формулы сборки:** `cylindrical_layer_height` (= `layer_height`), `support_enable_cylindrical` (= `support_enable`), `cylindrical_raft_thickness`, `cylindrical_raft_diameter`.
 - **Значения сборки:** `cylindrical_layer_height_0` 0,3, `cylindrical_raft_type` solid, `cylindrical_raft_base_height` 15.
 
@@ -263,14 +263,14 @@ ParameterSet 0.2
   - материалы только 1,75 мм;
   - положение модели.
 - **Исправлено по контракту этапа 1** ([stage1-contract.md](../stage1-contract.md)): поддержки по доле нависаний, диаметр основания 5D по отверстию, приоритеты кодом `priority`, коды выбора, коды в процентах.
-- **Исправлено по валидации и ресерчу эталонов** ([IMPROVEMENTS.md](IMPROVEMENTS.md)): слой 0,2 / 0,3 / 0,1 мм на профиле `normal` и код `print_quality`; 3 периметра; адгезия по режиму; 5D по классу детали и оси, поза режима; поддержки только в 3D и по позе; материал при ничьей — материал слайсера; паспортные минимумы заполнения; редкое заполнение крупных деталей.
+- **Исправлено по валидации и ресерчу эталонов**: слой 0,2 / 0,3 / 0,1 мм на профиле `normal` и код `print_quality`; 3 периметра; адгезия по режиму; 5D по классу детали и оси, поза режима; поддержки только в 3D и по позе; материал при ничьей — материал слайсера; паспортные минимумы заполнения; редкое заполнение крупных деталей.
 - **Не исправлено:** обдув PP G30 по паспорту, второй экструдер (PVA), плот 5D и `non_printing_base_diameter`, оценка времени печати.
 
 ## 6. Что проверено, а что нет
 
 **Проверено:**
 - выход проходит проверку этапа 3 (`check_parameters`) без замечаний на всех 47 случаях стенда (40 SeeMeCNC и 7 деталей кейса);
-- стенд `scripts/bench_tuning.py`: совпадение с настройками человека на 40 проектах SeeMeCNC и попадание в метки и диапазоны Stereotech на семи деталях кейса (цифры — IMPROVEMENTS.md, раздел «Замеры»);
+- стенд `scripts/bench_tuning.py`: совпадение с настройками человека на 40 проектах SeeMeCNC и попадание в метки и диапазоны Stereotech на семи деталях кейса;
 - эталоны `tests/fixtures/tuning` — снимки выхода; каждое изменение снимков объяснено в `tests/fixtures/tuning/README.md`;
 - данные принтера читаются из каталога сборки, `printer.json` (профиль и материал по умолчанию) сверяется с метаданными `fdmprinter`;
 - вывод детерминирован;
