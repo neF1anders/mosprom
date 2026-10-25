@@ -38,7 +38,11 @@ async def test_protected_routes_need_session(path, tmp_path):
 @pytest.mark.parametrize(
     ("host_folder", "exists", "expected"),
     [
-        (r"C:\Users\me\Documents\STE_AIAssistant", False, r"C:\Users\me\Documents\STE_AIAssistant"),
+        (
+            r"C:\Users\me\Documents\STE_AIAssistant",
+            False,
+            r"C:\Users\me\Documents\STE_AIAssistant\Результаты",
+        ),
         ("", True, "slicer"),
         ("", False, None),
     ],
@@ -46,7 +50,8 @@ async def test_protected_routes_need_session(path, tmp_path):
 async def test_capabilities_name_the_folder_of_saved_projects(
     host_folder, exists, expected, tmp_path
 ):
-    """In Docker the folder is named as the slicer's computer sees it, not as the API does."""
+    """The folder that keeps the finished projects; in Docker it is named as the slicer's
+    computer sees it, not as the API does."""
     folder = tmp_path / "slicer"
     if exists:
         folder.mkdir()
@@ -66,4 +71,4 @@ async def test_capabilities_name_the_folder_of_saved_projects(
     ) as client:
         found = (await client.get("/api/v1/capabilities")).json()["project_folder"]
     await app.state.container.close()
-    assert found == (str(folder) if expected == "slicer" else expected)
+    assert found == (str(folder / "Результаты") if expected == "slicer" else expected)

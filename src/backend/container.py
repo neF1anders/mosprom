@@ -20,6 +20,7 @@ from .infrastructure.model_settings import ModelSettingsFile
 from .infrastructure.notifier import Notifier
 from .infrastructure.queue import STAGE1_TASK, STAGE2_TASK, STEER_TASK, TaskRunner
 from .infrastructure.qwen import QwenClient
+from .infrastructure.results import LocalResultFolders
 from .infrastructure.slicer import McpSlicer, SlicerSettings, gcode_facts
 from .pipeline.parameters import ParameterPipeline, PipelineSettings
 from .services.answers import AnswerService
@@ -70,7 +71,12 @@ class Container:
         )
         self.assistant = Assistant(runner, self.uow, self.files)
         self.steering = Steering(self.uow, self.assistant)
-        self.reports = Reports(self.uow, self.assistant)
+        self.reports = Reports(
+            self.uow,
+            self.assistant,
+            self.files,
+            LocalResultFolders(settings.slicer_folder, settings.slicer_host_folder),
+        )
         self.stage1 = Stage1(
             self.uow,
             self.files,
