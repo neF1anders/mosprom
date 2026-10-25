@@ -589,6 +589,26 @@ async def same_part_file(chat: Chat, result: Result) -> None:
     await chat.stop()
 
 
+@scenario("Три проекта в одном чате, у каждого своя папка")
+async def kept_folders(chat: Chat, result: Result) -> None:
+    """The same part again gets a folder of its own; the earlier folders keep their files."""
+    folders: list[str] = []
+    for part in ("gear", "fan", "gear"):
+        await chat.attach(part)
+        turn = await chat.say("Нужна такая деталь, ТЗ и модель во вложении")
+        result.check(f"проект {part} начат", turn.action == "start", turn)
+        await chat.until({"running", "queued", "waiting_user"}, 120)
+        now = await chat.until({"waiting_user", "completed", "failed"}, 600)
+        if now["job"]["status"] == "waiting_user":
+            await chat.answer_all()
+        done = await chat.finished(900)
+        folders.append(str((done["job"].get("result") or {}).get("folder") or ""))
+    result.check("три разные папки", len(set(folders)) == 3 and all(folders), folders)
+    local = [Path(f) for f in folders if Path(f).is_dir()]
+    kept = all((f / "project.3mf").exists() and (f / "chat_01.png").exists() for f in local)
+    result.check("в каждой папке проект и переписка", kept, folders)
+
+
 @scenario("Два проекта в двух чатах одновременно")
 async def two_chats(chat: Chat, result: Result) -> None:
     other = await Chat(chat.client, chat.examples, result).open()
