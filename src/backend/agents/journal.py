@@ -43,7 +43,7 @@ class Journal:
             "outcome": job.outcome,
             "error": job.error,
             **_card(job),
-            "parameters": _parameters(selected) if selected else None,
+            "parameters": _parameters(selected, job) if selected else None,
             "parameter_check": _check(checked) if checked else None,
             "slicing": _slicing(sliced, job) if sliced else None,
             "gcode_check": _gcode(gcode) if gcode else None,
@@ -98,15 +98,17 @@ def _requirement(requirement: Requirement) -> str:
     return f"{requirement.label or requirement.key} {value}{conditions} ({origin})"
 
 
-def _parameters(selected: dict[str, Any]) -> dict[str, Any]:
+def _parameters(selected: dict[str, Any], job: Job) -> dict[str, Any]:
     mode = selected.get("printing_mode") or {}
     quality = selected.get("quality") or {}
+    layer = (selected.get("settings") or {}).get("layer_height") or {}
     settings = list((selected.get("settings") or {}).items())[:SETTINGS]
     return {
         "mode": MODES.get(str(mode.get("value")), mode.get("value")),
         "mode_why": mode.get("why"),
-        "quality": quality.get("quality_type"),
+        "quality": _quality(quality.get("quality_type"), job),
         "quality_why": quality.get("why"),
+        "layer_height_mm": layer.get("value"),
         "materials": [
             {"id": m.get("id"), "why": m.get("why")}
             for m in (selected.get("materials") or {}).values()
@@ -125,6 +127,13 @@ def _parameters(selected: dict[str, Any]) -> dict[str, Any]:
         "warnings": selected.get("warnings") or [],
         "status": selected.get("status"),
     }
+
+
+def _quality(code: Any, job: Job) -> Any:
+    """The profile as the slicer's menu names it: by its code alone "normal" reads as Normal,
+    while the slicer calls it Fine and its Normal is "fast"."""
+    name = job.parameters.quality_type if job.parameters else None
+    return f"{name} ({code})" if name and code and name != code else code
 
 
 def _check(checked: dict[str, Any]) -> dict[str, Any]:
