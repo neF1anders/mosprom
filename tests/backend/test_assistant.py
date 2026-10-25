@@ -17,11 +17,13 @@ from src.backend.agents.assistant import (
     assistant_messages,
     template,
 )
+from src.backend.agents.journal import _quality
 from src.backend.agents.runner import AgentRunner
 from src.backend.agents.tools import ToolBox
 from src.backend.domain.models import (
     Attachment,
     Job,
+    ParametersSummary,
     Project,
     Question,
     QueuedMessage,
@@ -343,3 +345,18 @@ async def test_a_model_and_a_task_start_and_the_checker_asks_later():
     agent, model = assistant(assistant=[wait, wait])
     decision = await agent.decide(situation(files=files, text="Пока не запускай"), said)
     assert (decision.action, len(model.requests["assistant"])) == ("reply", 2)
+
+
+def test_the_report_names_the_profile_as_the_slicer_menu_does():
+    """By its code "normal" reads as Normal, while the slicer calls it Fine."""
+    summary = ParametersSummary(
+        iteration=1,
+        printing_mode="3D",
+        quality_type="Fine",
+        material="PLA",
+        changed_settings=0,
+        unsatisfied=0,
+        status="proposed",
+    )
+    assert _quality("normal", Job(user_id="u", parameters=summary)) == "Fine (normal)"
+    assert _quality("normal", Job(user_id="u")) == "normal"
