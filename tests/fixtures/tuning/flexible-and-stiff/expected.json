@@ -26,33 +26,33 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_sbs",
-     "why": "оценка 0.50; не выполнено: high_stiffness (stiffness=low)"
+     "id": "fiberpart_abs_g13",
+     "why": "оценка 0.50; не выполнено: flexible (flexible=False)"
     },
     {
-     "id": "enduse_tpu_d70",
-     "why": "оценка 0.50; не выполнено: high_stiffness (stiffness=low)"
+     "id": "fiberpart_abspa_g8",
+     "why": "оценка 0.50; не выполнено: flexible (flexible=False)"
     }
    ],
    "checks": [
     {
-     "detail": "flexible=False",
+     "detail": "flexible=True",
      "hard": true,
      "key": "flexible",
      "requirement_id": "flexible",
-     "status": "fail"
+     "status": "ok"
     },
     {
-     "detail": "stiffness=high",
+     "detail": "stiffness=low",
      "hard": true,
      "key": "high_stiffness",
      "requirement_id": "high_stiffness",
-     "status": "ok"
+     "status": "fail"
     }
    ],
-   "id": "enduse_pc",
+   "id": "enduse_sbs",
    "source": "rule:MATERIAL-RANK",
-   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50; не выполнено: flexible (flexible=False)"
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.50; не выполнено: high_stiffness (stiffness=low)"
   }
  },
  "models": [
@@ -106,11 +106,10 @@
   "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
  },
  "settings": {
-  "cool_fan_enabled_classic": {
-   "scope": "extruder:0",
-   "source": "rule:FAN-OFF-NO-COOLING",
-   "value": false,
-   "why": "в файле материала обдув 0 %: обдув выключен"
+  "adhesion_type": {
+   "source": "rule:ADHESION-CLASSIC-SKIRT",
+   "value": "skirt",
+   "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
   },
   "infill_pattern": {
    "source": "rule:INFILL-GYROID",
@@ -130,10 +129,10 @@
    "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
   },
   "speed_print": {
-   "source": "rule:SPEED-MATERIAL-MAX",
+   "source": "rule:FLEX-SOFT-STRUCTURE",
    "unit": "mm/s",
    "value": 40.0,
-   "why": "скорость печати не выше рекомендованной в файле материала"
+   "why": "гибкая деталь: умеренные заполнение и периметры сохраняют гибкость, медленная печать надёжнее подаёт эластомер"
   },
   "wall_thickness": {
    "source": "rule:STIFF-HARD",

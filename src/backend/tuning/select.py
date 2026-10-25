@@ -8,6 +8,7 @@ card and feedback always give the same parameter set.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 
 from ..domain.catalog import Catalog
@@ -25,6 +26,7 @@ from .constraints import (
     is_choice,
 )
 from .facts import build_facts, with_mode
+from .geometry import Geometry
 from .intake import CardRequirement, read_card
 from .material_choice import choose_material
 from .materials import Candidate, printable_materials
@@ -74,7 +76,7 @@ def select_parameters(
     # Rules about the mode (adhesion) and the overhangs of the pose it prints in fire once the
     # mode is known; mode votes read neither, so the choice stands.
     fired = fired_rules(with_mode(facts, mode.name, poses[mode.name].overhang_fraction))
-    context = _context(mode, printer.nozzle, material_choice.material)
+    context = _context(mode, printer.nozzle, material_choice.material, request.geometry)
     axes = build_axes(context)
     constrained = apply_constraints(
         build_plan(fired, axes, context),
@@ -148,9 +150,19 @@ def _iteration(feedback: Feedback | None) -> int:
     return MAX_ITERATIONS
 
 
-def _context(mode: Mode, nozzle: float, material: Candidate) -> AxisContext:
+# The wall minimum of STIFF-HARD (rules.json): the cap of a thin part never conflicts with it.
+WALLS_FLOOR_LINES = 4
+
+
+def _context(mode: Mode, nozzle: float, material: Candidate, geometry: Geometry) -> AxisContext:
     """The machine ceiling never forces a material below the temperature its own file asks for."""
     default_speed = float(mode.value("speed_print"))
+    fit = None
+    if geometry.wall_thickness:
+        # Walls are laid from both faces of a wall; lines past its middle only overlap. The cap
+        # only takes back walls the rules add over the minimum of a hard stiffness.
+        lines = math.ceil(geometry.wall_thickness / (2.0 * mode.line_width))
+        fit = float(max(lines, WALLS_FLOOR_LINES))
     return AxisContext(
         nozzle=nozzle,
         default_speed=default_speed,
@@ -159,6 +171,7 @@ def _context(mode: Mode, nozzle: float, material: Candidate) -> AxisContext:
         speed_floor=0.5 * min(material.speed or default_speed, default_speed),
         temperature_max=max(mode.temperature_max, material.print_temperature),
         infill_min=material.traits.infill_min_pct,
+        wall_lines_fit=fit,
     )
 
 

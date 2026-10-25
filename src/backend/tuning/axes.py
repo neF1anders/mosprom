@@ -26,6 +26,7 @@ ContextRef = Literal[
     "material.speed_floor",
     "material.infill_min_pct",
     "limits.temperature_max_c",
+    "geometry.wall_lines_fit",
 ]
 
 
@@ -111,6 +112,8 @@ class AxisContext:
     temperature_max: float
     # The datasheet's least infill for a functional part; rules read it only when it is known.
     infill_min: float | None = None
+    # Wall lines that fit a typical wall of the part from both sides; known with the chords.
+    wall_lines_fit: float | None = None
 
     def number(self, spec: NumberSpec) -> float:
         if isinstance(spec, NumberRef):
@@ -125,6 +128,7 @@ _CONTEXT_FIELDS: dict[ContextRef, str] = {
     "material.speed": "material_speed",
     "material.speed_floor": "speed_floor",
     "material.infill_min_pct": "infill_min",
+    "geometry.wall_lines_fit": "wall_lines_fit",
     "limits.temperature_max_c": "temperature_max",
 }
 

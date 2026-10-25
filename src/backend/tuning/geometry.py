@@ -54,6 +54,17 @@ class _Revolution(_Part):
     bore: _Bore | None = None
 
 
+class _ChordDistribution(_Part):
+    median: float | None = None
+
+
+class _NormalChords(_Part):
+    """Wall thickness sampled along inward normals of the surface."""
+
+    status: str = "not_run"
+    distribution: _ChordDistribution | None = None
+
+
 class _Orientation(_Part):
     id: str
     rotation: tuple[Point, Point, Point]
@@ -72,6 +83,7 @@ class _Report(_Part):
     overhangs: _Overhangs | None = None
     revolution: _Revolution | None = None
     orientations: list[_Orientation] = Field(default_factory=list)
+    normal_chords: _NormalChords | None = None
 
 
 @dataclass(frozen=True)
@@ -103,6 +115,8 @@ class Geometry:
     symmetry: float | None = None
     # Length along the axis over the outer diameter: a flat disc is well below 0.3.
     length_to_diameter: float | None = None
+    # Typical wall thickness: the median chord along the inward surface normals.
+    wall_thickness: float | None = None
     orientations: tuple[Orientation, ...] = ()
 
     @property
@@ -144,6 +158,7 @@ def read_geometry(analysis: StlAnalysis | None) -> GeometryReading:
         axis=revolution.axis_direction,
         symmetry=revolution.symmetry_score,
         length_to_diameter=_ratio(revolution.length_along_axis_mm, revolution.outer_diameter_mm),
+        wall_thickness=_wall_thickness(report),
         orientations=tuple(
             _orientation(found, size) for found in report.orientations if (size := found.extents_mm)
         ),
@@ -178,6 +193,13 @@ def _unit_assumption(unit: str) -> str:
 def _overhang_fraction(report: _Report) -> float | None:
     """Not rounded: the rules compare it with a threshold of 0.05."""
     return None if report.overhangs is None else report.overhangs.area_fraction
+
+
+def _wall_thickness(report: _Report) -> float | None:
+    chords = report.normal_chords
+    if chords is None or chords.status != "estimated" or chords.distribution is None:
+        return None
+    return _optional(chords.distribution.median)
 
 
 def _orientation(found: _Orientation, size: Point) -> Orientation:

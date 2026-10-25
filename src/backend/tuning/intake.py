@@ -20,6 +20,7 @@ from ..domain.errors import AppError
 from ..domain.models import CARD_SCHEMA_VERSION, SELECT_PARAMETERS, Requirement, TaskCard, Value
 from ..domain.requirement_keys import RequirementKey, RequirementKeys
 from ..domain.units import convert, dimension, numbers
+from .free_requirements import quotes_of, text_of, translate
 from .geometry import Geometry, read_geometry
 
 RequirementValue = float | bool | str | tuple[str, ...]
@@ -34,7 +35,8 @@ _BASIS: dict[str, Basis] = {
 _LIST_SEPARATORS = re.compile(r"[,;]")
 # Codes that describe the part rather than demand anything of the print: when no step reads
 # them there is nothing to tell the user, only the log.
-_DESCRIPTIVE = frozenset({"part_class"})
+PART_CLASS = "part_class"
+_DESCRIPTIVE = frozenset({PART_CLASS})
 
 
 class _Booleans(Value):
@@ -47,6 +49,7 @@ class Phrases(Value):
     booleans: _Booleans
     load_phrases: list[tuple[str, list[str]]]
     priority_phrases: dict[str, list[str]]
+    part_class_phrases: dict[str, list[str]]
     supports_forbidden_phrases: list[str]
 
 
@@ -112,6 +115,8 @@ class _Draft:
     load: str | None = None
     mode: ModeRequest | None = None
     material: MaterialRequest | None = None
+    # Requirements under keys the dictionary does not have, read after the coded ones.
+    free: list[tuple[Requirement, str]] = field(default_factory=list)
 
 
 def read_card(card: TaskCard, keys: RequirementKeys, read: Collection[str]) -> TuningInput:
@@ -119,6 +124,8 @@ def read_card(card: TaskCard, keys: RequirementKeys, read: Collection[str]) -> T
     draft = _Draft(assumptions=_readiness_notes(card))
     for requirement, requirement_id in _with_ids(card.requirements):
         _read_requirement(draft, requirement, requirement_id, keys, read)
+    _read_free(draft, keys, read)
+    _part_class_from_purpose(draft, card.purpose)
     wishes = " ".join(text for text in card.preferences if text).lower()
     priority = _priority(draft, wishes)
     supports_allowed = _supports_allowed(draft, wishes)
@@ -199,7 +206,7 @@ def _read_requirement(
     label = f"{requirement_id} ({requirement.label or requirement.key})"
     entry = keys.get(requirement.key)
     if entry is None:
-        _not_interpreted(draft, requirement, label)
+        draft.free.append((requirement, requirement_id))
         return
     card_field = _CARD_FIELDS.get(entry.key)
     if card_field is not None:
@@ -409,6 +416,77 @@ def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
     if found:
         draft.assumptions.append(f"приоритеты {', '.join(found)} выведены из текста пожеланий")
     return found
+
+
+def _read_free(draft: _Draft, keys: RequirementKeys, read: Collection[str]) -> None:
+    """Free requirements as codes the card lacks (``free_requirements``), each told as an
+    assumption; the rest are not interpreted, as before. The load is read from their texts
+    when the card has no load code."""
+    coded = {requirement.key for requirement in draft.requirements}
+    unread = {entry.key for entry in keys.keys if entry.key not in read}
+    translation = translate(draft.free, keys, coded | unread, _number)
+    for reading in translation.readings:
+        draft.requirements.append(
+            CardRequirement(
+                reading.requirement_id,
+                reading.code,
+                reading.value,
+                reading.hard,
+                _basis(reading.source),
+            )
+        )
+        label = reading.source.label or reading.source.key
+        draft.assumptions.append(
+            f"требование «{label}» понято как {reading.code} = {_shown_value(reading.value)}"
+        )
+    if draft.load is None:
+        _load_from_free(draft)
+    for requirement, requirement_id in draft.free:
+        if requirement_id not in translation.used:
+            _not_interpreted(
+                draft, requirement, f"{requirement_id} ({requirement.label or requirement.key})"
+            )
+
+
+def _shown_value(value: RequirementValue) -> str:
+    if isinstance(value, bool):
+        return "да" if value else "нет"
+    if isinstance(value, tuple):
+        return ", ".join(value)
+    return f"{value:g}" if isinstance(value, float) else str(value)
+
+
+def _load_from_free(draft: _Draft) -> None:
+    """The first load the phrase list finds in the free requirements of the document."""
+    for load, phrases in PHRASES.load_phrases:
+        for requirement, requirement_id in draft.free:
+            if _basis(requirement) == "assumption":
+                continue
+            text = f"{text_of(requirement)} {quotes_of(requirement)}"
+            if _first_match(phrases, text) is not None:
+                draft.load = load
+                draft.assumptions.append(
+                    f"нагрузка «{load}» выведена из требования «{requirement.label or requirement_id}»"
+                )
+                return
+
+
+def _part_class_from_purpose(draft: _Draft, purpose: str) -> None:
+    """Without a ``part_class`` code the class named first in the purpose, as an assumption:
+    the 5D rules and the infill of a shaft read the class."""
+    if any(requirement.key == PART_CLASS for requirement in draft.requirements):
+        return
+    lowered = purpose.lower()
+    positions = []
+    for part_class, phrases in sorted(PHRASES.part_class_phrases.items()):
+        first = _first_match(phrases, lowered)
+        if first is not None:
+            positions.append((first, part_class))
+    if not positions:
+        return
+    _, found = min(positions)
+    draft.requirements.append(CardRequirement(PART_CLASS, PART_CLASS, found, False, "assumption"))
+    draft.assumptions.append(f"тип детали «{found}» выведен из назначения в карточке")
 
 
 def _supports_allowed(draft: _Draft, wishes: str) -> bool:

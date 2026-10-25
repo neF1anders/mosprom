@@ -26,24 +26,24 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_pc",
+     "id": "enduse_pa6",
      "why": "оценка 1.00"
     },
     {
-     "id": "fiberpart_abs_g13",
+     "id": "enduse_pc",
      "why": "оценка 1.00"
     }
    ],
    "checks": [
     {
-     "detail": "tg_c=105",
+     "detail": "tg_c=105, hdt_c=98",
      "hard": true,
      "key": "tg_min_c",
      "requirement_id": "tg_min_c",
      "status": "ok"
     },
     {
-     "detail": "tg_c=105",
+     "detail": "tg_c=105, hdt_c=98",
      "hard": true,
      "key": "tg_min_c",
      "requirement_id": "tg_min_c-2",
