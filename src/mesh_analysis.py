@@ -737,37 +737,35 @@ def analyze_stl(
 
 def write_preview(path: Path, destination: Path) -> None:
     """Orthographic surface projections; visual aid, never a measurement source."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib.collections import PolyCollection
+    from PIL import Image, ImageDraw
 
     mesh = trimesh.load_mesh(path, file_type="stl", process=False)
-    fig, panels = plt.subplots(1, 3, figsize=(15, 5))
+    panel_size, margin, title_height = 500, 40, 28
+    sheet = Image.new("RGB", (panel_size * 3, panel_size + title_height), "white")
+    draw = ImageDraw.Draw(sheet)
+    triangles, centers, normals = mesh.triangles, mesh.triangles_center, mesh.face_normals
     # Painter ordering keeps this renderer usable without OpenGL/display drivers.
-    for panel, (a, b, depth) in zip(panels, [(0, 1, 2), (0, 2, 1), (1, 2, 0)]):
-        order = np.argsort(mesh.triangles_center[:, depth])
-        shade = 0.35 + 0.55 * np.abs(mesh.face_normals[order, depth])
-        colors = np.column_stack(
-            [shade * 0.5, shade * 0.75, shade, np.ones(len(shade))]
+    for index, (a, b, depth) in enumerate([(0, 1, 2), (0, 2, 1), (1, 2, 0)]):
+        order = np.argsort(centers[:, depth])
+        points = triangles[order][:, :, [a, b]]
+        low, high = points.reshape(-1, 2).min(axis=0), points.reshape(-1, 2).max(axis=0)
+        # Equal scale on both axes, as the plot kept the aspect.
+        scale = (panel_size - 2 * margin) / max(float((high - low).max()), 1e-9)
+        offset = (panel_size - (high - low) * scale) / 2
+        pixels = (points - low) * scale + offset
+        pixels[:, :, 1] = panel_size - pixels[:, :, 1]
+        pixels[:, :, 0] += index * panel_size
+        pixels[:, :, 1] += title_height
+        shade = 0.35 + 0.55 * np.abs(normals[order, depth])
+        colors = np.column_stack([shade * 0.5, shade * 0.75, shade]) * 255
+        for triangle, color in zip(pixels.tolist(), colors.astype(int).tolist()):
+            draw.polygon([tuple(point) for point in triangle], fill=tuple(color))
+        draw.text(
+            (index * panel_size + 8, 8),
+            "XYZ"[a] + "XYZ"[b] + " (file units)",
+            fill="black",
         )
-        panel.add_collection(
-            PolyCollection(
-                mesh.triangles[order][:, :, [a, b]],
-                facecolors=colors,
-                edgecolors="none",
-                rasterized=True,
-            )
-        )
-        panel.autoscale_view()
-        panel.set_aspect("equal")
-        panel.set_xlabel("XYZ"[a] + " (file units)")
-        panel.set_ylabel("XYZ"[b] + " (file units)")
-        panel.set_title("XYZ"[a] + "XYZ"[b])
-    fig.tight_layout()
-    fig.savefig(destination, dpi=120)
-    plt.close(fig)
+    sheet.save(destination)
 
 
 def markdown_report(report: dict) -> str:

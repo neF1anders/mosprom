@@ -74,10 +74,11 @@ def test_A01_import_boundaries(folder, forbidden):
 
 
 def test_A01_worker_runs_the_shared_stage_one():
-    text = (ROOT / "tasks.py").read_text()
-    assert "container.stage1.run(job_id, revision, start, correction, typed or [])" in text
-    assert "container.pipeline.run(job_id, revision)" in text
-    assert "select(" not in (ROOT / "worker.py").read_text()
+    text = (ROOT / "container.py").read_text()
+    assert "self.stage1.run(job_id, revision, start, correction, typed or [])" in text
+    assert "self.pipeline.run(job_id, revision)" in text
+    assert "self.steering.deliver(job_id, force=True)" in text
+    assert "select(" not in text
 
 
 def test_A01_application_branch_nesting_at_most_two():

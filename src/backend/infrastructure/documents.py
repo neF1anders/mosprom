@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import signal
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -125,9 +126,17 @@ def _pdf(path: Path, limits: InputLimits) -> dict[str, Any]:
 
 @contextmanager
 def page_deadline(seconds: float):
-    def expired(signum, frame):
+    def expired(signum=None, frame=None):
         raise AppError(f"Страница PDF не обработана за {seconds:g} секунд", "page_timeout", 503)
 
+    if not hasattr(signal, "SIGALRM"):
+        # Windows has no alarm signal: a slow page is reported once it ends, and the parent
+        # kills the whole process when the document takes longer than its own timeout.
+        started = time.monotonic()
+        yield
+        if time.monotonic() - started > seconds:
+            expired()
+        return
     previous = signal.signal(signal.SIGALRM, expired)
     signal.setitimer(signal.ITIMER_REAL, seconds)
     try:

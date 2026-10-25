@@ -7,8 +7,6 @@ from src.backend.api.app import create_app
 from src.backend.config import Settings
 from src.backend.domain.tokens import sign_token
 
-from .conftest import TEST_DATABASE
-
 pytestmark = pytest.mark.unit
 
 
@@ -26,7 +24,7 @@ pytestmark = pytest.mark.unit
 async def test_protected_routes_need_session(path, tmp_path):
     app = create_app(
         Settings(
-            _env_file=None, session_secret="x" * 40, data_dir=tmp_path, database_url=TEST_DATABASE
+            _env_file=None, session_secret="x" * 40, data_dir=tmp_path
         )
     )
     async with httpx.AsyncClient(
@@ -56,7 +54,6 @@ async def test_capabilities_name_the_folder_of_saved_projects(
         _env_file=None,
         session_secret="x" * 40,
         data_dir=tmp_path,
-        database_url=TEST_DATABASE,
         slicer_folder=folder,
         slicer_host_folder=host_folder,
     )
