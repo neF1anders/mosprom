@@ -3,107 +3,107 @@
   {
    "basis": "карточка этапа 1",
    "id": "A1",
-   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
+   "text": "требование «Ультрафиолет» понято как uv_stable = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A2",
-   "text": "обязательное требование speed_range (Скорость вращения) не учтено подбором параметров"
+   "text": "требование «Гидрофобность материала» понято как hydrophobic = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A3",
-   "text": "обязательное требование lubrication_regime (Режим смазки) не учтено подбором параметров"
+   "text": "требование «Модуль упругости материала» понято как high_stiffness = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A4",
-   "text": "обязательное требование torque_nominal (Номинальный крутящий момент) не учтено подбором параметров"
+   "text": "требование «Температура эксплуатации» понято как service_temp_max_c = 70"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A5",
-   "text": "обязательное требование torque_peak (Пиковый стопорный момент) не учтено подбором параметров"
+   "text": "требование «Температура стеклования» понято как tg_min_c = 90"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A6",
-   "text": "обязательное требование humidity_range (Влажность среды) не учтено подбором параметров"
+   "text": "требование «Режим смазки» понято как chemical_resistance = oil, acid, salts"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A7",
-   "text": "обязательное требование temperature_range (Температура эксплуатации) не учтено подбором параметров"
+   "text": "нагрузка «impact» выведена из требования «Точность зубьев»"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A8",
-   "text": "обязательное требование uv_exposure (Ультрафиолет) не учтено подбором параметров"
+   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A9",
-   "text": "обязательное требование chemical_exposure (Химическая среда) не учтено подбором параметров"
+   "text": "обязательное требование speed_range (Скорость вращения) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A10",
-   "text": "обязательное требование gear_accuracy (Точность зубьев) не учтено подбором параметров"
+   "text": "обязательное требование torque_nominal (Номинальный крутящий момент) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A11",
-   "text": "обязательное требование material_hydrophobic (Гидрофобность материала) не учтено подбором параметров"
+   "text": "обязательное требование torque_peak (Пиковый стопорный момент) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A12",
-   "text": "обязательное требование material_elastic_modulus (Модуль упругости материала) не учтено подбором параметров"
+   "text": "обязательное требование humidity_range (Влажность среды) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A13",
-   "text": "обязательное требование material_uv_stability (Стойкость к УФ) не учтено подбором параметров"
+   "text": "обязательное требование gear_accuracy (Точность зубьев) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A14",
-   "text": "обязательное требование tg_min (Температура стеклования) не учтено подбором параметров"
-  },
-  {
-   "basis": "карточка этапа 1",
-   "id": "A15",
    "text": "обязательное требование strength_teeth (Прочность зубьев) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
-   "id": "A16",
+   "id": "A15",
    "text": "обязательное требование strength_hub (Прочность ступицы) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
-   "id": "A17",
+   "id": "A16",
    "text": "обязательное требование mating_shaft_protection (Бережное зацепление с полимерным валом) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
-   "id": "A18",
+   "id": "A17",
    "text": "обязательное требование fatigue_resistance (Усталостная стойкость) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
-   "id": "A19",
+   "id": "A18",
    "text": "обязательное требование operating_mode (Режим работы привода) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
-   "id": "A20",
+   "id": "A19",
    "text": "обязательное требование backlash_limit (Люфт в зацеплении) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
-   "id": "A21",
+   "id": "A20",
    "text": "обязательное требование stl_units (Единицы модели STL) не учтено подбором параметров"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A21",
+   "text": "тип детали «gear» выведен из назначения в карточке"
   },
   {
    "basis": "карточка этапа 1",
@@ -133,6 +133,21 @@
   {
    "basis": "решение этапа 2",
    "id": "A27",
+   "text": "требование part_class = gear — допущение, а не подтверждённый факт"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A28",
+   "text": "обязательное требование material_hydrophobic материал выполняет лишь частично: hygroscopic=medium"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A29",
+   "text": "требование lubrication_regime не проверено по каталогу: catalog description does not mention the required media"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A30",
    "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
   }
  ],
@@ -146,18 +161,61 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_abs",
-     "why": "оценка 0.50"
+     "id": "fiberpart_pa12_g12",
+     "why": "оценка 0.70; частично: uv_exposure (uv=fair); material_hydrophobic (hygroscopic=medium); lubrication_regime (catalog description covers only: acid)"
     },
     {
-     "id": "enduse_pa6",
-     "why": "оценка 0.50"
+     "id": "fiberpart_pc_g20",
+     "why": "оценка 0.68; частично: uv_exposure (uv=fair); material_hydrophobic (hygroscopic=medium); нет данных: lubrication_regime (catalog description does not mention the required media)"
     }
    ],
-   "checks": [],
-   "id": "generic_pla_175",
+   "checks": [
+    {
+     "detail": "catalog description mentions UV resistance",
+     "hard": true,
+     "key": "uv_stable",
+     "requirement_id": "uv_exposure",
+     "status": "ok"
+    },
+    {
+     "detail": "hygroscopic=medium",
+     "hard": true,
+     "key": "hydrophobic",
+     "requirement_id": "material_hydrophobic",
+     "status": "warn"
+    },
+    {
+     "detail": "stiffness=high",
+     "hard": true,
+     "key": "high_stiffness",
+     "requirement_id": "material_elastic_modulus",
+     "status": "ok"
+    },
+    {
+     "detail": "service_max_c=90",
+     "hard": true,
+     "key": "service_temp_max_c",
+     "requirement_id": "temperature_range",
+     "status": "ok"
+    },
+    {
+     "detail": "tg_c=None, hdt_c=100",
+     "hard": true,
+     "key": "tg_min_c",
+     "requirement_id": "tg_min",
+     "status": "ok"
+    },
+    {
+     "detail": "catalog description does not mention the required media",
+     "hard": true,
+     "key": "chemical_resistance",
+     "requirement_id": "lubrication_regime",
+     "status": "unknown"
+    }
+   ],
+   "id": "fiberpart_abspa_g8",
    "source": "rule:MATERIAL-RANK",
-   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.78; частично: material_hydrophobic (hygroscopic=medium); нет данных: lubrication_regime (catalog description does not mention the required media)"
   }
  },
  "models": [
@@ -166,7 +224,7 @@
    "extruder": 0,
    "id": "m1",
    "orientation_candidate": "o1",
-   "source": "assumption:A27",
+   "source": "assumption:A30",
    "transform": {
     "position": [
      -9.5,
@@ -211,17 +269,46 @@
   "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
  },
  "settings": {
+  "cool_fan_enabled_classic": {
+   "scope": "extruder:0",
+   "source": "rule:FAN-OFF-NO-COOLING",
+   "value": false,
+   "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "infill_pattern": {
+   "source": "rule:INFILL-GYROID",
+   "value": "gyroid",
+   "why": "ударная или циклическая нагрузка либо гибкая деталь: изотропное заполнение gyroid"
+  },
+  "infill_sparse_density": {
+   "source": "rule:LOAD-INFILL-MIN",
+   "unit": "%",
+   "value": 30.0,
+   "why": "циклическая или ударная нагрузка: заполнение от 30 %, чтобы сердцевина держала стенки"
+  },
   "layer_height": {
    "source": "rule:LAYER-STANDARD",
    "unit": "mm",
    "value": 0.2,
    "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
   },
-  "wall_thickness": {
-   "source": "rule:WALLS-STANDARD",
+  "speed_print": {
+   "source": "rule:SPEED-MATERIAL-MAX",
+   "unit": "mm/s",
+   "value": 40.0,
+   "why": "скорость печати не выше рекомендованной в файле материала"
+  },
+  "top_bottom_thickness": {
+   "source": "rule:LOAD-WALLS",
    "unit": "mm",
-   "value": 1.2,
-   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
+   "value": 0.9,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения"
+  },
+  "wall_thickness": {
+   "source": "rule:LOAD-WALLS",
+   "unit": "mm",
+   "value": 2.0,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения; периметров: 5"
   }
  },
  "status": "proposed",

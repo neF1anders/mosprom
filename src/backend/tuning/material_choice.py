@@ -62,7 +62,7 @@ def choose_material(
             f"material '{named.name}' from the card is not in the catalog, ranking instead"
         )
     if named is None or found is None:
-        return _ranked(allowed, request.requirements, tuple(warnings), preferred)
+        return _ranked(allowed, request, tuple(warnings), preferred)
     choice = _named(found, request.requirements, named, tuple(warnings))
     if loose is not None:
         note = (
@@ -148,11 +148,12 @@ def _named(
 
 def _ranked(
     materials: Mapping[str, Candidate],
-    requirements: Sequence[CardRequirement],
+    request: TuningInput,
     warnings: tuple[str, ...],
     preferred: str,
 ) -> MaterialChoice:
-    ranked = rank_materials(materials, requirements)
+    requirements = request.requirements
+    ranked = rank_materials(materials, requirements, request.priority)
     if not ranked:
         raise AppError("В каталоге нет материалов, которыми можно печатать", "catalog_materials")
     best, why = _best(ranked, preferred)

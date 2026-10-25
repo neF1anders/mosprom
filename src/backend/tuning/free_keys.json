@@ -1,0 +1,38 @@
+{
+  "note": "Requirements stage one wrote under its own keys, read the way printplan reads a task text: stems of the key, the label and the value -> a code of knowledge/requirement_keys.json. Patterns are regular expressions over the lowercase text 'key label value'; `not` patterns veto a match (a negated or a different property). Numbers keep the unit check of the code. A code the card already has is not taken from free text. chemical_media gathers the media of every requirement whose text matches chemical_context, from its value and quotes; load reads the same texts with load_phrases of phrases.json.",
+  "codes": [
+    {"code": "tg_min_c", "match": ["стеклован", "\\btg\\b"]},
+    {"code": "heat_deflection_min_c", "match": ["\\bвика\\b", "vicat", "\\bhdt\\b", "размягчени", "теплостойк", "heat_resistance"]},
+    {"code": "service_temp_peak_c", "match": ["кратковрем", "\\bпик", "short_contact", "капани"]},
+    {"code": "service_temp_max_c", "match": ["температур", "temperature"], "not": ["стеклован", "\\bвика\\b", "размягч", "кратковрем", "\\bпик", "short", "печат"]},
+    {"code": "density_max_g_cm3", "match": ["плотност", "density"]},
+    {"code": "dimensional_tol_mm", "match": ["допуск", "точност", "отклонени", "tolerance"]},
+    {"code": "tensile_modulus_min_mpa", "match": ["модул\\w* упругост", "tensile_modulus"]},
+    {"code": "tensile_strength_min_mpa", "match": ["предел\\w* прочност", "tensile_strength"]},
+    {"code": "elongation_min_pct", "match": ["удлинени", "elongation"]},
+    {"code": "water_absorption_max_pct", "match": ["водопоглощ", "water_absorption"]},
+    {"code": "hydrophobic", "match": ["гидрофоб", "влагостойк", "не впитыва\\w* влаг", "водопоглощ"]},
+    {"code": "uv_stable", "match": ["ультрафиолет", "\\bуф\\b", "\\buv\\b", "солнечн\\w* луч", "желте"], "not": ["не требуется"]},
+    {"code": "flexible", "match": ["эластичн", "гибк", "elasticity", "запрет ж[её]стк", "ж[её]стких материалов не допуска"], "not": ["не должн\\w* быть эластич", "модул\\w* упругост", "elastic_modulus"]},
+    {"code": "high_stiffness", "match": ["модул\\w* упругост", "elastic_modulus", "высок\\w* ж[её]стк", "достаточно ж[её]стк", "без скручиван", "не подгиба"], "not": ["не допуска", "недопуст"]},
+    {"code": "abrasion_resistant", "match": ["износ", "истиран", "абразив", "wear", "микропыл", "пылени"]},
+    {"code": "low_friction", "match": ["низк\\w* коэффициент\\w* трени", "трени\\w* без смазк", "без применения внешних смазок", "friction_without"]},
+    {"code": "high_friction", "match": ["высок\\w* коэффициент\\w* трени", "проскальзыв", "сцеплени"]},
+    {"code": "no_visible_layers", "match": ["видимых сло", "ступеньк", "без слоёв", "без слоев"]},
+    {"code": "no_supports", "match": ["следов от поддерж", "без поддерж"]},
+    {"code": "food_safe", "match": ["пищев", "токсичн", "food"]},
+    {"code": "esd", "match": ["антистатическ\\w* свойств", "\\besd\\b", "статическ\\w* заряд", "накаплива\\w* статик"]},
+    {"code": "no_conductive_fillers", "match": ["токопровод", "диэлектрик"]},
+    {"code": "sealed", "match": ["герметичн", "tightness"]}
+  ],
+  "chemical_context": ["хими", "сред[аыу]\\b", "medium", "мойк", "моющ", "обработк", "реагент", "смазк", "chemical", "washing", "cleaning", "stabil", "стойк"],
+  "chemical_media": {
+    "alkali": ["щелоч", "\\bph\\b[^0-9]{0,5}(?:9|1[0-4])"],
+    "acid": ["кислот"],
+    "salts": ["\\bсол[иья]", "солев", "хлорид"],
+    "oil": ["масл", "\\bсож\\b", "смазк"],
+    "fuel": ["бензин", "дизел", "топлив", "керосин"],
+    "alcohol": ["спирт", "\\bipa\\b", "изопропил"],
+    "ozone": ["озон"]
+  }
+}
