@@ -158,6 +158,8 @@ export interface Message {
   text: string;
   // Files sent with the message, shown above its bubble.
   attachment_ids?: string[];
+  // The assistant's turn a reply came from.
+  turn?: string | null;
   revision: number;
   created_at?: string;
 }

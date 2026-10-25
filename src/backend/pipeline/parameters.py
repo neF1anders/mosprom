@@ -34,8 +34,8 @@ from ..ports.operations import Slicer
 from ..ports.persistence import UnitOfWork, UowFactory
 from .store import JobStore, SafePoint, ensure_current, no_safe_point
 
-# The summary of a finished project, written after the pipeline's last transaction.
-Report = Callable[[str], Awaitable[None]]
+# The summary of a finished revision, written after the pipeline's last transaction.
+Report = Callable[[str, int], Awaitable[None]]
 
 Select = Callable[[TaskCard, Feedback | None], ParameterSet]
 Check = Callable[[ParameterSet], CheckResult]
@@ -113,7 +113,7 @@ class ParameterPipeline:
                 assert run is not None, "every pass starts with a selection"
                 step = await self._steps[step.stage](job, step, run)
             if step is None and self.report is not None:
-                await self.report(job_id)
+                await self.report(job_id, revision)
             # Messages queued meanwhile are read before the next step spends its time, and
             # after the last one, when the job is done.
             if await self.safe_point(job_id, revision):

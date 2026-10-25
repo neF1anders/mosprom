@@ -12,7 +12,7 @@ import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import Any, Literal
 
@@ -28,7 +28,7 @@ from .sources import Sources
 from .store import RunStore
 
 logger = logging.getLogger(__name__)
-REPLY, START, UPDATE = "reply", "start_project", "update_project"
+REPLY, ASK, START, UPDATE = "reply", "ask_details", "start_project", "update_project"
 LOG, INVESTIGATE = "project_log", "investigate"
 # Steps of one turn: a look at the journal or an investigation, then the answer.
 STEPS = 4
@@ -68,12 +68,17 @@ START_ARGS = {
 }
 UPDATE_ARGS = {"type": "object", "properties": {"summary": _TEXT}, "required": ["summary"]}
 REPLY_ARGS = {"type": "object", "properties": {"text": _TEXT}, "required": ["text"]}
+# Said once more to an agent that answers in text while the questions wait.
+RECHECK = (
+    "Ты ответил текстом, а проект ждёт ответов на вопросы. Если сообщение пользователя "
+    "отвечает на них, вызови update_project, иначе повтори свой ответ"
+)
 INVESTIGATE_ARGS = {
     "type": "object",
     "properties": {"question": _TEXT, "say": _TEXT},
     "required": ["question"],
 }
-Say = Callable[[str], Awaitable[None]]
+Say = Callable[[str, str], Awaitable[None]]
 
 
 @dataclass(frozen=True)
@@ -102,11 +107,13 @@ class Decision:
     ``text`` is what the chat shows; ``summary`` says what an update changes.
     """
 
-    action: Literal["reply", "start", "update"]
+    action: Literal["reply", "ask", "start", "update"]
     text: str = ""
     title: str = ""
     notes: str = ""
     summary: str = ""
+    # The turn the decision came from, which the reply in the chat keeps.
+    turn: str = ""
 
 
 class Assistant:
@@ -114,37 +121,45 @@ class Assistant:
         self.runner, self.store, self.journal = runner, JobStore(uow), Journal(uow)
         self.sources = Sources(RunStore(uow), files)
         text, answer = split_tool(prompt("assistant"), REPLY, REPLY_ARGS)
+        text, ask = split_tool(text, ASK, REPLY_ARGS)
         text, start = split_tool(text, START, START_ARGS)
         text, update = split_tool(text, UPDATE, UPDATE_ARGS)
         text, log = split_tool(text, LOG)
         self.system, investigate = split_tool(text, INVESTIGATE, INVESTIGATE_ARGS)
         self.reply = answer
-        self.tools = [answer, start, update, log, investigate]
+        self.tools = [answer, ask, start, update, log, investigate]
 
     async def decide(self, situation: Situation, say: Say) -> Decision:
         """One turn: tools until a decision or a reply, which is a tool too or plain text;
         the last step offers only the reply.
 
         What the agent says along with an investigation reaches the chat at once, so the
-        user sees «сейчас посмотрю» while it runs.
+        user sees «сейчас посмотрю» while it runs. A reply in text while the questions wait
+        is checked once more, as that is how a typed answer used to get lost.
         """
         ctx = self.context(situation.job)
         await self.sources.parse(situation.files, ctx)
         messages = assistant_messages(self.system, situation)
+        rechecked = not open_questions(situation.job)
         for step in range(1, STEPS + 1):
             offered = self.tools if step < STEPS else [self.reply]
             reply = await self.runner.talk(ASSISTANT, messages, offered, ctx, step)
             calls = reply.tool_calls
             answer = called(calls, REPLY)
-            if answer is not None or not calls:
+            replied = answer is not None or not calls
+            if replied and (rechecked or step >= STEPS - 1):
                 text = str((answer or {}).get("text") or reply.content)
-                return Decision("reply", chat_text(text) or FALLBACK)
+                return Decision("reply", chat_text(text) or FALLBACK, turn=ctx.run_id)
+            if replied:
+                rechecked = True
+                messages += _recheck(reply.content, calls)
+                continue
             decision = self._decision(calls, reply.content, situation)
             if decision is not None:
-                return decision
+                return replace(decision, turn=ctx.run_id)
             spoken = str((called(calls, INVESTIGATE) or {}).get("say") or reply.content)
             if spoken.strip():
-                await say(chat_text(spoken))
+                await say(chat_text(spoken), ctx.run_id)
             messages.append({"role": "assistant", "content": reply.content, "tool_calls": calls})
             for call in calls:
                 result = await self._tool(call, situation, ctx)
@@ -161,6 +176,9 @@ class Assistant:
         self, calls: list[dict[str, Any]], text: str, situation: Situation
     ) -> Decision | None:
         """The first decision the code accepts; a refused one is answered by ``_tool``."""
+        ask = called(calls, ASK)
+        if ask is not None and refusal(ASK, situation) is None:
+            return Decision("ask", chat_text(str(ask.get("text") or text)) or FALLBACK)
         start = called(calls, START)
         if start is not None and refusal(START, situation, start) is None:
             title, notes = str(start.get("title") or ""), str(start.get("notes") or "")
@@ -175,17 +193,20 @@ class Assistant:
         self, call: dict[str, Any], situation: Situation, ctx: RunContext
     ) -> dict[str, Any]:
         name = call.get("function", {}).get("name", "")
-        if name in (START, UPDATE):
+        if name in (ASK, START, UPDATE):
             return {"error": refusal(name, situation, called([call], name) or {})}
         if name == LOG:
             return await self.journal.facts(situation.job)
         if name == INVESTIGATE:
-            question = called([call], INVESTIGATE) or {}
-            return {"answer": await self.investigate(situation.job, str(question.get("question")))}
+            question = str((called([call], INVESTIGATE) or {}).get("question"))
+            return {"answer": await self.investigate(situation.job, question, ctx.run_id)}
         return {"error": "Такого инструмента нет"}
 
-    async def investigate(self, job: Job, question: str) -> str:
-        """The analyst reasons over the journal and the agents' reasoning; it may take a while."""
+    async def investigate(self, job: Job, question: str, turn: str = "") -> str:
+        """The analyst reasons over the journal and the agents' reasoning; it may take a while.
+
+        It shares the turn, so the chat opens its reasoning above the same reply.
+        """
         facts = await self.journal.facts(job)
         reasoning = await self.journal.reasoning(job)
         content = (
@@ -197,7 +218,7 @@ class Assistant:
             {"role": "system", "content": prompt("analyst")},
             {"role": "user", "content": content},
         ]
-        reply = await self.runner.talk(ANALYST, messages, [], self.context(job))
+        reply = await self.runner.talk(ANALYST, messages, [], self.context(job, turn))
         return chat_text(reply.content) or "В журнале ответа на этот вопрос нет"
 
     async def report(self, job: Job) -> str:
@@ -221,12 +242,12 @@ class Assistant:
             text = ""
         return text or template(facts)
 
-    def context(self, job: Job) -> RunContext:
+    def context(self, job: Job, turn: str = "") -> RunContext:
         """The chat is never cancelled by a newer revision: the caller checks it on apply."""
         return RunContext(
             job_id=job.id,
             revision=job.revision,
-            run_id=identifier(),
+            run_id=turn or identifier(),
             check=_nothing,
             event=partial(self.store.event, job.id, job.revision),
         )
@@ -239,6 +260,11 @@ async def _nothing() -> None:
 def refusal(name: str, situation: Situation, arguments: dict[str, Any] | None = None) -> str | None:
     """Why the code does not take the call, said to the agent; None when it does."""
     job = situation.job
+    if name == ASK and asked(situation):
+        return (
+            "Подробности ты уже спрашивал, второй раз не спрашивай. Если среди новых файлов "
+            "есть модель STL, начни проект, иначе ответь через reply"
+        )
     waiting = job.status == Status.WAITING and job.card is not None
     if name == START and waiting and not (arguments or {}).get("drop_current"):
         return (
@@ -255,6 +281,33 @@ def refusal(name: str, situation: Situation, arguments: dict[str, Any] | None = 
     if name == UPDATE and job.revision == 0:
         return "Проекта ещё нет. Если есть модель STL, начни новый проект через start_project"
     return None
+
+
+def asked(situation: Situation) -> bool:
+    """The details of this part were asked already: since the current project began, or in
+    the whole chat before the first one."""
+    project = situation.job.project
+    since = project.first_message if project else 0
+    return any(m.get("kind") == "gate" and m.get("seq", 0) >= since for m in situation.messages)
+
+
+def open_questions(job: Job) -> list[str]:
+    if job.card is None or job.status != Status.WAITING:
+        return []
+    return [q.title for q in job.card.questions if not q.answer]
+
+
+def _recheck(content: str, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The reply goes back to the agent with the reminder, as a tool answer or a user turn."""
+    if not calls:
+        return [
+            {"role": "assistant", "content": content},
+            {"role": "user", "content": RECHECK},
+        ]
+    return [
+        {"role": "assistant", "content": content, "tool_calls": calls},
+        *({"role": "tool", "tool_call_id": c.get("id", ""), "content": RECHECK} for c in calls),
+    ]
 
 
 def assistant_messages(system: str, situation: Situation) -> list[dict[str, Any]]:
@@ -299,15 +352,14 @@ def state(situation: Situation) -> dict[str, Any]:
             "состояние": STATES.get(job.status, job.status.value),
             "назначение": job.card.purpose if job.card else "",
         }
-    waiting = job.card.questions if job.card and job.status == Status.WAITING else []
-    open_questions = [q.title for q in waiting if not q.answer]
+    waiting = open_questions(job)
     state = {
         "работа": f"идёт, этап {STAGES[job.stage]}" if situation.working else "не идёт",
         "текущий проект": current,
-        "вопросы без ответа": open_questions,
+        "вопросы без ответа": waiting,
         "новые файлы": [_file(a) for a in situation.files],
     }
-    if open_questions:
+    if waiting:
         state["как принять ответ"] = (
             "любой ответ на эти вопросы, даже «не знаю» или «решай сам», передай вызовом "
             "update_project, текстом он не засчитывается и работа стоит"

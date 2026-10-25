@@ -170,9 +170,11 @@ export function App() {
     },
     onError: (e) => setError(e.message),
   });
+  // Messages on their way to the assistant, by chat, until the chat that has them is loaded.
+  const [sending, setSending] = useState<Record<string, number>>({});
+  const count = (id: string, step: number) =>
+    setSending((now) => ({ ...now, [id]: (now[id] || 0) + step }));
   // While the job works a message waits in the queue for the end of the stage.
-  // A message on its way to the assistant, until the chat that has it is loaded.
-  const [awaiting, setAwaiting] = useState(false);
   const send = useMutation({
     mutationFn: async ({ text, queue }: { text: string; queue: boolean }) => {
       const id = await ensureJob();
@@ -349,7 +351,8 @@ export function App() {
     stages ? current[0]?.created_at : undefined,
   );
   // A message on its way to the assistant already waits for its reply.
-  const replying = answering(events, messages, running) || awaiting;
+  const replying =
+    answering(events, messages, running) || (sending[selected] || 0) > 0;
   // The assistant's turns show their reasoning as the agents of a stage do.
   const turns = chatRuns(events, thoughts);
   const thinking = turns.filter((turn) => turn.state === "run");
@@ -620,10 +623,12 @@ export function App() {
               toBottom("smooth");
               // Set in the click itself, so the reply row is on the page as the click ends;
               // the mutation's own state arrives a task later.
-              if (!running) setAwaiting(true);
+              const chat = selected;
+              const queue = running;
+              if (!queue) count(chat, 1);
               return send
-                .mutateAsync({ text, queue: running })
-                .finally(() => setAwaiting(false));
+                .mutateAsync({ text, queue })
+                .finally(() => !queue && count(chat, -1));
             }}
             editing={editing}
             onEdit={(text) =>

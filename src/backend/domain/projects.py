@@ -38,6 +38,18 @@ def project_messages(job: Job, messages: list[dict[str, Any]]) -> list[dict[str,
     return [m for m in messages if m.get("seq", 0) >= project.first_message]
 
 
+def first_message(job: Job, messages: list[dict[str, Any]], pending: list[dict[str, Any]]) -> int:
+    """Where a new project's messages begin: at the messages that start it, or earlier, at
+    the message the assistant answered with its one request for details."""
+    first = pending[0]["seq"] if pending else 0
+    since = job.project.first_message if job.project else 0
+    requests = [m["seq"] for m in messages if m.get("kind") == "gate" and since <= m["seq"] < first]
+    if not requests:
+        return first
+    users = [m["seq"] for m in messages if m["role"] == "user" and since <= m["seq"] < requests[-1]]
+    return users[-1] if users else requests[-1]
+
+
 def start_project(job: Job, title: str, notes: str, first_message: int) -> Project:
     """The next part of the chat; the finished one keeps its answers to hint the next.
 

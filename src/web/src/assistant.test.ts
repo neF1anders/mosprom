@@ -94,9 +94,11 @@ describe("the assistant's reasoning", () => {
       ["t2:assistant", "Ассистент", "run"],
     ]);
     expect(turns[0].said[0].text).toBe("Отвечаю на приветствие");
-    const reply = { ...message("assistant", at(5)), id: "r1" };
-    const earlier = { ...message("assistant", at(0)), id: "r0" };
-    const found = runsByReply([earlier, reply], turns);
+    // The turn opens above its last reply; another turn's reply gets nothing of it.
+    const said = { ...message("assistant", at(2)), id: "s1", turn: "t1" };
+    const reply = { ...message("assistant", at(5)), id: "r1", turn: "t1" };
+    const other = { ...message("assistant", at(5)), id: "r0", turn: "t0" };
+    const found = runsByReply([said, other, reply], turns);
     expect([...found.keys()]).toEqual(["r1"]);
     expect(found.get("r1")!.map((t) => t.id)).toEqual(["t1:assistant"]);
   });

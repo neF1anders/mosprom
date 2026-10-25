@@ -246,6 +246,8 @@ class Job(Value):
     error: str | None = None
     # The parts of the chat in order; files and the card belong to the last one.
     projects: list[Project] = Field(default_factory=list)
+    # The last user message the assistant has answered; the later ones wait for it.
+    answered: int = 0
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
 
@@ -274,6 +276,8 @@ class Message(Value):
     text: str
     # Files sent with the message, shown in its bubble.
     attachment_ids: list[str] = Field(default_factory=list)
+    # The assistant's turn a reply came from, so the chat opens the reasoning behind it.
+    turn: str | None = None
     created_at: datetime = Field(default_factory=now)
 
 
