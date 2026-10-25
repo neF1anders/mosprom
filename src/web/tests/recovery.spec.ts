@@ -112,7 +112,7 @@ test("T13 downloaded card embeds the full STL report of the active file", async 
       .replace(/\/card$/, `/artifacts/${card.geometry.report_id}.json`),
   );
   expect(raw.ok()).toBe(true);
-  // JSONB preserves numeric values, but canonicalizes IEEE negative zero to zero.
-  const sourceReport = JSON.parse(JSON.stringify(await raw.json()));
-  expect(sourceReport).toEqual(card.stl_analysis.report);
+  // SQLite keeps the JSON as it was written, IEEE negative zero included, so the card holds
+  // the report exactly as the analyzer wrote it.
+  expect(await raw.json()).toEqual(card.stl_analysis.report);
 });
