@@ -140,3 +140,26 @@ async def test_a_report_read_back_from_jsonb_gives_the_same_agent_input():
         texts.append(parts[0]["text"])
     assert texts[0] == texts[1]
     assert summarize(report, "mm", "k").limitations == summarize(reordered, "mm", "k").limitations
+
+
+async def test_a_region_the_agent_viewed_is_restored_from_its_file_and_cropped():
+    class StrictFiles(Files):
+        def __init__(self):
+            super().__init__()
+            self.keys = []
+
+        async def read(self, key):
+            self.keys.append(key)
+            assert "#" not in key
+            return self.content
+
+    files = StrictFiles()
+    ctx = context()
+    stored = [{"type": "image_url", "artifact": "p.png#left"}, {"type": "text", "text": "x"}]
+    restored = await ContentBuilder(files, inputs(), ctx).restore(stored)
+    url = restored[0]["image_url"]["url"]
+    with Image.open(io.BytesIO(base64.b64decode(url.split(",", 1)[1]))) as image:
+        assert image.size == (2000, 2000)
+    assert files.keys == ["p.png"]
+    assert ctx.images[url] == "p.png#left"
+    assert restored[1] == stored[1]
