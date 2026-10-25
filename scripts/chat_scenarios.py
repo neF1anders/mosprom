@@ -532,6 +532,34 @@ async def same_part_file(chat: Chat, result: Result) -> None:
     await chat.stop()
 
 
+@scenario("Два проекта в двух чатах одновременно")
+async def two_chats(chat: Chat, result: Result) -> None:
+    other = await Chat(chat.client, chat.examples, result).open()
+    try:
+        await chat.attach("wheel")
+        first = await chat.say("Нужна такая деталь, ТЗ и модель во вложении")
+        result.check("первый проект начат", first.action == "start", first)
+        await chat.wait_event("interpretation.started")
+        result.transcript.append("— переход во второй чат —")
+        talk = await other.say("Привет, пока там считается, ответь тут")
+        result.check("во втором чате ответ без работы", talk.action == "reply", talk)
+        await other.attach("boot")
+        second = await other.say("Вот другая деталь, сделай её")
+        result.check("второй проект начат в своём чате", second.action == "start", second)
+        done = await asyncio.gather(
+            chat.until({"waiting_user", "completed", "failed"}, 900),
+            other.until({"waiting_user", "completed", "failed"}, 900),
+        )
+        for (name, where), now in zip((("первый", "первом"), ("второй", "втором")), done):
+            job = now["job"]
+            files = {a["filename"] for a in now["attachments"] if a.get("project")}
+            result.check(f"{name} чат дошёл до конца или вопросов", job["status"] != "failed", job)
+            result.check(f"{name} чат не перезапускался", job["revision"] == 1, job["revision"])
+            result.check(f"в {where} чате только свои файлы", len(files) == 2, files)
+    finally:
+        await other.close()
+
+
 async def run_one(
     number: int, name: str, function: Scenario, client: httpx.AsyncClient, examples: Path
 ) -> Result:
