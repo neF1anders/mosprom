@@ -59,6 +59,29 @@ def _threshold(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
     return check
 
 
+def _ceiling(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
+    """Check that a numeric trait stays at or below the required value."""
+    read = attrgetter(trait)
+
+    def check(material: Candidate, required: float, flags: TextFlags) -> Verdict:
+        value = read(material.traits)
+        if value is None:
+            return "unknown", f"no {trait} data (general knowledge table, not verified)"
+        return ("ok" if value <= float(required) else "fail"), f"{trait}={value}"
+
+    return check
+
+
+def _heat(material: Candidate, required: float, flags: TextFlags) -> Verdict:
+    """A heat limit asked as Tg: a semi-crystalline polymer (PP, PA) keeps its shape far above
+    its Tg, so the higher of Tg and the heat deflection temperature is compared."""
+    found = [value for value in (material.traits.tg_c, material.traits.hdt_c) if value is not None]
+    if not found:
+        return "unknown", "no tg_c or hdt_c data (general knowledge table, not verified)"
+    detail = f"tg_c={material.traits.tg_c}, hdt_c={material.traits.hdt_c}"
+    return ("ok" if max(found) >= float(required) else "fail"), detail
+
+
 def _uv(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
     if not required:
         return None
@@ -83,12 +106,49 @@ def _stems_of(item: str) -> list[str]:
 
 def _chemicals(material: Candidate, required: Sequence[str], flags: TextFlags) -> Verdict:
     text = material.description.lower().replace("ё", "е")
-    matched = [item for item in required if any(stem in text for stem in _stems_of(item))]
+    traits = material.traits
+    poor = [item for item in required if _medium(item) in traits.chemical_poor]
+    if poor:
+        return "fail", f"the polymer family is known not to resist: {', '.join(poor)}"
+    matched = [
+        item
+        for item in required
+        if _medium(item) in traits.chemical_good or any(stem in text for stem in _stems_of(item))
+    ]
     if len(matched) == len(required):
         return "ok", f"catalog description mentions: {', '.join(matched)}"
     if matched:
         return "warn", f"catalog description covers only: {', '.join(matched)}"
     return "unknown", "catalog description does not mention the required media"
+
+
+def _medium(item: str) -> str:
+    """Our code of a medium given as a code or a Russian word; the word itself if unknown."""
+    stems = TRAITS.chemical_stems
+    word = item.lower().replace("ё", "е")
+    if word in stems:
+        return word
+    return next((code for code in sorted(stems) if any(stem in word for stem in stems[code])), word)
+
+
+def _low_friction(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
+    if not required:
+        return None
+    verdict = _level("friction", {"low": "ok", "medium": "warn", "high": "fail"})(
+        material, required, flags
+    )
+    if verdict is not None and verdict[0] == "ok" and material.traits.abrasive_filler:
+        return "warn", "friction=low, but the glass filler wears a polymer counterpart"
+    return verdict
+
+
+def _smooth_surface(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
+    """A surface without visible defects: fibres of a filler stand out of every wall."""
+    if not required:
+        return None
+    if material.traits.abrasive_filler:
+        return "warn", "fibre filler leaves a rough matte surface"
+    return "ok", "no fibre filler"
 
 
 def _flexible(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
@@ -139,26 +199,27 @@ def _unverifiable(material: Candidate, required: Any, flags: TextFlags) -> Verdi
 
 # The value each check receives has the kind of its requirement code (number, flag, list).
 _CHECKS: dict[str, Callable[[Candidate, Any, TextFlags], Verdict]] = {
-    "tg_min_c": _threshold("tg_c"),
+    "tg_min_c": _heat,
     "service_temp_max_c": _threshold("service_max_c"),
     "hydrophobic": _level("hygroscopic", {"low": "ok", "medium": "warn", "high": "fail"}),
     "uv_stable": _uv,
     "chemical_resistance": _chemicals,
     "flexible": _flexible,
     "density_max_g_cm3": _density,
-    "low_friction": _level("friction", {"low": "ok", "medium": "warn", "high": "fail"}),
+    "low_friction": _low_friction,
     "high_friction": _level("friction", {"high": "ok", "medium": "warn", "low": "fail"}),
     "abrasion_resistant": _level("abrasion", {"good": "ok", "fair": "warn", "poor": "fail"}),
     "high_stiffness": _level("stiffness", {"high": "ok", "medium": "warn", "low": "fail"}),
     "food_safe": _food,
+    "no_visible_layers": _smooth_surface,
     "esd": _unverifiable,
     "no_conductive_fillers": _unverifiable,
     "service_temp_peak_c": _unverifiable,
-    "heat_deflection_min_c": _unverifiable,
-    "tensile_modulus_min_mpa": _unverifiable,
-    "tensile_strength_min_mpa": _unverifiable,
-    "elongation_min_pct": _unverifiable,
-    "water_absorption_max_pct": _unverifiable,
+    "heat_deflection_min_c": _threshold("hdt_c"),
+    "tensile_modulus_min_mpa": _threshold("modulus_mpa"),
+    "tensile_strength_min_mpa": _threshold("tensile_mpa"),
+    "elongation_min_pct": _threshold("elongation_pct"),
+    "water_absorption_max_pct": _ceiling("water_24h_pct"),
 }
 CHECKED_CODES = frozenset(_CHECKS)
 
@@ -169,11 +230,25 @@ def _text_flags(material: Candidate) -> dict[str, bool]:
     return {name: any(marker in text for marker in found) for name, found in markers.items()}
 
 
-def evaluate(material: Candidate, requirements: Sequence[CardRequirement]) -> Evaluation:
+# A cost priority of the card prefers cheaper families; it weighs as a wish, not a requirement.
+_COST: dict[str, Status] = {"low": "ok", "medium": "warn", "high": "fail"}
+COST_PRIORITY = "cost"
+
+
+def evaluate(
+    material: Candidate, requirements: Sequence[CardRequirement], priority: Sequence[str] = ()
+) -> Evaluation:
     """Verdicts on one material per requirement, and a weighted score."""
     flags = _text_flags(material)
     checks = []
     total_weight = earned = 0.0
+    if COST_PRIORITY in priority:
+        status = _scale(material.traits.cost, _COST)
+        total_weight += _SOFT_WEIGHT
+        earned += _SOFT_WEIGHT * _SCORE[status]
+        checks.append(
+            Check("priority", COST_PRIORITY, False, status, f"cost={material.traits.cost}")
+        )
     for requirement in requirements:
         check = _CHECKS.get(requirement.key)
         verdict = check(material, requirement.value, flags) if check else None
@@ -189,7 +264,9 @@ def evaluate(material: Candidate, requirements: Sequence[CardRequirement]) -> Ev
 
 
 def rank_materials(
-    materials: Mapping[str, Candidate], requirements: Sequence[CardRequirement]
+    materials: Mapping[str, Candidate],
+    requirements: Sequence[CardRequirement],
+    priority: Sequence[str] = (),
 ) -> list[Evaluation]:
     """The printable pool, best first; ties go by material id for determinism."""
     pool = [
@@ -197,7 +274,7 @@ def rank_materials(
         for material in materials.values()
         if material.id.startswith(_POOL_PREFIXES) and _SUPPORT_ONLY_MARKER not in material.id
     ]
-    evaluations = [evaluate(material, requirements) for material in pool]
+    evaluations = [evaluate(material, requirements, priority) for material in pool]
     return sorted(
         evaluations, key=lambda found: (found.hard_failures, -found.score, found.material.id)
     )

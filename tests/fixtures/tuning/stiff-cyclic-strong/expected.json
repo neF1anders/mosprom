@@ -36,11 +36,11 @@
   "0": {
    "alternatives": [
     {
-     "id": "fiberpart_abs_g13",
+     "id": "fiberpart_abspa_g8",
      "why": "оценка 1.00"
     },
     {
-     "id": "fiberpart_abspa_g8",
+     "id": "fiberpart_pa12_g12",
      "why": "оценка 1.00"
     }
    ],
@@ -53,7 +53,7 @@
      "status": "ok"
     }
    ],
-   "id": "enduse_pc",
+   "id": "fiberpart_abs_g13",
    "source": "rule:MATERIAL-RANK",
    "why": "лучший из 29 материалов каталога по требованиям задания; оценка 1.00"
   }
@@ -109,6 +109,11 @@
   "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
  },
  "settings": {
+  "adhesion_type": {
+   "source": "rule:ADHESION-CLASSIC-SKIRT",
+   "value": "skirt",
+   "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
+  },
   "cool_fan_enabled_classic": {
    "scope": "extruder:0",
    "source": "rule:FAN-OFF-NO-COOLING",
@@ -136,14 +141,8 @@
    "scope": "extruder:0",
    "source": "rule:PRIORITY-STRENGTH",
    "unit": "°C",
-   "value": 285.0,
+   "value": 275.0,
    "why": "главный приоритет — прочность: больше периметров и сплошных слоёв, плотнее заполнение, сопло на 5 °C горячее для спекания слоёв"
-  },
-  "speed_print": {
-   "source": "rule:SPEED-MATERIAL-MAX",
-   "unit": "mm/s",
-   "value": 40.0,
-   "why": "скорость печати не выше рекомендованной в файле материала"
   },
   "top_bottom_thickness": {
    "source": "rule:LOAD-WALLS",

@@ -97,9 +97,10 @@ def test_settings_carry_only_what_differs_from_profile_and_material(select):
         "material_bed_temperature",
         "cool_fan_speed",
         "support_enable",
-        "adhesion_type",
     ):
         assert key not in settings
+    # The glass-filled ABS of a stiff gear barely warps: a skirt in place of the build's brim.
+    assert settings["adhesion_type"]["source"] == "rule:ADHESION-CLASSIC-SKIRT"
     assert all(
         setting["source"].startswith("rule:") and setting["why"] for setting in settings.values()
     )

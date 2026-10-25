@@ -15,7 +15,9 @@ Usage:
       [--out result.json]
 
 ``--cards current`` writes only the codes stage one emits today; ``coded`` adds the quality
-code ``print_quality`` of the dictionary.
+code ``print_quality`` of the dictionary; ``stage1`` takes the seven cards stage one really
+wrote in the eval run (``tests/fixtures/tuning/eval-N``, free keys, no ``part_class``) with a
+fresh STL report, so the selection is measured on what the pipeline hands over.
 """
 
 import argparse
@@ -274,13 +276,34 @@ def seven_requirements(old: dict[str, Any], part_class: str) -> list[Requirement
     return found
 
 
-def seven_cases(bench: Path, parts: Path, cases: Path) -> list[dict[str, Any]]:
+EVAL_CARDS = Path("tests/fixtures/tuning")
+
+
+def stage1_card(number: int, report: dict[str, Any]) -> TaskCard:
+    """The card of the eval run with the STL report of today's analysis."""
+    found = TaskCard.model_validate_json(
+        (EVAL_CARDS / f"eval-{number}" / "card.json").read_text(encoding="utf-8")
+    )
+    analysis = StlAnalysis(
+        attachment_id=found.stl_analysis.attachment_id if found.stl_analysis else "att",
+        sha256=report["file"]["sha256"],
+        report=report,
+    )
+    return found.model_copy(update={"stl_analysis": analysis})
+
+
+def seven_cases(
+    bench: Path, parts: Path, cases: Path, from_stage1: bool = False
+) -> list[dict[str, Any]]:
     results = []
-    for name, golden in SEVEN.items():
+    for number, (name, golden) in enumerate(SEVEN.items(), start=1):
         report = report_for(parts / golden["stl"], bench / "reports")
-        old = json.loads((cases / f"{name}.json").read_text())
-        requirements = seven_requirements(old, golden["part_class"])
-        found = select_parameters(card(name, report, requirements), CATALOG, KEYS)
+        if from_stage1:
+            task = stage1_card(number, report)
+        else:
+            old = json.loads((cases / f"{name}.json").read_text())
+            task = card(name, report, seven_requirements(old, golden["part_class"]))
+        found = select_parameters(task, CATALOG, KEYS)
         got = effective(found)
         score = {
             "mode": got["mode"] in golden["modes"],
@@ -357,12 +380,12 @@ def main() -> int:
     parser.add_argument("--bench", type=Path, default=Path(".scratch/bench"))
     parser.add_argument("--parts", type=Path, default=Path(".scratch/parts"))
     parser.add_argument("--cases", type=Path, default=Path(".scratch/cases"))
-    parser.add_argument("--cards", choices=["current", "coded"], default="coded")
+    parser.add_argument("--cards", choices=["current", "coded", "stage1"], default="coded")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--table", action="store_true")
     args = parser.parse_args()
     native = native_cases(args.bench, args.cards == "coded")
-    seven = seven_cases(args.bench, args.parts, args.cases)
+    seven = seven_cases(args.bench, args.parts, args.cases, args.cards == "stage1")
     result = {
         "cards": args.cards,
         "summary": summary(native, seven),
