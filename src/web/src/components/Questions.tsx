@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Question } from "../types";
 import { answered, UNKNOWN_ANSWER } from "../types";
-import { useDictation } from "../hooks/useDictation";
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
@@ -19,13 +18,6 @@ export function Questions({
   const [index, setIndex] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
   const question = open[Math.min(index, open.length - 1)];
-  const dictation = useDictation((spoken) => {
-    if (question)
-      setValues((v) => ({
-        ...v,
-        [question.id]: [v[question.id], spoken].filter(Boolean).join(" "),
-      }));
-  });
   if (!question) return null;
   const answer = values[question.id] || "";
   const options = [...new Set(question.options)].filter(
@@ -175,19 +167,6 @@ export function Questions({
             setValues((v) => ({ ...v, [question.id]: e.target.value }))
           }
         />
-        <button
-          className={styles.icon}
-          aria-label={
-            dictation.listening
-              ? "Остановить диктовку"
-              : "Голосовой ввод ответа"
-          }
-          disabled={!dictation.available}
-          data-native-enter
-          onClick={dictation.toggle}
-        >
-          <Icon name="mic" size={32} />
-        </button>
         {index > 0 && (
           <button
             className={styles.ghost}

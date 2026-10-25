@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Attachments, type DraftFile } from "./Attachments";
 import { Icon } from "./Icon";
-import { useDictation } from "../hooks/useDictation";
 import styles from "../App.module.css";
 
 export function Composer({
@@ -60,9 +59,6 @@ export function Composer({
     element.style.height = `${element.scrollHeight}px`;
   }, [text]);
   const uploading = files.some((file) => file.uploading);
-  const dictation = useDictation((spoken) =>
-    setText((t) => [t, spoken].filter(Boolean).join(" ")),
-  );
   return (
     <form
       ref={form}
@@ -151,22 +147,6 @@ export function Composer({
           <Icon name="clip" />
         </button>
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.icon}
-            aria-label={
-              dictation.listening ? "Остановить диктовку" : "Голосовой ввод"
-            }
-            disabled={!dictation.available}
-            title={
-              dictation.available
-                ? "Голосовой ввод"
-                : "Голосовой ввод недоступен в этом браузере"
-            }
-            onClick={dictation.toggle}
-          >
-            <Icon name="mic" size={32} />
-          </button>
           {running && !text.trim() && !editing ? (
             <button
               type="button"
