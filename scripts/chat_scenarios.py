@@ -33,6 +33,13 @@ PARTS = {
 WORKING = {"queued", "running"}
 CHAT_AGENTS = {"assistant", "analyst", "report"}
 POLL = 1.5
+# A task whose sources disagree: the checker's prompt makes it ask which value holds.
+DISAGREEING = (
+    "Техническое задание на шестерню привода конвейера\n"
+    "Рабочая температура детали до 60 °C, эксплуатация в цеху.\n"
+    "Нагрузка на зуб умеренная, работа в паре со стальной шестернёй.\n"
+    "Раздел 4. Условия эксплуатации. Максимальная рабочая температура 120 °C.\n"
+)
 
 
 def rid() -> str:
@@ -131,6 +138,15 @@ class Chat:
             )
             response.raise_for_status()
             self.result.transcript.append(f"📎 {path.name}")
+
+    async def attach_text(self, name: str, content: str) -> None:
+        response = await self.client.post(
+            f"/jobs/{self.id}/attachments",
+            files={"file": (name, content.encode())},
+            data={"request_id": rid()},
+        )
+        response.raise_for_status()
+        self.result.transcript.append(f"📎 {name}")
 
     async def say(self, text: str, timeout: float = 240) -> Turn:
         """Sends a message and waits for what it led to."""
@@ -345,16 +361,32 @@ async def words_only(chat: Chat, result: Result) -> None:
 
 @scenario("Сначала рассказ о детали, потом файлы без текста")
 async def notes_first(chat: Chat, result: Result) -> None:
-    turn = await chat.say(
-        "Деталь будет работать на улице зимой, до минус 30 градусов, сейчас пришлю файлы"
-    )
+    turn = await chat.say("Нужно две такие детали, это запасные на склад, сейчас пришлю файлы")
     result.check("ответ без работы", turn.action == "reply", turn)
     await chat.attach("gear")
     turn = await chat.say("")
     result.check("начал проект", turn.action == "start", turn)
     now = await chat.snapshot()
     notes = (now["job"].get("projects") or [{}])[-1].get("notes", "")
-    result.check("в заметках проекта условия из разговора", re.search(r"30|улиц|зим", notes), notes)
+    result.check(
+        "в заметках проекта сказанное в чате", re.search(r"дв|2|склад|запас", notes), notes
+    )
+    await chat.stop()
+
+
+@scenario("Рассказ о детали противоречит ТЗ")
+async def notes_against_the_task(chat: Chat, result: Result) -> None:
+    turn = await chat.say("Деталь будет работать на улице зимой, до минус 30, сейчас пришлю файлы")
+    result.check("ответ без работы", turn.action == "reply", turn)
+    await chat.attach("gear")
+    turn = await chat.say("")
+    # The task says a greenhouse up to +70, so the assistant asks which is right.
+    asked = turn.action in ("reply", "ask") and "?" in " ".join(turn.texts)
+    result.check("спросил, что верно, или учёл в заметках", asked or turn.action == "start", turn)
+    if turn.action == "start":
+        now = await chat.snapshot()
+        notes = (now["job"].get("projects") or [{}])[-1].get("notes", "")
+        result.check("сказанное в чате попало в заметки", re.search(r"30|улиц|зим", notes), notes)
     await chat.stop()
 
 
@@ -404,8 +436,12 @@ async def new_part_during_work(chat: Chat, result: Result) -> None:
 
 
 async def asking(chat: Chat, result: Result) -> list[dict[str, Any]] | None:
-    """A project whose checker asked; None marks the scenario skipped when it did not."""
-    await started(chat, result, "gear")
+    """A project whose sources disagree, so its checker asks; None marks the scenario
+    skipped when it still did not."""
+    await chat.attach("gear", ("stl",))
+    await chat.attach_text("ТЗ шестерни.txt", DISAGREEING)
+    turn = await chat.say("Нужна такая деталь, ТЗ и модель во вложении")
+    result.check("проект начат", turn.action == "start", turn)
     now = await chat.until({"waiting_user", "queued", "completed"}, 400)
     if now["job"]["status"] != "waiting_user":
         result.skipped = "проверяющий не задал вопросов"
