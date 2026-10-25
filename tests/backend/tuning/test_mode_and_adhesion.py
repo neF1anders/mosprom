@@ -91,6 +91,17 @@ def test_impeller_goes_to_5d_unless_it_is_a_flat_disc(select, length, diameter, 
     assert select(impeller)["printing_mode"]["value"] == mode
 
 
+def test_flat_fan_with_a_round_working_surface_stays_in_3d(select):
+    """Stage one may mark the fan's hub as a working surface of revolution; the flat disc
+    still prints in 3D, as the organisers label it: an impeller is the impeller rule's."""
+    fan = coded(
+        axial(22.0, 169.0, True),
+        requirement("part_class", "impeller_fan"),
+        requirement("functional_surface_of_revolution", "да"),
+    )
+    assert select(fan)["printing_mode"]["value"] == "classic"
+
+
 def test_gear_with_a_round_working_surface_stays_in_3d(select):
     gear = coded(
         axial(10.0, 33.0),
