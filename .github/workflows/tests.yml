@@ -6,11 +6,25 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-      - run: docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: uv sync --locked
+      - run: npm ci
+        working-directory: src/web
+      # The app serves the built chat to Playwright.
+      - run: npm run build
+        working-directory: src/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: src/web
+      # SQLite needs no service: the script starts the provider, the slicer stand-in and the app.
+      - run: uv run --locked python scripts/run_tests.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: stage-one-acceptance
-          path: artifacts/compose
-      - if: always()
-        run: docker compose -f compose.test.yaml down
+          path: |
+            artifacts/e2e
+            src/web/test-results
+            src/web/playwright-report
