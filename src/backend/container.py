@@ -58,7 +58,10 @@ class Container:
         self.control = ControlService(commands)
         self.queued = QueuedService(commands)
         self.uploads = UploadService(commands, self.files, self.uow, settings.limits)
-        self.artifacts = ArtifactService(self.uow, self.files)
+        self.result_folders = LocalResultFolders(
+            settings.slicer_folder, settings.slicer_host_folder
+        )
+        self.artifacts = ArtifactService(self.uow, self.files, self.result_folders)
         # общий исполнитель
         runner = AgentRunner(
             self.model,
@@ -73,7 +76,7 @@ class Container:
             self.uow,
             self.assistant,
             self.files,
-            LocalResultFolders(settings.slicer_folder, settings.slicer_host_folder),
+            self.result_folders,
         )
         self.stage1 = Stage1(
             self.uow,

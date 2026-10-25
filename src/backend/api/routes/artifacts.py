@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import PurePath
 from typing import Literal
 
 from fastapi import APIRouter, Response
@@ -7,6 +8,8 @@ from fastapi import APIRouter, Response
 from ..dependencies import Services, User
 
 router = APIRouter(tags=["artifacts"])
+# открываются в браузере
+INLINE = {".png": "image/png", ".md": "text/markdown; charset=utf-8"}
 
 
 @router.get("/jobs/{job_id}/card")
@@ -28,6 +31,25 @@ async def artifact(job_id: str, artifact_id: str, services: Services, user: User
         media_type=media,
         headers={
             "Content-Disposition": f'inline; filename="{artifact_id}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/jobs/{job_id}/result/files")
+async def kept_files(job_id: str, services: Services, user: User):
+    return await services.artifacts.kept_files(user, job_id)
+
+
+@router.get("/jobs/{job_id}/result/files/{name}")
+async def kept(job_id: str, name: str, services: Services, user: User):
+    data = await services.artifacts.kept(user, job_id, name)
+    media = INLINE.get(PurePath(name).suffix.lower())
+    return Response(
+        data,
+        media_type=media or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'{"inline" if media else "attachment"}; filename="{name}"',
             "X-Content-Type-Options": "nosniff",
         },
     )

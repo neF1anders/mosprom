@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from ..domain.errors import AppError, NotFound
 from ..domain.pipeline import Step
-from ..ports.operations import Files
+from ..ports.operations import Files, ResultFolders
 from ..ports.persistence import UowFactory
 
 ResultFile = Literal["gcode", "project"]
@@ -13,8 +13,8 @@ RESULT_FILES = {"gcode": ("gcode", "result.gcode"), "project": ("project", "proj
 
 
 class ArtifactService:
-    def __init__(self, uow: UowFactory, files: Files):
-        self.uow, self.files = uow, files
+    def __init__(self, uow: UowFactory, files: Files, folders: ResultFolders):
+        self.uow, self.files, self.folders = uow, files, folders
 
     async def read(self, user_id: str, job_id: str, artifact_id: str) -> bytes:
         async with self.uow() as uow:
@@ -38,3 +38,20 @@ class ArtifactService:
         if not report or not report.get(field):
             raise AppError("Проект ещё не создан", "result_pending", 409)
         return await self.files.read(report[field]), filename
+
+    async def kept_files(self, user_id: str, job_id: str) -> dict[str, Any]:
+        """Содержимое папки проекта сейчас."""
+        async with self.uow() as uow:
+            job = await uow.jobs.get(job_id, user_id=user_id)
+        folder = job.result.kept_folder if job.result else None
+        files = await self.folders.files(folder) if folder else None
+        return {"folder": folder, "exists": files is not None, "files": files or []}
+
+    async def kept(self, user_id: str, job_id: str, name: str) -> bytes:
+        """Файл из папки проекта."""
+        async with self.uow() as uow:
+            job = await uow.jobs.get(job_id, user_id=user_id)
+        folder = job.result.kept_folder if job.result else None
+        if not folder:
+            raise NotFound()
+        return await self.folders.read(folder, name)

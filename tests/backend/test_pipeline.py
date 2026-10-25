@@ -229,6 +229,7 @@ async def test_a_ready_card_goes_through_every_step_to_a_project(pg, http):
         "print_time_seconds": 3720,
         "material_grams": None,
         "material_meters": 1.5,
+        "kept_folder": None,
     }
     assert steps.sliced == [(f"{job_id}-r1-i1", 1, {"att": "att"})]
     assert steps.gcode == [f"{job_id}-r1-i1.gcode"]
@@ -479,6 +480,26 @@ async def test_the_real_steps_and_the_plugin_stand_in_make_a_project(pg, http, p
     assert (kept / "report.md").read_text() == report["text"]
     with Image.open(kept / "chat_01.png") as picture:
         assert picture.format == "PNG" and picture.width == 1080
+    # панель читает папку
+    assert done.result.kept_folder == kept.name
+    listed = (await http.get(f"/api/v1/jobs/{job_id}/result/files")).json()
+    assert (listed["folder"], listed["exists"]) == (kept.name, True)
+    assert [f["name"] for f in listed["files"]] == names
+    picture = await http.get(f"/api/v1/jobs/{job_id}/result/files/chat_01.png")
+    assert picture.headers["content-type"] == "image/png"
+    assert picture.content == (kept / "chat_01.png").read_bytes()
+    # удалили в проводнике
+    (kept / "chat_01.png").unlink()
+    listed = (await http.get(f"/api/v1/jobs/{job_id}/result/files")).json()
+    assert "chat_01.png" not in [f["name"] for f in listed["files"]]
+    assert (await http.get(f"/api/v1/jobs/{job_id}/result/files/chat_01.png")).status_code == 404
+    for name in ("..", "%2E%2E", "..%5Creport.md", "C:report.md"):
+        assert (await http.get(f"/api/v1/jobs/{job_id}/result/files/{name}")).status_code == 404
+    for path in kept.iterdir():
+        path.unlink()
+    kept.rmdir()
+    listed = (await http.get(f"/api/v1/jobs/{job_id}/result/files")).json()
+    assert (listed["exists"], listed["files"]) == (False, [])
 
 
 async def test_without_a_running_slicer_the_parameters_stay_and_the_chat_says_why(pg, http):

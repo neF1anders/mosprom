@@ -19,7 +19,7 @@ from .files import LocalFiles
 logger = logging.getLogger(__name__)
 EXCHANGE = "mosprom"
 # лимиты плагина
-SLICE_SECONDS = 330
+SLICE_SECONDS = 930
 CALL_SECONDS = 60
 RESET_TOOL = "reset_settings"
 OVERRUN = "Слайсер не ответил вовремя"

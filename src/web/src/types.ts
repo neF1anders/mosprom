@@ -116,6 +116,8 @@ export interface ResultSummary {
   message: string;
   gcode_check: "pending" | "ok" | "attention";
   folder: string | null;
+  // папка пользователя
+  kept_folder?: string | null;
   print_time_seconds: number | null;
   material_grams: number | null;
   material_meters: number | null;

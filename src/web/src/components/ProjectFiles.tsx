@@ -1,4 +1,6 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { api as request } from "../api";
 import { extension } from "../chat";
 import type { Attachment, Job } from "../types";
 import { Icon } from "./Icon";
@@ -11,6 +13,12 @@ interface Node {
   attachment?: string;
   error?: string | null;
   children?: Node[];
+}
+// папка на диске
+interface Kept {
+  folder: string | null;
+  exists: boolean;
+  files: { name: string; size: number }[];
 }
 // иконки по расширению
 const kinds: Record<string, string> = {
@@ -27,7 +35,11 @@ const kinds: Record<string, string> = {
   gcode: "gcode",
 };
 // проект в чате
-function tree(job: Job | undefined, attachments: Attachment[]): Node | null {
+function tree(
+  job: Job | undefined,
+  attachments: Attachment[],
+  kept?: Kept,
+): Node | null {
   if (!job || (!attachments.length && !job.card)) return null;
   const api = `/api/v1/jobs/${job.id}`;
   const children: Node[] = [];
@@ -45,13 +57,13 @@ function tree(job: Job | undefined, attachments: Attachment[]): Node | null {
     children.push({ name: "карточка_задания.json", href: `${api}/card` });
   if (job.stage === "done" && job.parameters)
     children.push({ name: "параметры.json", href: `${api}/parameters` });
-  const result: Node[] = job.result?.sliced
-    ? [
-        { name: "project.3mf", href: `${api}/result/project` },
-        { name: "result.gcode", href: `${api}/result/gcode` },
-      ]
-    : [];
-  children.push({ name: "результат", children: result });
+  const files: Node[] = (kept?.files ?? []).map((file) => ({
+    name: file.name,
+    href: `${api}/result/files/${encodeURIComponent(file.name)}`,
+  }));
+  const folder =
+    kept?.exists && kept.folder ? [{ name: kept.folder, children: files }] : [];
+  children.push({ name: "Результаты", children: folder });
   return { name: job.projects?.at(-1)?.title || job.title, children };
 }
 // направляющие уровней
@@ -181,7 +193,15 @@ export function ProjectFiles({
     const timer = setTimeout(() => setCopied(false), 1500);
     return () => clearTimeout(timer);
   }, [copied]);
-  const root = tree(job, attachments);
+  const keptFolder = job?.result?.kept_folder ?? null;
+  const kept = useQuery({
+    queryKey: ["kept", job?.id, keptFolder],
+    queryFn: () => request<Kept>(`/jobs/${job?.id}/result/files`),
+    enabled: !!job && !!keptFolder,
+    // проводник меняет папку
+    refetchInterval: 2000,
+  });
+  const root = tree(job, attachments, kept.data);
   return (
     <section className={styles.projectFiles} aria-label="Файлы проекта">
       <div className={styles.row}>

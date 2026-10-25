@@ -23,7 +23,7 @@ from .mainthread import run_on_main
 DEFAULT_PRINTER = "hte530v5.2.4"  # станок Hybrid 530
 
 # таймаут слайсинга
-SLICE_SECONDS = 300
+SLICE_SECONDS = 900
 # ожидание предыдущего вызова
 CALL_WAIT_SECONDS = 50
 # лимит панели изменений

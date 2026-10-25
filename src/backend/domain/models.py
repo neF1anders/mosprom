@@ -196,6 +196,8 @@ class ResultSummary(Value):
     print_time_seconds: int | None = None
     material_grams: float | None = None
     material_meters: float | None = None
+    # папка пользователя
+    kept_folder: str | None = None
 
 
 class Project(Value):
