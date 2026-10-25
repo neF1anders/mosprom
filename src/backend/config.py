@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     slicer_host_folder: str = ""
     slicer_host: str = "127.0.0.1"
     # предел нарезки
-    slicing_timeout_seconds: float = Field(default=1000, gt=0)
+    slicing_timeout_seconds: float = Field(default=1500, gt=0)
     # число параллельных этапов
     worker_concurrency: int = Field(default=4, ge=1, le=32)
     app_origin: str = "http://localhost:8000"

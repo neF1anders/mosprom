@@ -23,7 +23,7 @@ from .mainthread import run_on_main
 DEFAULT_PRINTER = "hte530v5.2.4"  # станок Hybrid 530
 
 # таймаут слайсинга
-SLICE_SECONDS = 900
+SLICE_SECONDS = 1200
 # ожидание предыдущего вызова
 CALL_WAIT_SECONDS = 50
 # лимит панели изменений
@@ -127,6 +127,8 @@ class Session(object):
         self.backend = None
         self.restarts = 0
         self.last_start = 0.0
+        # движок пропал подряд
+        self.engine_lost_polls = 0
 
     def record(self, name, old, new, reason):
         self.changes.append({"name": name, "old": old, "new": new, "reason": reason})
@@ -891,11 +893,43 @@ def _hook_backend():
     return backend
 
 
+def _engine_ended(backend):
+    """Бэкенд держит завершённый движок."""
+    process = getattr(backend, "_process", None)
+    return process is not None and process.poll() is not None
+
+
+def _release_ended_engine(backend):
+    """Отдаёт бэкенду пропущенный выход движка."""
+    # сигнал потерян
+    if not _engine_ended(backend):
+        return
+    helper = getattr(backend, "_glicer_process", None)
+    if helper is not None and helper.poll() is None:
+        # иначе блокирует поток
+        raise ToolError(
+            "The slicer is still running an earlier slicing step. Try slicing again later."
+        )
+    Logger.log(
+        "i",
+        "AI Assistant: %s still holds an engine that exited while another backend was current",
+        backend.getPluginId(),
+    )
+    backend.backendQuit.emit()
+    if _engine_ended(backend):
+        raise ToolError(
+            "The slicing engine of %s has stopped and the slicer did not let it go. "
+            "Restart STE Slicer." % backend.getPluginId()
+        )
+
+
 def _start_slice():
     if not _models():
         raise ToolError("There are no models on the build plate. Use load_model first.")
     backend = _hook_backend()
+    _release_ended_engine(backend)
     SESSION.restarts = 0
+    SESSION.engine_lost_polls = 0
     SESSION.last_start = time.time()
     if SESSION.slice_state != BackendState.Processing:
         # рестарт движка падает
@@ -908,6 +942,7 @@ def _start_slice():
 def _restart_slice():
     SESSION.restarts += 1
     SESSION.last_start = time.time()
+    _release_ended_engine(SESSION.backend)
     SESSION.backend.forceSlice()
 
 
@@ -942,6 +977,11 @@ def _poll_slice():
         return "error"
     if SESSION.slice_state == BackendState.Done and _gcode():
         return "done"
+    # мёртвый движок дважды
+    lost = SESSION.slice_state == BackendState.Processing and _engine_ended(SESSION.backend)
+    SESSION.engine_lost_polls = SESSION.engine_lost_polls + 1 if lost else 0
+    if SESSION.engine_lost_polls >= 2:
+        return "engine_lost"
     if (
         SESSION.slice_state == BackendState.NotStarted
         and time.time() - SESSION.last_start > 4
@@ -1005,6 +1045,11 @@ def slice_model():
         if state == "error":
             raise ToolError(
                 "Slicing failed. Check the model, the printer profile and the STE Slicer license."
+            )
+        if state == "engine_lost":
+            raise ToolError(
+                "The slicing engine of the slicer has exited and the slicing cannot finish. "
+                "Restart STE Slicer."
             )
         if state == "restart":
             _wait_for_stack_check(deadline)

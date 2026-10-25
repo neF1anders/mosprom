@@ -67,7 +67,7 @@ class Client(object):
         self.token = info["token"]
 
     def request(self, method, path, body=None, headers=None, token=True):
-        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=330)
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=1230)
         merged = {"Content-Type": "application/json"}
         if token:
             merged["X-Token"] = self.token
