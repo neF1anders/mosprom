@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from sqlalchemy import text
 
 from scripts.fake_ste_slicer import FakeSlicer
@@ -19,8 +20,10 @@ from src.backend.agents.store import RunStore
 from src.backend.domain.errors import AppError
 from src.backend.domain.models import Requirement, Status, StlAnalysis, TaskCard
 from src.backend.domain.parameters import CheckResult, Exclusion, Feedback, Issue, ParameterSet
+from src.backend.domain.projects import part_name
 from src.backend.domain.slicing import GcodeCheck, GcodeFinding, SliceReport
 from src.backend.infrastructure.catalog import load_catalog
+from src.backend.infrastructure.results import folder_name
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
 from src.backend.services.commands import changed
 from src.mesh_analysis import analyze_stl
@@ -460,12 +463,28 @@ async def test_the_real_steps_and_the_plugin_stand_in_make_a_project(pg, http, p
     ]
     assert done.result.sliced and done.result.gcode_check == "ok", done.result
     run = pg.settings.slicer_folder / "mosprom" / f"{job_id}-r1-i1"
-    assert done.result.folder == str(run)
     gcode = await http.get(f"/api/v1/jobs/{job_id}/result/gcode")
     assert gcode.status_code == 200 and gcode.content == (run / "result.gcode").read_bytes()
     assert "result.gcode" in gcode.headers["content-disposition"]
     project = await http.get(f"/api/v1/jobs/{job_id}/result/project")
     assert project.content == (run / "project.3mf").read_bytes()
+    # The user keeps the project in a folder of its own, named after the part, with the
+    # report and a picture of the chat; the chat and the report point to that folder.
+    kept = pg.settings.slicer_folder / "Результаты" / folder_name(part_name(done))
+    assert done.result.folder == str(kept)
+    names = sorted(p.name for p in kept.iterdir())
+    assert names == ["chat_01.png", "project.3mf", "report.md", "result.gcode"]
+    assert (kept / "result.gcode").read_bytes() == gcode.content
+    assert (kept / "project.3mf").read_bytes() == project.content
+    messages = await rows(
+        pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
+    )
+    report = messages[-1]["payload"]
+    assert report["kind"] == "report"
+    assert f"Проект лежит в папке {kept}" in report["text"]
+    assert (kept / "report.md").read_text() == report["text"]
+    with Image.open(kept / "chat_01.png") as picture:
+        assert picture.format == "PNG" and picture.width == 1080
 
 
 async def test_without_a_running_slicer_the_parameters_stay_and_the_chat_says_why(pg, http):
@@ -487,6 +506,10 @@ async def test_without_a_running_slicer_the_parameters_stay_and_the_chat_says_wh
     assert report["kind"] == "report"
     assert report["text"].startswith("Параметры подобраны, но проект не создан")
     assert "STE Slicer с плагином AI Assistant не запущен" in report["text"]
+    # Nothing was sliced, yet the request keeps its folder with the report and the chat.
+    kept = pg.settings.slicer_folder / "Результаты" / folder_name(part_name(done))
+    assert sorted(p.name for p in kept.iterdir()) == ["chat_01.png", "report.md"]
+    assert "Проект лежит в папке" not in report["text"]
 
 
 async def test_the_gcode_check_sends_the_selection_back_once(pg, http):

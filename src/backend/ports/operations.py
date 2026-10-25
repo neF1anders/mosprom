@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 from ..domain.parameters import ParameterSet
@@ -62,3 +63,19 @@ class Slicer(Protocol):
     async def slice(
         self, run: str, parameter_set: ParameterSet, models: dict[str, str]
     ) -> SliceReport: ...
+
+
+@dataclass(frozen=True)
+class ResultFolder:
+    """A finished project's own folder: ``path`` here, ``shown`` as the slicer's machine sees it."""
+
+    path: Path
+    shown: str
+
+
+class ResultFolders(Protocol):
+    """The folders the user keeps, one per finished project and named after its part."""
+
+    async def reserve(self, part: str) -> ResultFolder: ...
+    async def write(self, folder: ResultFolder, name: str, data: bytes) -> None: ...
+    async def discard(self, folder: ResultFolder) -> None: ...
