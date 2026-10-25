@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { preview, type Preview } from "../preview";
+import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
 export interface DraftFile {
@@ -11,29 +12,33 @@ export interface DraftFile {
   load?: () => Promise<Blob>;
 }
 const icons: Record<string, string> = {
-  stl: "stl",
+  stl: "model",
   png: "image",
   jpg: "image",
   jpeg: "image",
-  docx: "document",
-  txt: "document",
-  md: "document",
+  pdf: "doc",
+  docx: "doc",
+  txt: "doc",
+  md: "doc",
 };
 function uploadState(file: DraftFile) {
   if (file.uploading) return "uploading";
   return file.error ? "failed" : "ready";
 }
 // Files wait in the composer until the message is sent, as on Figma screen 11.
+// Without onRemove the cards only show what a sent message carried.
 export function Attachments({
   files,
   onRemove,
+  label = "Вложения к сообщению",
 }: {
   files: DraftFile[];
-  onRemove: (file: DraftFile) => void;
+  onRemove?: (file: DraftFile) => void;
+  label?: string;
 }) {
   if (!files.length) return null;
   return (
-    <ul className={styles.attachments} aria-label="Вложения к сообщению">
+    <ul className={styles.attachments} aria-label={label}>
       {files.map((file) => (
         <AttachmentCard key={file.key} file={file} onRemove={onRemove} />
       ))}
@@ -45,7 +50,7 @@ function AttachmentCard({
   onRemove,
 }: {
   file: DraftFile;
-  onRemove: (file: DraftFile) => void;
+  onRemove?: (file: DraftFile) => void;
 }) {
   const state = uploadState(file);
   const shown = usePreview(state === "ready" ? file : undefined);
@@ -56,16 +61,11 @@ function AttachmentCard({
       aria-busy={file.uploading || undefined}
     >
       <div className={styles.attachmentPreview}>
-        {state === "uploading" && (
-          <img
-            className={styles.attachmentSpinner}
-            src="/figma/spinner.svg"
-            alt="Загружаю"
-          />
-        )}
         {state === "failed" && (
           <>
-            <img src="/figma/error.svg" alt="" />
+            <span className={styles.badge} data-state="error">
+              <Icon name="err-x" />
+            </span>
             <p>{file.error}</p>
           </>
         )}
@@ -81,17 +81,17 @@ function AttachmentCard({
           ))}
       </div>
       <div className={styles.attachmentLabel}>
-        <img src={`/figma/kind-${icons[file.kind] || "file"}.svg`} alt="" />
+        <Icon name={icons[file.kind] || "plain-file"} />
         <span title={file.name}>{file.name}</span>
       </div>
-      {!file.uploading && (
+      {onRemove && !file.uploading && (
         <button
           type="button"
           className={styles.attachmentRemove}
           aria-label={`Убрать ${file.name}`}
           onClick={() => onRemove(file)}
         >
-          <img src="/figma/remove.svg" alt="" />
+          <Icon name="remove-x" size={20} />
         </button>
       )}
     </li>

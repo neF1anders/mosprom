@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { addThought, type CallThoughts } from "../timeline";
 import type { ProgressEvent } from "../types";
 
 // Events that change the snapshot or the chat list; progress and tool calls do not.
 const STATE_EVENTS =
-  /^(job\.|answers\.|stage1\.|operation\.|files\.(completed|failed)|stl\.(completed|failed)|parameters\.|validation\.|slicing\.|gcode\.|pipeline\.)/;
+  /^(job\.|answers\.|stage1\.|operation\.|files\.(completed|failed)|stl\.(completed|failed)|parameters\.|validation\.|slicing\.|gcode\.|pipeline\.|queue\.|steer\.|message\.|assistant\.)/;
 
 // The server starts the stream at the revision of the job's work and resumes it by Last-Event-ID.
 export function useJobEvents(selected: string, enabled: boolean) {
   const client = useQueryClient();
   const [events, setEvents] = useState<ProgressEvent[]>([]);
+  // Reasoning and the narrator's phrases are kept per model call, apart from the timeline events.
+  const [thoughts, setThoughts] = useState<Record<string, CallThoughts>>({});
   const [connected, setConnected] = useState(true);
   const [epoch, setEpoch] = useState(0);
   useEffect(() => {
@@ -25,20 +28,37 @@ export function useJobEvents(selected: string, enabled: boolean) {
   useEffect(() => {
     if (!selected || !enabled) return;
     setEvents([]);
+    setThoughts({});
+    const seen = new Set<number>();
     setConnected(navigator.onLine);
     const source = new EventSource(`/api/v1/jobs/${selected}/events`);
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // The chat is fetched anew, dropping a fetch that started before the event. The list
+    // keeps a fetch on its way: the next page of chats the user asked for would be dropped
+    // while the open chat keeps working.
     const refresh = () => {
       void client.invalidateQueries({ queryKey: ["job", selected] });
-      void client.invalidateQueries({ queryKey: ["jobs"] });
+      void client.invalidateQueries(
+        { queryKey: ["jobs"] },
+        { cancelRefetch: false },
+      );
       timer = undefined;
     };
     source.onmessage = (message) => {
       const update: ProgressEvent = JSON.parse(message.data);
+      if (
+        update.type === "agent.thinking" ||
+        update.type === "agent.narration"
+      ) {
+        if (seen.has(update.event_id)) return;
+        seen.add(update.event_id);
+        setThoughts((previous) => addThought(previous, update));
+        return;
+      }
       setEvents((previous) =>
         previous.some((e) => e.event_id === update.event_id)
           ? previous
-          : [...previous, update].slice(-200),
+          : [...previous, update].slice(-1000),
       );
       // Several state events in a burst cost one refetch.
       if (STATE_EVENTS.test(update.type) && !timer)
@@ -54,5 +74,5 @@ export function useJobEvents(selected: string, enabled: boolean) {
       clearTimeout(timer);
     };
   }, [selected, enabled, client, epoch]);
-  return { events, connected };
+  return { events, thoughts, connected };
 }

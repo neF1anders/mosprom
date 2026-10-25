@@ -5,12 +5,21 @@ from __future__ import annotations
 import builtins
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..domain.errors import AppError, NotFound
-from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
+from ..domain.models import (
+    AgentCall,
+    Attachment,
+    Event,
+    Job,
+    JobHead,
+    Knowledge,
+    Message,
+    QueuedMessage,
+)
 from ..domain.pipeline import Step
 from . import tables as t
 
@@ -88,12 +97,15 @@ class JobRepository(Repository):
 
 
 class MessageRepository(Repository):
-    async def add(self, message: Message) -> None:
-        await self._session.execute(
-            insert(t.messages).values(
-                job_id=message.job_id, payload=message.model_dump(mode="json")
+    async def add(self, message: Message) -> int:
+        """The message's place in the chat, which a project counts its messages from."""
+        return (
+            await self._session.execute(
+                insert(t.messages)
+                .values(job_id=message.job_id, payload=message.model_dump(mode="json"))
+                .returning(t.messages.c.seq)
             )
-        )
+        ).scalar_one()
 
     async def list(
         self, job_id: str, before: int | None = None, limit: int = 100
@@ -108,6 +120,33 @@ class MessageRepository(Repository):
             query = query.where(t.messages.c.seq < before)
         rows = (await self._session.execute(query)).mappings()
         return list(reversed([dict(row["payload"], seq=row["seq"]) for row in rows]))
+
+
+class QueuedRepository(Repository):
+    """Messages typed while the job works, in the order they were sent."""
+
+    async def save(self, item: QueuedMessage) -> None:
+        query = insert(t.queued_messages).values(
+            id=item.id, job_id=item.job_id, payload=item.model_dump(mode="json")
+        )
+        await self._session.execute(
+            query.on_conflict_do_update(
+                index_elements=["id"], set_={"payload": query.excluded.payload}
+            )
+        )
+
+    async def list(self, job_id: str) -> builtins.list[QueuedMessage]:
+        rows = await self._session.scalars(
+            select(t.queued_messages.c.payload)
+            .where(t.queued_messages.c.job_id == job_id)
+            .order_by(t.queued_messages.c.seq)
+        )
+        return [QueuedMessage.model_validate(row) for row in rows]
+
+    async def remove(self, ids: builtins.list[str]) -> None:
+        await self._session.execute(
+            delete(t.queued_messages).where(t.queued_messages.c.id.in_(ids))
+        )
 
 
 class AttachmentRepository(Repository):
@@ -231,6 +270,18 @@ class KnowledgeRepository(Repository):
 class TraceRepository(Repository):
     async def record(self, call: AgentCall) -> None:
         await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))
+
+    async def calls(self, job_id: str, revision: int) -> builtins.list[AgentCall]:
+        """The calls of one revision's work in order, for questions about how it went."""
+        rows = await self._session.execute(
+            select(t.agent_calls)
+            .where(t.agent_calls.c.job_id == job_id, t.agent_calls.c.revision == revision)
+            .order_by(t.agent_calls.c.id)
+        )
+        return [
+            AgentCall.model_validate({k: v for k, v in row.items() if k != "id"})
+            for row in rows.mappings()
+        ]
 
     async def usage(self, job_id: str) -> tuple[int, int]:
         """Provider calls a job made and the tokens they spent; cached results cost nothing."""

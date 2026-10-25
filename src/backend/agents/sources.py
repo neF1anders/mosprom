@@ -34,7 +34,7 @@ class Sources:
     async def parse(self, attachments: list[Attachment], ctx: RunContext) -> None:
         """Documents are parsed side by side; a file that failed before is tried again.
 
-        Parsing is silent: the gate reads the documents before it decides to start, and a
+        Parsing is silent: the assistant reads the documents before it decides to start, and a
         plain chat reply must not open the timeline.
         """
         await together(

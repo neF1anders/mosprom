@@ -4,15 +4,17 @@ import httpx
 import pytest
 
 from src.backend.domain.errors import AppError
+from src.backend.domain.model_settings import ModelSettings
+from src.backend.infrastructure.model_settings import ModelSettingsFile
 from src.backend.infrastructure.qwen import QwenClient
+from src.backend.ports.operations import Reasoning
 
 pytestmark = pytest.mark.unit
+SETTINGS = ModelSettings("http://test/v1", "test-model", "key")
 
 
-def client(respond) -> QwenClient:
-    return QwenClient(
-        "http://test/v1", "test-model", "key", transport=httpx.MockTransport(respond), retry_delay=0
-    )
+def client(respond, settings: ModelSettings = SETTINGS) -> QwenClient:
+    return QwenClient(lambda: settings, transport=httpx.MockTransport(respond), retry_delay=0)
 
 
 @pytest.mark.parametrize("status,attempts", [(429, 3), (500, 3), (503, 3), (401, 1), (400, 1)])
@@ -72,11 +74,50 @@ async def test_reply_keeps_reasoning_usage_and_raw_provider_answer():
     await qwen.close()
 
 
-async def test_missing_key_is_reported_without_a_request():
-    qwen = QwenClient("http://test", "m", "")
+@pytest.mark.parametrize(
+    "settings",
+    [
+        ModelSettings("http://test/v1", "m", ""),
+        ModelSettings("", "m", "key"),
+        ModelSettings("http://test/v1", "", "key"),
+    ],
+)
+async def test_unconfigured_model_fails_fast_without_a_request(settings):
+    calls = []
+
+    async def respond(request):
+        calls.append(request)
+        return httpx.Response(200, json={})
+
+    qwen = client(respond, settings)
     with pytest.raises(AppError) as error:
         await qwen.complete([], [], agent="a", thinking=False)
-    assert error.value.code == "model_not_configured"
+    assert error.value.code == "model_not_configured" and not calls
+    assert error.value.message == "LLM модель не подключена, укажите адрес API, модель и ключ"
+    await qwen.close()
+
+
+async def test_a_save_in_the_chat_reaches_the_next_call(tmp_path):
+    """The client reads the address, model and key at every call, not once at startup."""
+    sent = []
+
+    async def respond(request):
+        model = json.loads(request.content)["model"]
+        sent.append((str(request.url), request.headers["Authorization"], model))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+    saved = ModelSettingsFile(tmp_path, ModelSettings("http://env/v1", "env-model", ""))
+    qwen = QwenClient(saved.current, transport=httpx.MockTransport(respond))
+    with pytest.raises(AppError):
+        await qwen.complete([], [], agent="a", thinking=False)
+    saved.update("https://other.example/api/", "other-model", "secret")
+    await qwen.complete([], [], agent="a", thinking=False)
+    saved.update("http://third/v1", "third-model", None)
+    await qwen.complete([], [], agent="a", thinking=False)
+    assert sent == [
+        ("https://other.example/api/chat/completions", "Bearer secret", "other-model"),
+        ("http://third/v1/chat/completions", "Bearer secret", "third-model"),
+    ]
     await qwen.close()
 
 
@@ -177,4 +218,73 @@ async def test_budget_is_sent_only_with_thinking():
     qwen = client(respond)
     await qwen.complete([], [], agent="a", thinking=False, budget=900)
     assert "thinking_budget" not in sent["payload"]
+    await qwen.close()
+
+
+def listener() -> tuple[list[tuple[str, int]], Reasoning]:
+    seen: list[tuple[str, int]] = []
+
+    async def think(text: str, attempt: int) -> None:
+        seen.append((text, attempt))
+
+    return seen, think
+
+
+async def test_streamed_reasoning_reaches_the_caller_piece_by_piece():
+    seen, think = listener()
+    body = stream(
+        {"choices": [{"delta": {"reasoning_content": "ду"}}]},
+        {"choices": [{"delta": {"content": "{"}}]},
+        {"choices": [{"delta": {"reasoning_content": "маю", "content": "}"}}]},
+        {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+    )
+
+    async def respond(request):
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    qwen = client(respond)
+    reply = await qwen.complete([], [], agent="a", thinking=True, on_reasoning=think)
+    assert seen == [("ду", 1), ("маю", 1)] and reply.reasoning == "думаю"
+    await qwen.close()
+
+
+async def test_a_retry_streams_its_reasoning_as_the_next_attempt():
+    seen, think = listener()
+    bodies = [
+        stream({"choices": [{"delta": {"reasoning_content": "оборвалось"}}]}),
+        stream(
+            {"choices": [{"delta": {"reasoning_content": "заново", "content": "{}"}}]},
+            {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+        ),
+    ]
+
+    async def respond(request):
+        return httpx.Response(
+            200, content=bodies.pop(0), headers={"content-type": "text/event-stream"}
+        )
+
+    qwen = client(respond)
+    reply = await qwen.complete([], [], agent="a", thinking=True, on_reasoning=think)
+    assert seen == [("оборвалось", 1), ("заново", 2)] and reply.reasoning == "заново"
+    await qwen.close()
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ({"content": "{}", "reasoning_content": "думаю целиком"}, [("думаю целиком", 1)]),
+        ({"content": "{}"}, []),
+    ],
+)
+async def test_a_single_body_hands_over_the_whole_reasoning_once(message, expected):
+    seen, think = listener()
+
+    async def respond(request):
+        return httpx.Response(
+            200, json={"choices": [{"finish_reason": "stop", "message": message}]}
+        )
+
+    qwen = client(respond)
+    await qwen.complete([], [], agent="a", thinking=True, on_reasoning=think)
+    assert seen == expected
     await qwen.close()

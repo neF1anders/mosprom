@@ -5,7 +5,16 @@ from collections.abc import Callable
 from types import TracebackType
 from typing import Any, Protocol
 
-from ..domain.models import AgentCall, Attachment, Event, Job, JobHead, Knowledge, Message
+from ..domain.models import (
+    AgentCall,
+    Attachment,
+    Event,
+    Job,
+    JobHead,
+    Knowledge,
+    Message,
+    QueuedMessage,
+)
 from ..domain.pipeline import Step
 
 
@@ -19,10 +28,16 @@ class Jobs(Protocol):
 
 
 class Messages(Protocol):
-    async def add(self, message: Message) -> None: ...
+    async def add(self, message: Message) -> int: ...
     async def list(
         self, job_id: str, before: int | None = None, limit: int = 100
     ) -> builtins.list[dict[str, Any]]: ...
+
+
+class Queued(Protocol):
+    async def save(self, item: QueuedMessage) -> None: ...
+    async def list(self, job_id: str) -> builtins.list[QueuedMessage]: ...
+    async def remove(self, ids: builtins.list[str]) -> None: ...
 
 
 class Attachments(Protocol):
@@ -47,8 +62,16 @@ class Events(Protocol):
 
 
 class Queue(Protocol):
-    async def stage1(self, job_id: str, revision: int, start: bool = False) -> None: ...
+    async def stage1(
+        self,
+        job_id: str,
+        revision: int,
+        start: bool = False,
+        correction: bool = False,
+        typed: builtins.list[str] | None = None,
+    ) -> None: ...
     async def stage2(self, job_id: str, revision: int) -> None: ...
+    async def steer(self, job_id: str) -> None: ...
     async def cancel_pending(self, job_id: str) -> None: ...
 
 
@@ -59,6 +82,7 @@ class Library(Protocol):
 
 class Traces(Protocol):
     async def record(self, call: AgentCall) -> None: ...
+    async def calls(self, job_id: str, revision: int) -> builtins.list[AgentCall]: ...
     async def usage(self, job_id: str) -> tuple[int, int]: ...
 
 
@@ -73,6 +97,7 @@ class StageResults(Protocol):
 class UnitOfWork(Protocol):
     jobs: Jobs
     messages: Messages
+    queued: Queued
     attachments: Attachments
     receipts: Receipts
     cache: Cache

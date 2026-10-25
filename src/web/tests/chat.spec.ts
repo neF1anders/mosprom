@@ -25,7 +25,7 @@ test("T12 refresh preserves messages and questions", async ({ page }) => {
     page.getByText("TEST_QUESTIONS Шестерня привода", { exact: true }).first(),
   ).toBeVisible();
   await expect(window).toBeVisible();
-  await expect(window.getByText("Вопрос 1 из 2")).toBeVisible();
+  await expect(window.getByText("1 из 2")).toBeVisible();
 });
 for (const [name, expected] of [
   ["empty.txt", "Файл пуст"],
@@ -80,38 +80,27 @@ for (const name of [
   "photo.png",
 ]) {
   test(`T02 T03 document ${name}`, async ({ page }) => {
-    // The model goes with the document, or the gate only talks about it.
+    // The model goes with the document, or the assistant only talks about it.
     await upload(page, name, "box.stl");
     await settled(page);
-    await page.getByLabel("Показать требования", { exact: true }).click();
-    await expect(
-      page
-        .getByRole("complementary", { name: "Карточка задания" })
-        .locator("summary")
-        .filter({ hasText: /25/ })
-        .first(),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole("complementary", { name: "Карточка задания" })
-        .locator("summary")
-        .filter({ hasText: /75/ })
-        .first(),
-    ).toBeVisible();
+    const panel = page.getByRole("complementary", {
+      name: "Карточка задания",
+    });
+    await panel
+      .getByRole("button", { name: /Обязательные требования/ })
+      .click();
+    // The items of a section are listed inside its step.
+    const items = panel.locator("li li");
+    await expect(items.filter({ hasText: /25/ }).first()).toBeVisible();
+    await expect(items.filter({ hasText: /75/ }).first()).toBeVisible();
     // A value named by a requirement code reaches the card under that code.
     if (name === "task.txt")
       await expect(
-        page
-          .getByRole("complementary", { name: "Карточка задания" })
-          .locator("summary")
+        items
           .filter({ hasText: "Максимальная рабочая температура детали" })
           .filter({ hasText: /от 10 до 70 °C/ }),
       ).toBeVisible();
     if (name.endsWith(".pdf") || name === "photo.png") {
-      const panel = page.getByRole("complementary", {
-        name: "Карточка задания",
-      });
-      await panel.locator("summary").filter({ hasText: /25/ }).first().click();
       const image = panel
         .getByRole("link", { name: "Посмотреть страницу" })
         .first();
@@ -131,13 +120,23 @@ for (const name of [
 }
 for (const [name, expected] of [
   ["box.stl", "10 × 20 × 30"],
-  ["open.stl", "Открытая поверхность"],
-  ["duplicate.stl", "Повторяющиеся грани"],
-  ["shells.stl", "Несколько оболочек"],
+  ["open.stl", "открытая поверхность"],
+  ["duplicate.stl", "дублирующие грани"],
+  ["shells.stl", "несколько оболочек"],
   ["nan.stl", "Файл STL повреждён или не читается"],
 ]) {
   test(`T04 mesh ${name}`, async ({ page }) => {
     await upload(page, name);
+    // A defect the card settled is listed in the opened geometry section.
+    if (/поверхность|грани|оболочек/.test(expected)) {
+      await settled(page);
+      const panel = page.getByRole("complementary", {
+        name: "Карточка задания",
+      });
+      const geometry = panel.getByRole("button", { name: /Геометрия/ });
+      if ((await geometry.getAttribute("aria-expanded")) === "false")
+        await geometry.click();
+    }
     await expect(
       page.getByText(expected, { exact: false }).first(),
     ).toBeVisible();
@@ -167,18 +166,16 @@ for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
       const card = page.getByRole("complementary", {
         name: "Карточка задания",
       });
+      await card
+        .getByRole("button", { name: /Допущения и неизвестные/ })
+        .click();
+      await expect(card.getByText("не удалось уточнить").first()).toBeVisible();
       await expect(
-        card.getByText(
-          "Не удалось уточнить · Источники расходятся, Длина детали",
-        ),
-      ).toBeVisible();
-      await expect(
-        card.getByText(
-          "Источники расходятся, Длина детали, принято без ответа",
-          {
+        card
+          .getByText("Источники расходятся, Длина детали, принято без ответа", {
             exact: false,
-          },
-        ),
+          })
+          .first(),
       ).toBeAttached();
     }
   });
@@ -197,21 +194,28 @@ test("T08 a model that disagrees with the specification asks which is right", as
   await answered(page, "Длина в ТЗ 100 мм, в модели 30 мм", "Верна модель STL");
   await pipelineDone(page);
 });
-test("T09 tool call is visible in the journal", async ({ page }) => {
+test("T09 tool call is visible in the timeline", async ({ page }) => {
   await task(page, "TEST_TOOL Перевести дюймы");
   await settled(page);
-  await page.getByLabel("Показать журнал вызовов", { exact: true }).click();
-  await expect(
-    page.getByText("Разбор задания, переводит единицы", { exact: true }),
-  ).toBeVisible();
+  const timeline = page.getByRole("region", { name: "Ход работы" });
+  const stage = timeline.locator("details").filter({
+    has: page.getByText("Интерпретация задания", { exact: true }),
+  });
+  if ((await stage.getAttribute("open")) === null)
+    await stage.locator("summary").click();
+  await expect(timeline.getByText(/^Перев(ожу|ёл) /)).toBeVisible();
 });
 for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
   test(`T10 ${message}`, async ({ page }) => {
-    // A refused call fails at the gate, a broken answer at the interpreter.
     await task(page, message);
-    await expect(
-      page.getByRole("button", { name: "Повторить позже" }),
-    ).toBeVisible();
+    // A refused call leaves the assistant without an answer, which it says; a broken
+    // answer fails the work at the interpreter.
+    if (message === "TEST_PROVIDER_401")
+      await expect(page.getByText(/модель не отвечает/)).toBeVisible();
+    else
+      await expect(
+        page.getByRole("button", { name: "Повторить", exact: true }),
+      ).toBeVisible();
   });
 }
 for (const text of [
@@ -231,7 +235,7 @@ for (const text of [
     await expect(page.getByText(text, { exact: true }).first()).toBeVisible();
   });
 }
-test("T15 off-topic message gets a reply from the gate without a run", async ({
+test("T15 off-topic message gets a reply from the assistant without a run", async ({
   page,
 }) => {
   await send(page, "TEST_OFFTOPIC Какая погода");
@@ -266,7 +270,7 @@ test("T15 a reply in the chat after the project keeps the project", async ({
   // Nothing ran again: the timeline and the files are those of the work before.
   const job = new URL(page.url()).searchParams.get("job");
   const snapshot = await (await page.request.get(`/api/v1/jobs/${job}`)).json();
-  expect(snapshot.job.work_revision).toBeLessThan(snapshot.job.revision);
+  expect(snapshot.job.work_revision).toBe(snapshot.job.revision);
   expect(snapshot.job.status).toBe("completed");
   const timeline = page.getByRole("region", { name: "Ход работы" });
   for (const title of ["Подбор параметров", "Слайсинг"])
@@ -278,7 +282,7 @@ test("T15 a reply in the chat after the project keeps the project", async ({
   const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
   expect(project.status()).toBe(200);
 });
-test("T15 the gate asks for details once, the next message starts the work", async ({
+test("T15 the assistant asks for details, the next message starts the work", async ({
   page,
 }) => {
   await task(page, "TEST_GATE_ASK Деталь");
@@ -288,7 +292,7 @@ test("T15 the gate asks for details once, the next message starts the work", asy
   await settled(page);
   const card = page.getByRole("complementary", { name: "Карточка задания" });
   await expect(card.getByText("Нет данных").first()).toBeVisible();
-  // The gate would ask again for this marker, but after its request it is not called.
+  // The marker would make it ask again, but a second request is not taken: the work starts.
   await send(page, "TEST_GATE_ASK Шестерня привода");
   await pipelineDone(page);
   await expect(
@@ -313,7 +317,9 @@ test("T14 keyboard send and panels", async ({ page }) => {
   await page.getByLabel("Сообщение", { exact: true }).press("Enter");
   await settled(page);
   await page.getByRole("button", { name: "Свернуть карточку" }).click();
-  await page.getByRole("button", { name: "Карточка", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Показать карточку", exact: true })
+    .click();
   await expect(
     page.getByRole("complementary", { name: "Карточка задания" }),
   ).toBeVisible();
@@ -344,7 +350,7 @@ test("T13 a ready card goes through every stage to a project", async ({
   const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
   expect(project.status()).toBe(200);
   await expect(
-    page.getByRole("link", { name: "Скачать карточку JSON" }),
+    page.getByRole("link", { name: "карточка_задания.json" }),
   ).toBeVisible();
 });
 test("T18 a model larger than the printer asks for attention", async ({
@@ -369,7 +375,7 @@ test("T16 the parameter set downloads as the server keeps it", async ({
 }) => {
   await task(page, "Кронштейн датчика");
   await pipelineDone(page);
-  const link = page.getByRole("link", { name: "Скачать параметры JSON" });
+  const link = page.getByRole("link", { name: "параметры.json" });
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     link.click(),

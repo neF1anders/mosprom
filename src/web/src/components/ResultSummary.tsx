@@ -1,7 +1,7 @@
 import type { Job } from "../types";
 import styles from "../App.module.css";
 
-// The project STE Slicer made, inside the last timeline row like the selected parameters.
+// The project STE Slicer made, inside the last timeline row; its files are in the project tree.
 export function ResultSummary({ job }: { job: Job }) {
   const result = job.result;
   if (!result?.sliced) return null;
@@ -14,7 +14,6 @@ export function ResultSummary({ job }: { job: Job }) {
   ].filter(Boolean);
   if (material.length) rows.push(["Материал", material.join(", ")]);
   if (result.folder) rows.push(["Папка проекта", result.folder]);
-  const files = `/api/v1/jobs/${job.id}/result`;
   return (
     <div className={styles.cardSummary}>
       <p>Что получилось</p>
@@ -28,12 +27,6 @@ export function ResultSummary({ job }: { job: Job }) {
           </div>
         ))}
       </dl>
-      <a href={`${files}/project`} download="project.3mf">
-        Скачать проект 3MF
-      </a>
-      <a href={`${files}/gcode`} download="result.gcode">
-        Скачать G-code
-      </a>
     </div>
   );
 }

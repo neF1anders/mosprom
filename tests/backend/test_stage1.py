@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from src.backend.domain.errors import AppError
 from src.backend.domain.models import Status
+from src.backend.services.commands import changed
 
 from .fakes import ScriptedModel, call, reply
 
@@ -56,7 +57,6 @@ CODES = {
     },
 }
 DRAFT = {"purpose": "Шестерня привода", "requirements": REQUIREMENTS, "codes": CODES}
-START = reply("", tool_calls=[call("start_pipeline", {})])
 QUESTION = {
     "title": "В какой среде работает деталь",
     "impact": "Влияет на выбор материала",
@@ -67,7 +67,7 @@ QUESTION = {
 
 
 def script(**overrides):
-    base = {"gate": [START], "interpreter": [reply(DRAFT)], "checker": [reply({})]}
+    base = {"interpreter": [reply(DRAFT)], "checker": [reply({})]}
     return ScriptedModel({**base, **overrides})
 
 
@@ -98,12 +98,46 @@ async def send(http, job_id: str, message: str):
 
 
 async def run(pg, job_id: str, model: ScriptedModel):
+    """Stage one as the queue would run it: with the flags of the task waiting for it."""
     pg.stage1.runner.model = model
     async with pg.uow() as uow:
         job = await uow.jobs.get(job_id)
-    await pg.stage1.run(job_id, job.revision)
+    waiting = [a for a in await todo(pg, "stage1") if a["job_id"] == job_id]
+    flags = waiting[-1] if waiting and waiting[-1]["revision"] == job.revision else {}
+    await pg.stage1.run(
+        job_id,
+        job.revision,
+        flags.get("start", False),
+        flags.get("correction", False),
+        flags.get("typed"),
+    )
     async with pg.uow() as uow:
         return await uow.jobs.get(job_id)
+
+
+async def revise(pg, job_id: str) -> None:
+    """A correction the assistant applied: a new revision with its stage-one task."""
+    async with pg.uow() as uow:
+        await changed(uow, await uow.jobs.get(job_id, lock=True), "Правка", correction=True)
+        await uow.commit()
+
+
+async def turn(pg, job_id: str, model: ScriptedModel):
+    """The assistant's answer to what the user sent, as the queue would run it."""
+    pg.stage1.runner.model = model
+    await pg.steering.deliver(job_id, force=True)
+    async with pg.uow() as uow:
+        return await uow.jobs.get(job_id)
+
+
+async def upload(http, job_id: str, name: str, content: bytes | None = None):
+    content = content if content is not None else Path("tests/fixtures", name).read_bytes()
+    response = await http.post(
+        f"/api/v1/jobs/{job_id}/attachments",
+        files={"file": (name, content)},
+        data={"request_id": rid()},
+    )
+    assert response.status_code == 201, response.text
 
 
 async def answer(http, job, answers: dict):
@@ -156,9 +190,8 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     assert card.geometry.units == "mm" and card.geometry.extents == [10.0, 20.0, 30.0]
     assert card.stl_analysis.report["units"]["coordinate_unit"] == "mm"
     assert card.versions["requirement_keys"] == "2"
-    assert {"prompt.gate", "prompt.interpreter", "prompt.checker"} < set(card.versions)
-    assert set(model.requests) == {"gate", "interpreter", "checker"}
-    assert model.requests["gate"][0]["tools"][0]["function"]["name"] == "start_pipeline"
+    assert {"prompt.interpreter", "prompt.checker"} < set(card.versions)
+    assert set(model.requests) == {"interpreter", "checker"}
     reading = sent(model, "interpreter")
     assert "Номинальный момент 25 Нм" in reading and "<requirement_keys>" in reading
     assert "<stl>" not in reading and "<stl_report>" not in reading
@@ -178,72 +211,23 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     traces = await rows(
         pg, "SELECT agent, response, cached FROM agent_calls WHERE job_id = :j", j=job.id
     )
-    assert sorted(t["agent"] for t in traces) == ["checker", "gate", "interpreter"]
+    assert sorted(t["agent"] for t in traces) == ["checker", "interpreter"]
     assert all(t["response"] for t in traces)
     async with pg.uow() as uow:
-        assert (await uow.traces.usage(job.id))[0] == 3
+        assert (await uow.traces.usage(job.id))[0] == 2
+    events = await rows(pg, "SELECT payload FROM events WHERE job_id = :j ORDER BY seq", j=job.id)
+    # Each agent's call reaches the chat as it runs, its reasoning in between.
+    assert [
+        (e["payload"]["type"], e["payload"]["data"]["agent"])
+        for e in events
+        if e["payload"]["type"].startswith("agent.")
+    ] == [
+        (kind, agent)
+        for agent in ("interpreter", "checker")
+        for kind in ("agent.started", "agent.thinking", "agent.finished")
+    ]
     exported = (await http.get(f"/api/v1/jobs/{job.id}/card")).json()
     assert exported == card.model_dump(mode="json")
-
-
-async def test_without_a_model_the_gate_only_talks(pg, http):
-    model = script(gate=[reply("Приложите модель STL — и я сразу начну.")])
-    job = await run(pg, await job_with(http, "task.txt"), model)
-    assert set(model.requests) == {"gate"} and model.requests["gate"][0]["tools"] == []
-    assert job.status == Status.WAITING and job.card is None
-    last = (await chat(http, job.id))[-1]
-    assert (last["text"], last["kind"]) == ("Приложите модель STL, и я сразу начну", "chat")
-
-
-async def test_a_greeting_in_a_new_chat_is_answered_without_a_run(pg, http):
-    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
-    await send(http, job_id, "Привет")
-    model = script(gate=[reply("")])
-    job = await run(pg, job_id, model)
-    assert set(model.requests) == {"gate"} and job.card is None
-    assert job.status == Status.WAITING
-    assert (await chat(http, job_id))[-1]["text"].startswith("Я помогаю подготовить задание")
-    events = await rows(pg, "SELECT payload FROM events WHERE job_id = :j", j=job_id)
-    assert not any(e["payload"]["type"].startswith("files.") for e in events)
-
-
-async def test_the_gate_asks_once_and_the_next_message_starts(pg, http):
-    asking = reply("**Расскажите:**\n- для чего деталь\n- какие нагрузки")
-    model = script(gate=[asking])
-    job = await run(pg, await job_with(http, "box.stl"), model)
-    assert set(model.requests) == {"gate"} and job.status == Status.WAITING
-    question = (await chat(http, job.id))[-1]
-    assert question["kind"] == "gate"
-    assert question["text"] == "Расскажите\n- для чего деталь\n- какие нагрузки"
-    await send(http, job.id, "Подробностей нет")
-    model = script()
-    job = await run(pg, job.id, model)
-    assert set(model.requests) == {"interpreter", "checker"}
-    assert job.status == Status.QUEUED
-    reading = sent(model, "interpreter")
-    assert "<asked>Расскажите" in reading and "Подробностей нет" in reading
-
-
-async def test_a_chat_reply_on_a_finished_card_keeps_the_card(pg, http):
-    job = await run(pg, await job_with(http, "box.stl", "task.txt"), script())
-    card = job.card
-    await send(http, job.id, "Какая погода")
-    model = script(gate=[reply("Я помогаю только с заданием на печать")])
-    job = await run(pg, job.id, model)
-    assert set(model.requests) == {"gate"}
-    assert "Какая погода" in model.requests["gate"][0]["messages"][-1]["content"]
-    assert job.card.revision == job.revision
-    assert job.card.model_dump(exclude={"revision"}) == card.model_dump(exclude={"revision"})
-    last = (await chat(http, job.id))[-1]
-    assert (last["text"], last["kind"]) == ("Я помогаю только с заданием на печать", "chat")
-    # The message stopped the selection the card was waiting for, so it goes on.
-    assert job.status == Status.QUEUED and job.work_revision == job.revision
-    assert await todo(pg, "stage2") == [{"job_id": job.id, "revision": job.revision}]
-    # Not a request for details, so the next message goes to the gate again.
-    await send(http, job.id, "Момент 30 Нм")
-    model = script()
-    await run(pg, job.id, model)
-    assert "gate" in model.requests and "Момент 30 Нм" in sent(model, "interpreter")
 
 
 async def todo(pg, queue: str) -> list[dict]:
@@ -261,61 +245,121 @@ async def finished(pg, http):
         return await uow.jobs.get(job.id)
 
 
+def assistant(*replies, **agents) -> ScriptedModel:
+    return script(assistant=list(replies), **agents)
+
+
+START = reply("Начинаю", tool_calls=[call("start_project", {"title": "Коробка"})])
+
+
+async def test_a_greeting_is_answered_without_any_work(pg, http):
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    await send(http, job_id, "Привет")
+    assert await todo(pg, "steer") == [{"job_id": job_id}]
+    job = await turn(pg, job_id, assistant(reply("Привет — пришлите модель STL.")))
+    assert (job.status, job.revision, job.projects, job.card) == (Status.DRAFT, 0, [], None)
+    last = (await chat(http, job_id))[-1]
+    assert (last["role"], last["text"]) == ("assistant", "Привет, пришлите модель STL")
+    assert await todo(pg, "stage1") == []
+
+
+async def test_files_sent_with_a_message_stay_with_it_and_start_the_first_project(pg, http):
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    await upload(http, job_id, "box.stl")
+    await upload(http, job_id, "task.txt")
+    await send(http, job_id, "Нужна такая деталь")
+    message = (await chat(http, job_id))[-1]
+    attachments = (await http.get(f"/api/v1/jobs/{job_id}")).json()["attachments"]
+    assert set(message["attachment_ids"]) == {a["id"] for a in attachments}
+    assert not any(a["draft"] for a in attachments)
+    model = assistant(
+        reply("", tool_calls=[call("start_project", {"title": "Коробка", "notes": "На улице"})])
+    )
+    job = await turn(pg, job_id, model)
+    assert [(p.number, p.title, p.notes) for p in job.projects] == [(1, "Коробка", "На улице")]
+    assert job.projects[0].first_message == message["seq"]
+    assert await todo(pg, "stage1") == [{"job_id": job_id, "revision": 1, "start": True}]
+    tools = model.requests["assistant"][0]["tools"]
+    assert [t["function"]["name"] for t in tools][:4] == [
+        "reply",
+        "ask_details",
+        "start_project",
+        "update_project",
+    ]
+    job = await run(pg, job_id, script())
+    assert {f.filename for f in job.card.files} == {"box.stl", "task.txt"}
+    assert job.status == Status.QUEUED
+    reading = sent(pg.stage1.runner.model, "interpreter")
+    assert "Из разговора в чате до начала проекта. На улице" in reading
+    assert "Нужна такая деталь" in reading
+
+
+async def test_a_start_without_a_model_is_refused_and_the_assistant_asks_for_it(pg, http):
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    await upload(http, job_id, "task.txt")
+    await send(http, job_id, "Вот ТЗ")
+    job = await turn(pg, job_id, assistant(START, reply("Пришлите модель STL")))
+    assert job.projects == [] and await todo(pg, "stage1") == []
+    assert (await chat(http, job_id))[-1]["text"] == "Пришлите модель STL"
+
+
 async def test_a_chat_reply_after_the_project_keeps_it(pg, http):
     """Regression: «Спасибо» after the project queued selection and slicing all over again."""
     done = await finished(pg, http)
     assert (done.status, done.stage, done.outcome) == (Status.COMPLETED, "done", "not_sliced")
     parameters = (await http.get(f"/api/v1/jobs/{done.id}/parameters")).json()
     await send(http, done.id, "Спасибо")
-    job = await run(pg, done.id, script(gate=[reply("Пожалуйста")]))
+    job = await turn(pg, done.id, assistant(reply("Пожалуйста")))
     assert (job.status, job.stage, job.outcome) == (Status.COMPLETED, "done", "not_sliced")
-    assert (job.parameters, job.result) == (done.parameters, done.result)
-    assert job.revision == done.revision + 1 and job.card.revision == job.revision
-    assert job.work_revision == done.revision and await todo(pg, "stage2") == []
+    assert (job.parameters, job.result, job.card) == (done.parameters, done.result, done.card)
+    assert job.revision == done.revision
     assert (await http.get(f"/api/v1/jobs/{job.id}/parameters")).json() == parameters
-    # The timeline still shows the work the project came from.
-    async with pg.uow() as uow:
-        assert await uow.events.start(job.id, job.work_revision) < await uow.events.start(
-            job.id, job.revision
-        )
+    assert (await chat(http, job.id))[-1]["text"] == "Пожалуйста"
 
 
-async def test_a_new_model_never_goes_on_with_the_card_of_the_old_one(pg, http):
-    """Regression: the gate asked about a new STL, while stage two ran on the old card."""
+async def test_a_new_part_after_the_project_starts_a_project_of_its_own(pg, http):
+    """Regression: a second part redid the first project with the files of both."""
     done = await finished(pg, http)
-    response = await http.post(
-        f"/api/v1/jobs/{done.id}/attachments",
-        files={"file": ("other.stl", Path("tests/fixtures/box.stl").read_bytes())},
-        data={"request_id": rid()},
-    )
-    assert response.status_code == 201, response.text
-    await send(http, done.id, "Вот другая деталь")
-    model = script(gate=[reply("Расскажите, для чего деталь")])
-    job = await run(pg, done.id, model)
-    assert set(model.requests) == {"gate"} and (await chat(http, job.id))[-1]["kind"] == "gate"
-    assert (job.status, job.stage, job.card) == (Status.WAITING, "understanding", None)
-    assert (job.parameters, job.result, job.outcome) == (None, None, None)
-    assert job.work_revision == job.revision and await todo(pg, "stage2") == []
-    await send(http, job.id, "Подробностей нет")
+    await upload(http, done.id, "other.stl", Path("tests/fixtures/box.stl").read_bytes())
+    await send(http, done.id, "Ещё один проект, вот другая деталь")
+    job = await turn(pg, done.id, assistant(START))
+    assert [p.number for p in job.projects] == [1] and job.card is None
+    assert (job.parameters, job.result, job.outcome, job.answers) == (None, None, None, {})
+    job = await run(pg, job.id, script())
+    assert {f.filename for f in job.card.files} == {"other.stl"}
+    texts = [m["text"] for m in await chat(http, job.id)]
+    assert texts[-3:-1] == ["Ещё один проект, вот другая деталь", "Начинаю"]
+
+
+async def test_a_correction_after_the_project_continues_the_checker_dialog(pg, http):
+    done = await finished(pg, http)
+    await send(http, done.id, "Температура до 90 градусов")
+    summary = "Температуру поменял на 90 градусов: пересчитываю материал."
+    update = reply("", tool_calls=[call("update_project", {"summary": summary})])
+    job = await turn(pg, done.id, assistant(update))
+    message = [m for m in await chat(http, job.id) if m["role"] == "user"][-1]
+    assert await todo(pg, "stage1") == [
+        {"job_id": job.id, "revision": job.revision, "start": False, "correction": True}
+        | {"typed": [message["id"]]}
+    ]
     model = script()
     job = await run(pg, job.id, model)
-    assert {"interpreter", "checker"} <= set(model.requests) and job.status == Status.QUEUED
-    assert {f.filename for f in job.card.files} == {"other.stl", "task.txt"}
+    assert set(model.requests) == {"checker"} and job.status == Status.QUEUED
+    follow = model.requests["checker"][0]["messages"][-1]["content"]
+    assert "Правка пользователя" in follow and "Температура до 90 градусов" in follow
 
 
-async def test_continue_after_a_stop_resumes_the_work_without_the_gate(pg, http):
-    """Regression: «Продолжить» went back to the gate, which could answer and start nothing."""
+async def test_continue_after_a_stop_resumes_the_work(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
     await http.post(f"/api/v1/jobs/{job_id}/control/stop", json={"request_id": rid()})
     retried = await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     revision = retried.json()["revision"]
     assert await todo(pg, "stage1") == [{"job_id": job_id, "revision": revision, "start": True}]
-    model = script(gate=[reply("Привет")])
-    pg.stage1.runner.model = model
-    await pg.stage1.run(job_id, revision, start=True)
-    async with pg.uow() as uow:
-        job = await uow.jobs.get(job_id)
-    assert "gate" not in model.requests and job.status == Status.QUEUED
+    job = await run(pg, job_id, script())
+    assert job.status == Status.QUEUED
+
+
+UPDATE = reply("", tool_calls=[call("update_project", {"summary": "Учитываю ответ"})])
 
 
 async def asked(pg, http, **overrides):
@@ -387,6 +431,7 @@ async def test_earlier_answers_reach_the_agents_when_the_work_runs_again(pg, htt
 async def test_a_typed_reply_counts_as_the_answer(pg, http):
     job, _ = await asked(pg, http)
     await send(http, job.id, "Работает в масле")
+    await turn(pg, job.id, assistant(UPDATE))
     model = script(checker=[reply({})])
     job = await run(pg, job.id, model)
     assert set(model.requests) == {"checker"}
@@ -404,16 +449,18 @@ async def test_new_files_while_questions_are_open_start_over(pg, http):
         data={"request_id": rid()},
     )
     await send(http, job.id, "Добавил чертёж")
+    await turn(pg, job.id, assistant(UPDATE))
     model = script()
-    await run(pg, job.id, model)
-    assert set(model.requests) == {"gate", "interpreter", "checker"}
+    job = await run(pg, job.id, model)
+    assert set(model.requests) == {"interpreter", "checker"}
+    assert "extra.docx" in {f.filename for f in job.card.files}
 
 
 async def test_newer_revision_discards_the_running_result(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
 
     async def edit_meanwhile(messages):
-        await send(http, job_id, "Правка")
+        await revise(pg, job_id)
         return reply(DRAFT)
 
     job = await run(pg, job_id, script(interpreter=[edit_meanwhile]))
@@ -457,7 +504,8 @@ async def test_unexpected_error_marks_the_job_failed(pg, http):
     assert job.status == Status.FAILED and job.error.startswith("Внутренняя ошибка")
 
 
-async def test_files_attached_during_a_run_keep_the_card_from_stage_two(pg, http):
+async def test_files_attached_during_a_run_leave_the_card_going_on(pg, http):
+    """The files go with the next message to the assistant; the card is not held back."""
     job_id = await job_with(http, "box.stl", "task.txt")
 
     async def attach_meanwhile(messages):
@@ -470,9 +518,8 @@ async def test_files_attached_during_a_run_keep_the_card_from_stage_two(pg, http
         return reply({})
 
     job = await run(pg, job_id, script(checker=[attach_meanwhile]))
-    assert job.files_changed and job.status == Status.WAITING
-    assert job.card.readiness == "ready" and job.stage == "understanding"
-    assert await rows(pg, "SELECT id FROM procrastinate_jobs WHERE queue_name = 'stage2'") == []
+    assert job.files_changed and job.status == Status.QUEUED and job.stage == "parameters"
+    assert "Файлы изменились" not in [m["text"] for m in await chat(http, job_id)]
 
 
 async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):
@@ -490,7 +537,11 @@ async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     await run(pg, job_id, script())
     assert calls == ["mm", "mm"]
-    assert await rows(pg, "SELECT key FROM operation_cache WHERE key NOT LIKE 'agent:%'") == []
+    # Agent results and the checker's dialogs are cached, the cut report is not.
+    cached = (
+        "SELECT key FROM operation_cache WHERE key NOT LIKE 'agent:%' AND key NOT LIKE 'stage1:%'"
+    )
+    assert await rows(pg, cached) == []
 
 
 async def test_a_failed_document_is_read_again_on_retry(pg, http, monkeypatch):
@@ -547,7 +598,7 @@ async def test_the_chat_view_leaves_out_the_full_stl_report(pg, http):
 async def test_events_start_at_the_current_revision_and_wake_on_commit(pg, http):
     job_id = await job_with(http, "box.stl", "task.txt")
     await run(pg, job_id, script())
-    await send(http, job_id, "Ещё")
+    await revise(pg, job_id)
     async with pg.uow() as uow:
         revision = (await uow.jobs.get(job_id)).revision
     stream = await pg.jobs.follow("alice", job_id, None)
@@ -560,3 +611,93 @@ async def test_events_start_at_the_current_revision_and_wake_on_commit(pg, http)
     event = await asyncio.wait_for(waiting, 2)
     assert event.type == "files.started"
     await stream.aclose()
+
+
+async def test_a_question_the_checker_drops_in_silence_is_asked_anyway(pg, http):
+    """Regression: the checker turned questions into assumptions and nobody could see why."""
+    balance = {"title": "Нужна ли балансировка", "options": ["да", "нет"]}
+    finish = {"title": "Можно ли дорабатывать отверстие", "options": ["да", "нет"]}
+    draft = {**DRAFT, "questions": [finish, balance]}
+    review = {
+        "waived": [{"id": "q1", "reason": "Допуск обеспечивает печать, так сказано в ТЗ"}],
+        "assumptions": [{"text": "Доработки нет", "basis": "ТЗ"}],
+    }
+    model = script(interpreter=[reply(draft)], checker=[reply(review)])
+    job = await run(pg, await job_with(http, "box.stl", "task.txt"), model)
+    assert [q.title for q in job.card.questions] == ["Нужна ли балансировка"]
+    assert [(w.title, w.reason) for w in job.card.waived] == [
+        ("Можно ли дорабатывать отверстие", "Допуск обеспечивает печать, так сказано в ТЗ")
+    ]
+    checker = model.requests["checker"][0]["messages"][1]["content"][0]["text"]
+    assert '"id": "q1"' in checker and '"id": "q2"' in checker
+    events = await rows(pg, "SELECT payload FROM events WHERE job_id = :j", j=job.id)
+    done = next(e["payload"] for e in events if e["payload"]["type"] == "checking.completed")
+    assert done["data"]["waived"][0]["title"] == "Можно ли дорабатывать отверстие"
+
+
+async def test_the_answers_about_a_finished_part_hint_the_next_one(pg, http):
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    await upload(http, job_id, "box.stl")
+    await upload(http, job_id, "task.txt")
+    await send(http, job_id, "Шестерня")
+    await turn(pg, job_id, assistant(START))
+    job = await run(pg, job_id, script(checker=[reply({"questions": [QUESTION]})]))
+    await answer(http, job, {job.card.questions[0].id: "вода"})
+    job = await run(pg, job_id, script(checker=[reply({})]))
+    await pg.pipeline.run(job_id, job.revision)
+    await upload(http, job_id, "other.stl", Path("tests/fixtures/box.stl").read_bytes())
+    await send(http, job_id, "Теперь вторая деталь")
+    job = await turn(pg, job_id, assistant(START))
+    assert [p.number for p in job.projects] == [1, 2]
+    assert job.projects[0].answers == {QUESTION["title"]: "вода"} and job.answers == {}
+    model = script()
+    job = await run(pg, job_id, model)
+    assert {f.filename for f in job.card.files} == {"other.stl"}
+    checking = model.requests["checker"][0]["messages"][1]["content"][0]["text"]
+    assert f'<earlier_answers>\n[\n "{QUESTION["title"]} вода"\n]' in checking
+    reading = sent(model, "interpreter")
+    assert "Теперь вторая деталь" in reading and "Шестерня" not in reading
+
+
+async def test_files_alone_go_to_the_assistant_and_an_empty_message_is_refused(pg, http):
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    empty = await http.post(f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid()})
+    assert (empty.status_code, empty.json()["code"]) == (422, "empty_message")
+    await upload(http, job_id, "box.stl")
+    await send(http, job_id, "")
+    [message] = await chat(http, job_id)
+    assert message["text"] == "" and len(message["attachment_ids"]) == 1
+    model = assistant(START)
+    job = await turn(pg, job_id, model)
+    assert [p.number for p in job.projects] == [1]
+    assert "[вложения box.stl]" in model.requests["assistant"][0]["messages"][-1]["content"]
+
+
+async def test_the_details_asked_reach_the_interpreter_with_the_answer(pg, http):
+    """The one request for details is marked, so the interpreter sees what was asked."""
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    await upload(http, job_id, "box.stl")
+    await send(http, job_id, "Деталь")
+    ask = reply("", tool_calls=[call("ask_details", {"text": "Расскажите, для чего деталь"})])
+    await turn(pg, job_id, assistant(ask))
+    request = (await chat(http, job_id))[-1]
+    assert (request["kind"], request["text"]) == ("gate", "Расскажите, для чего деталь")
+    assert request["turn"]
+    await send(http, job_id, "Подробностей нет")
+    job = await turn(pg, job_id, assistant(ask, START))
+    assert [p.number for p in job.projects] == [1]
+    model = script()
+    await run(pg, job_id, model)
+    reading = sent(model, "interpreter")
+    assert "<asked>Расскажите, для чего деталь</asked>" in reading
+    assert "Подробностей нет" in reading
+
+
+async def test_the_report_is_written_once_for_its_own_revision(pg, http):
+    done = await finished(pg, http)
+    reports = [m for m in await chat(http, done.id) if m["kind"] == "report"]
+    assert len(reports) == 1
+    await pg.reports.post(done.id, done.revision)
+    await pg.reports.post(done.id, done.revision - 1)
+    reports = [m for m in await chat(http, done.id) if m["kind"] == "report"]
+    assert len(reports) == 1
