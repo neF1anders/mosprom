@@ -3,122 +3,122 @@
   {
    "basis": "карточка этапа 1",
    "id": "A1",
-   "text": "обязательное требование operating_medium (Перекачиваемая среда) не учтено подбором параметров"
+   "text": "требование «Абразивные частицы в среде» понято как abrasion_resistant = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A2",
-   "text": "обязательное требование ph_range (Кислотность среды) не учтено подбором параметров"
+   "text": "требование «Устойчивость к кавитации» понято как high_stiffness = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A3",
-   "text": "обязательное требование abrasive_particles (Абразивные частицы в среде) не учтено подбором параметров"
+   "text": "требование «Отсутствие гальванической коррозии» понято как no_conductive_fillers = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A4",
-   "text": "обязательное требование temperature_operating (Рабочая температура среды) не учтено подбором параметров"
+   "text": "требование «Рабочая температура среды» понято как service_temp_max_c = 85"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A5",
-   "text": "обязательное требование rotation_speed (Скорость вращения вала) не учтено подбором параметров"
+   "text": "требование «Водопоглощение» понято как water_absorption_max_pct = 0.05"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A6",
-   "text": "обязательное требование peripheral_speed (Окружная скорость на периферии) не учтено подбором параметров"
+   "text": "требование «Модуль упругости при растяжении» понято как tensile_modulus_min_mpa = 4500"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A7",
-   "text": "обязательное требование flow_rate (Производительность) не учтено подбором параметров"
+   "text": "требование «Относительное удлинение при разрыве» понято как elongation_min_pct = 2.5"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A8",
-   "text": "обязательное требование head_max (Напор) не учтено подбором параметров"
+   "text": "требование «Температура размягчения по Вика» понято как heat_deflection_min_c = 130"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A9",
-   "text": "обязательное требование pressure_working_max (Рабочее давление в корпусе) не учтено подбором параметров"
+   "text": "требование «Плотность материала» понято как density_max_g_cm3 = 1.2"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A10",
-   "text": "обязательное требование duty_cycle (Режим работы и ресурс) не учтено подбором параметров"
+   "text": "требование «Предел прочности при растяжении» понято как tensile_strength_min_mpa = 50"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A11",
-   "text": "обязательное требование torque_keyway (Крутящий момент на шпоночном пазу) не учтено подбором параметров"
+   "text": "требование «Перекачиваемая среда» понято как chemical_resistance = alkali, acid"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A12",
-   "text": "обязательное требование balance_residual (Остаточный дисбаланс) не учтено подбором параметров"
+   "text": "нагрузка «cyclic» выведена из требования «Крутящий момент на шпоночном пазу»"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A13",
-   "text": "обязательное требование blade_wall_variation_max (Разностенность лопастей) не учтено подбором параметров"
+   "text": "обязательное требование rotation_speed (Скорость вращения вала) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A14",
-   "text": "обязательное требование water_absorption_max (Водопоглощение) не учтено подбором параметров"
+   "text": "обязательное требование peripheral_speed (Окружная скорость на периферии) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A15",
-   "text": "обязательное требование tensile_modulus_min (Модуль упругости при растяжении) не учтено подбором параметров"
+   "text": "обязательное требование flow_rate (Производительность) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A16",
-   "text": "обязательное требование elongation_min (Относительное удлинение при разрыве) не учтено подбором параметров"
+   "text": "обязательное требование head_max (Напор) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A17",
-   "text": "обязательное требование vicat_softening_min (Температура размягчения по Вика) не учтено подбором параметров"
+   "text": "обязательное требование pressure_working_max (Рабочее давление в корпусе) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A18",
-   "text": "обязательное требование creep_resistance (Стойкость к ползучести) не учтено подбором параметров"
+   "text": "обязательное требование duty_cycle (Режим работы и ресурс) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A19",
-   "text": "обязательное требование chemical_stability (Химическая стойкость к среде) не учтено подбором параметров"
+   "text": "обязательное требование torque_keyway (Крутящий момент на шпоночном пазу) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A20",
-   "text": "обязательное требование density_max (Плотность материала) не учтено подбором параметров"
+   "text": "обязательное требование balance_residual (Остаточный дисбаланс) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A21",
-   "text": "обязательное требование cavitation_resistance (Устойчивость к кавитации) не учтено подбором параметров"
+   "text": "обязательное требование blade_wall_variation_max (Разностенность лопастей) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A22",
-   "text": "обязательное требование galvanic_inertness (Отсутствие гальванической коррозии) не учтено подбором параметров"
+   "text": "обязательное требование creep_resistance (Стойкость к ползучести) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A23",
-   "text": "обязательное требование tensile_strength_min (Предел прочности при растяжении) не учтено подбором параметров"
+   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A24",
-   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
+   "text": "тип детали «impeller_fan» выведен из назначения в карточке"
   },
   {
    "basis": "карточка этапа 1",
@@ -138,6 +138,21 @@
   {
    "basis": "решение этапа 2",
    "id": "A28",
+   "text": "требование part_class = impeller_fan — допущение, а не подтверждённый факт"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A29",
+   "text": "обязательное требование abrasive_particles материал выполняет лишь частично: abrasion=fair"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A30",
+   "text": "требование galvanic_inertness не проверено по каталогу: cannot be checked from the catalog"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A31",
    "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
   }
  ],
@@ -151,18 +166,96 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_abs",
-     "why": "оценка 0.50"
+     "id": "fiberpart_pa12_g12",
+     "why": "оценка 0.75; не выполнено: water_absorption_max (water_24h_pct=0.2); tensile_modulus_min (modulus_mpa=3500); нет данных: galvanic_inertness (cannot be checked from the catalog)"
     },
     {
      "id": "enduse_pa6",
-     "why": "оценка 0.50"
+     "why": "оценка 0.70; не выполнено: water_absorption_max (water_24h_pct=1.5); tensile_modulus_min (modulus_mpa=2500); частично: cavitation_resistance (stiffness=medium); нет данных: galvanic_inertness (cannot be checked from the catalog)"
     }
    ],
-   "checks": [],
-   "id": "generic_pla_175",
+   "checks": [
+    {
+     "detail": "abrasion=fair",
+     "hard": true,
+     "key": "abrasion_resistant",
+     "requirement_id": "abrasive_particles",
+     "status": "warn"
+    },
+    {
+     "detail": "stiffness=high",
+     "hard": true,
+     "key": "high_stiffness",
+     "requirement_id": "cavitation_resistance",
+     "status": "ok"
+    },
+    {
+     "detail": "cannot be checked from the catalog",
+     "hard": true,
+     "key": "no_conductive_fillers",
+     "requirement_id": "galvanic_inertness",
+     "status": "unknown"
+    },
+    {
+     "detail": "service_max_c=110",
+     "hard": true,
+     "key": "service_temp_max_c",
+     "requirement_id": "temperature_operating",
+     "status": "ok"
+    },
+    {
+     "detail": "water_24h_pct=0.02",
+     "hard": true,
+     "key": "water_absorption_max_pct",
+     "requirement_id": "water_absorption_max",
+     "status": "ok"
+    },
+    {
+     "detail": "modulus_mpa=6000",
+     "hard": true,
+     "key": "tensile_modulus_min_mpa",
+     "requirement_id": "tensile_modulus_min",
+     "status": "ok"
+    },
+    {
+     "detail": "elongation_pct=3",
+     "hard": true,
+     "key": "elongation_min_pct",
+     "requirement_id": "elongation_min",
+     "status": "ok"
+    },
+    {
+     "detail": "hdt_c=150",
+     "hard": true,
+     "key": "heat_deflection_min_c",
+     "requirement_id": "vicat_softening_min",
+     "status": "ok"
+    },
+    {
+     "detail": "density=1.18 g/cm3 (catalog)",
+     "hard": true,
+     "key": "density_max_g_cm3",
+     "requirement_id": "density_max",
+     "status": "ok"
+    },
+    {
+     "detail": "tensile_mpa=75",
+     "hard": true,
+     "key": "tensile_strength_min_mpa",
+     "requirement_id": "tensile_strength_min",
+     "status": "ok"
+    },
+    {
+     "detail": "catalog description mentions: alkali, acid",
+     "hard": true,
+     "key": "chemical_resistance",
+     "requirement_id": "operating_medium",
+     "status": "ok"
+    }
+   ],
+   "id": "fiberpart_pp_g30",
    "source": "rule:MATERIAL-RANK",
-   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.88; частично: abrasive_particles (abrasion=fair); нет данных: galvanic_inertness (cannot be checked from the catalog)"
   }
  },
  "models": [
@@ -171,7 +264,7 @@
    "extruder": 0,
    "id": "m1",
    "orientation_candidate": "o1",
-   "source": "assumption:A28",
+   "source": "assumption:A31",
    "transform": {
     "position": [
      -9.5,
@@ -221,24 +314,52 @@
    "value": "skirt",
    "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
   },
+  "cool_fan_enabled_classic": {
+   "scope": "extruder:0",
+   "source": "rule:FAN-OFF-NO-COOLING",
+   "value": false,
+   "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "infill_pattern": {
+   "source": "rule:INFILL-GYROID",
+   "value": "gyroid",
+   "why": "ударная или циклическая нагрузка либо гибкая деталь: изотропное заполнение gyroid"
+  },
+  "infill_sparse_density": {
+   "source": "rule:LOAD-INFILL-MIN",
+   "unit": "%",
+   "value": 30.0,
+   "why": "циклическая или ударная нагрузка: заполнение от 30 %, чтобы сердцевина держала стенки"
+  },
   "layer_height": {
    "source": "rule:LAYER-STANDARD",
    "unit": "mm",
    "value": 0.2,
    "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
   },
-  "wall_thickness": {
-   "source": "rule:WALLS-STANDARD",
+  "speed_print": {
+   "source": "rule:SPEED-MATERIAL-MAX",
+   "unit": "mm/s",
+   "value": 40.0,
+   "why": "скорость печати не выше рекомендованной в файле материала"
+  },
+  "top_bottom_thickness": {
+   "source": "rule:LOAD-WALLS",
    "unit": "mm",
-   "value": 1.2,
-   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
+   "value": 0.9,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения"
+  },
+  "wall_thickness": {
+   "source": "rule:LOAD-WALLS",
+   "unit": "mm",
+   "value": 2.0,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения; периметров: 5"
   }
  },
  "status": "proposed",
  "unsatisfied": [],
  "version": "0.2",
  "warnings": [
-  "requirement conductive_fillers_avoided (Токопроводящие наполнители) is not used by parameter selection",
   "stage 1 unknown: Марка и производитель филамента не заданы, подбираются по критериям ТЗ.",
   "stage 1 unknown: Количество деталей в заказе не указано.",
   "stage 1 unknown: Допуски и посадочные размеры отверстия под вал и шпоночного паза не приведены, кроме требования по моменту 12 Н·м.",

@@ -25,7 +25,8 @@ def applied(parameter_set):
 
 def test_constraints_on_searched_settings_become_hard_limits_on_the_second_iteration(select):
     first = select(card(**STRONG))
-    assert first["settings"]["infill_sparse_density"]["value"] == 30
+    # LOAD-INFILL-MIN starts a loaded part at 30 %, strength first adds on top.
+    assert first["settings"]["infill_sparse_density"]["value"] == 40
     assert "applied_constraints" not in first
     review = feedback(
         constraint("C1", "infill_sparse_density", "max", 25),

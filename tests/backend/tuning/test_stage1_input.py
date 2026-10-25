@@ -451,25 +451,26 @@ def test_part_class_is_read_by_the_mode_rules(select):
 
 
 def test_material_properties_without_catalog_data_are_told_as_unchecked(select):
-    # Modulus and heat deflection were read by nothing: "proposed" with no word about them.
+    # A short peak temperature has no data: "proposed" with a word about it. The modulus and the
+    # heat deflection are checked against the typical values of the traits table.
     parameter_set = select(
         card(
             requirements=[
+                requirement("service_temp_peak_c", "160", "°C"),
                 requirement("tensile_modulus_min_mpa", "2500", "МПа"),
                 requirement("heat_deflection_min_c", "120", "°C"),
             ]
         )
     )
     texts = assumption_texts(parameter_set)
-    for key in ("tensile_modulus_min_mpa", "heat_deflection_min_c"):
-        assert (
-            f"требование {key} не проверено по каталогу: cannot be checked from the catalog"
-            in texts
-        )
-    statuses = {
-        check["key"]: check["status"] for check in parameter_set["materials"]["0"]["checks"]
-    }
-    assert statuses == {"tensile_modulus_min_mpa": "unknown", "heat_deflection_min_c": "unknown"}
+    assert (
+        "требование service_temp_peak_c не проверено по каталогу: "
+        "cannot be checked from the catalog" in texts
+    )
+    checks = {check["key"]: check for check in parameter_set["materials"]["0"]["checks"]}
+    assert checks["service_temp_peak_c"]["status"] == "unknown"
+    assert checks["tensile_modulus_min_mpa"]["detail"].startswith("modulus_mpa=")
+    assert checks["heat_deflection_min_c"]["detail"].startswith("hdt_c=")
 
 
 def test_high_friction_is_checked_against_the_friction_of_the_material(select):
@@ -509,8 +510,12 @@ def test_contract_example_is_selected_with_overhangs_and_priority(select):
     assert not_used == [
         "обязательное требование rotation_speed_max_rpm (Частота вращения) не учтено подбором "
         "параметров",
-        "обязательное требование no_dust (Без микропыли) не учтено подбором параметров",
     ]
+    # «Без микропыли» is read from its words as abrasion resistance and told as an assumption.
+    assert any(
+        "«Без микропыли» понято как abrasion_resistant" in text
+        for text in assumption_texts(parameter_set)
+    )
 
 
 def test_choice_code_is_read_only_from_its_options(keys):

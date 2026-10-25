@@ -38,6 +38,7 @@ def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValu
     measures = {
         OVERHANG_FACT: geometry.overhang_fraction,
         "geometry.length_to_diameter": geometry.length_to_diameter,
+        "geometry.wall_thickness_mm": geometry.wall_thickness,
         "material.speed": material.speed,
         "material.cooling_pct": material.cooling_percent,
         "material.warp": material.traits.warp,

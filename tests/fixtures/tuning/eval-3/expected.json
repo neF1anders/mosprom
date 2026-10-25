@@ -3,47 +3,47 @@
   {
    "basis": "карточка этапа 1",
    "id": "A1",
-   "text": "обязательное требование bend_angle_max (Максимальный угол изгиба) не учтено подбором параметров"
+   "text": "требование «Эластичность материала» понято как flexible = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A2",
-   "text": "обязательное требование axial_stroke (Осевой ход подвески) не учтено подбором параметров"
+   "text": "требование «Стойкость к солям и истиранию» понято как abrasion_resistant = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A3",
-   "text": "обязательное требование deformation_frequency (Частота деформаций) не учтено подбором параметров"
+   "text": "требование «Рабочий диапазон температур» понято как service_temp_max_c = 75"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A4",
-   "text": "обязательное требование temperature_range (Рабочий диапазон температур) не учтено подбором параметров"
+   "text": "требование «Внутренняя среда» понято как chemical_resistance = oil, salts, fuel"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A5",
-   "text": "обязательное требование medium_internal (Внутренняя среда) не учтено подбором параметров"
+   "text": "нагрузка «impact» выведена из требования «Внешняя среда»"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A6",
-   "text": "обязательное требование medium_external (Внешняя среда) не учтено подбором параметров"
+   "text": "обязательное требование bend_angle_max (Максимальный угол изгиба) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A7",
-   "text": "обязательное требование tightness (Герметичность) не учтено подбором параметров"
+   "text": "обязательное требование axial_stroke (Осевой ход подвески) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A8",
-   "text": "обязательное требование material_elasticity (Эластичность материала) не учтено подбором параметров"
+   "text": "обязательное требование deformation_frequency (Частота деформаций) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A9",
-   "text": "обязательное требование material_chemical_resistance (Масло и бензостойкость) не учтено подбором параметров"
+   "text": "обязательное требование tightness (Герметичность) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
@@ -53,12 +53,12 @@
   {
    "basis": "карточка этапа 1",
    "id": "A11",
-   "text": "обязательное требование no_rigid_material (Запрет жёстких материалов) не учтено подбором параметров"
+   "text": "обязательное требование stl_units (Единицы модели STL) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A12",
-   "text": "обязательное требование stl_units (Единицы модели STL) не учтено подбором параметров"
+   "text": "тип детали «cover_boot_seal» выведен из назначения в карточке"
   },
   {
    "basis": "карточка этапа 1",
@@ -93,6 +93,16 @@
   {
    "basis": "решение этапа 2",
    "id": "A19",
+   "text": "требование part_class = cover_boot_seal — допущение, а не подтверждённый факт"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A20",
+   "text": "обязательное требование medium_internal материал выполняет лишь частично: catalog description covers only: oil, fuel"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A21",
    "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
   }
  ],
@@ -106,18 +116,47 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_abs",
-     "why": "оценка 0.50"
+     "id": "sealant_tpu93",
+     "why": "оценка 0.82; частично: medium_internal (catalog description covers only: oil, fuel)"
     },
     {
-     "id": "enduse_pa6",
-     "why": "оценка 0.50"
+     "id": "sealant_tpu_A95",
+     "why": "оценка 0.82; частично: medium_internal (catalog description covers only: oil, fuel)"
     }
    ],
-   "checks": [],
-   "id": "generic_pla_175",
+   "checks": [
+    {
+     "detail": "flexible=True",
+     "hard": true,
+     "key": "flexible",
+     "requirement_id": "material_elasticity",
+     "status": "ok"
+    },
+    {
+     "detail": "abrasion=good",
+     "hard": false,
+     "key": "abrasion_resistant",
+     "requirement_id": "material_wear_resistance",
+     "status": "ok"
+    },
+    {
+     "detail": "service_max_c=80",
+     "hard": true,
+     "key": "service_temp_max_c",
+     "requirement_id": "temperature_range",
+     "status": "ok"
+    },
+    {
+     "detail": "catalog description covers only: oil, fuel",
+     "hard": true,
+     "key": "chemical_resistance",
+     "requirement_id": "medium_internal",
+     "status": "warn"
+    }
+   ],
+   "id": "sealant_tpu",
    "source": "rule:MATERIAL-RANK",
-   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.82; частично: medium_internal (catalog description covers only: oil, fuel)"
   }
  },
  "models": [
@@ -126,7 +165,7 @@
    "extruder": 0,
    "id": "m1",
    "orientation_candidate": "o1",
-   "source": "assumption:A19",
+   "source": "assumption:A21",
    "transform": {
     "position": [
      -9.5,
@@ -176,24 +215,46 @@
    "value": "skirt",
    "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
   },
+  "infill_pattern": {
+   "source": "rule:INFILL-GYROID",
+   "value": "gyroid",
+   "why": "ударная или циклическая нагрузка либо гибкая деталь: изотропное заполнение gyroid"
+  },
+  "infill_sparse_density": {
+   "source": "rule:MATERIAL-INFILL-MIN",
+   "unit": "%",
+   "value": 35.0,
+   "why": "заполнение не ниже минимума из паспорта материала Stereotech для функциональной детали"
+  },
   "layer_height": {
    "source": "rule:LAYER-STANDARD",
    "unit": "mm",
    "value": 0.2,
    "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
   },
-  "wall_thickness": {
-   "source": "rule:WALLS-STANDARD",
+  "speed_print": {
+   "source": "rule:SPEED-MATERIAL-MAX",
+   "unit": "mm/s",
+   "value": 40.0,
+   "why": "скорость печати не выше рекомендованной в файле материала"
+  },
+  "top_bottom_thickness": {
+   "source": "rule:LOAD-WALLS",
    "unit": "mm",
-   "value": 1.2,
-   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
+   "value": 0.9,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения"
+  },
+  "wall_thickness": {
+   "source": "rule:LOAD-WALLS",
+   "unit": "mm",
+   "value": 1.6,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения; периметров: 4"
   }
  },
  "status": "proposed",
  "unsatisfied": [],
  "version": "0.2",
  "warnings": [
-  "requirement material_wear_resistance (Стойкость к солям и истиранию) is not used by parameter selection",
   "stage 1 unknown: Указанный или предпочтительный эластомерный материал и твёрдость по Шору",
   "stage 1 unknown: Требуемая точность и допуски посадочных диаметров под хомуты",
   "stage 1 unknown: Количество деталей и сроки",

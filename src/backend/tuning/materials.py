@@ -28,7 +28,12 @@ class MaterialTraits(Value):
     """General polymer knowledge, not verified against datasheets; absent means unknown."""
 
     tg_c: int | float | None = None
+    hdt_c: int | float | None = None
     service_max_c: int | float | None = None
+    modulus_mpa: int | float | None = None
+    tensile_mpa: int | float | None = None
+    elongation_pct: int | float | None = None
+    water_24h_pct: int | float | None = None
     hygroscopic: Level | None = None
     uv: Grade | None = None
     flexible: bool | None = None
@@ -36,6 +41,10 @@ class MaterialTraits(Value):
     friction: Level | None = None
     abrasion: Grade | None = None
     warp: Level | None = None
+    abrasive_filler: bool = False
+    chemical_good: list[str] = []
+    chemical_poor: list[str] = []
+    cost: Level | None = None
     infill_min_pct: float | None = None
 
 

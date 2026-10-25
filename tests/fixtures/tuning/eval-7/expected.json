@@ -3,72 +3,72 @@
   {
    "basis": "карточка этапа 1",
    "id": "A1",
-   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
+   "text": "требование «Среда эксплуатации» понято как abrasion_resistant = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A2",
-   "text": "обязательное требование operating_environment (Среда эксплуатации) не учтено подбором параметров"
+   "text": "требование «Коэффициент трения по POM» понято как low_friction = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A3",
-   "text": "обязательное требование shaft_speed (Скорость вращения звезды) не учтено подбором параметров"
+   "text": "требование «Пищевая безопасность» понято как food_safe = да"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A4",
-   "text": "обязательное требование load_radial_per_roller (Радиальная нагрузка на профиль от одного ролика) не учтено подбором параметров"
+   "text": "требование «Рабочая температура» понято как service_temp_max_c = 35"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A5",
-   "text": "обязательное требование torque_max (Реактивный крутящий момент на ось) не учтено подбором параметров"
+   "text": "требование «Кратковременный контакт с горячим клеем» понято как service_temp_peak_c = 160"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A6",
-   "text": "обязательное требование mating_material (Материал ответных роликов) не учтено подбором параметров"
+   "text": "требование «Допуск профиля кулачка» понято как dimensional_tol_mm = 0.15"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A7",
-   "text": "обязательное требование friction_without_lubrication (Коэффициент трения по POM) не учтено подбором параметров"
+   "text": "требование «Стойкость к абразивному износу» понято как chemical_resistance = oil, alkali"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A8",
-   "text": "обязательное требование wear_resistance (Стойкость к абразивному износу) не учтено подбором параметров"
+   "text": "нагрузка «cyclic» выведена из требования «Скорость вращения звезды»"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A9",
-   "text": "обязательное требование temperature_operating (Рабочая температура) не учтено подбором параметров"
+   "text": "обязательное требование production_method (Метод производства) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A10",
-   "text": "обязательное требование chemical_washing (Стойкость к моющим средствам) не учтено подбором параметров"
+   "text": "обязательное требование shaft_speed (Скорость вращения звезды) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A11",
-   "text": "обязательное требование temperature_short_contact (Кратковременный контакт с горячим клеем) не учтено подбором параметров"
+   "text": "обязательное требование load_radial_per_roller (Радиальная нагрузка на профиль от одного ролика) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A12",
-   "text": "обязательное требование tolerance_cam_profile (Допуск профиля кулачка) не учтено подбором параметров"
+   "text": "обязательное требование torque_max (Реактивный крутящий момент на ось) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A13",
-   "text": "обязательное требование surface_finish_profile (Качество поверхности профиля) не учтено подбором параметров"
+   "text": "обязательное требование mating_material (Материал ответных роликов) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A14",
-   "text": "обязательное требование food_safety (Пищевая безопасность) не учтено подбором параметров"
+   "text": "обязательное требование surface_finish_profile (Качество поверхности профиля) не учтено подбором параметров"
   },
   {
    "basis": "карточка этапа 1",
@@ -83,32 +83,57 @@
   {
    "basis": "карточка этапа 1",
    "id": "A17",
-   "text": "Контакт детали с пищевой продукцией косвенный, через упаковку, без прямого соприкосновения с продуктом"
+   "text": "тип детали «shaft» выведен из назначения в карточке"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A18",
-   "text": "Нагрузка на профиль циклическая и многократная, число роликов и суммарная нагрузка на ось больше 35 Н, но точное их число неизвестно"
+   "text": "Контакт детали с пищевой продукцией косвенный, через упаковку, без прямого соприкосновения с продуктом"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A19",
-   "text": "Посадочные и крепёжные поверхности оси должны соответствовать модели STL без изменений"
+   "text": "Нагрузка на профиль циклическая и многократная, число роликов и суммарная нагрузка на ось больше 35 Н, но точное их число неизвестно"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A20",
-   "text": "координаты модели в миллиметрах (подтверждено этапом 1)"
+   "text": "Посадочные и крепёжные поверхности оси должны соответствовать модели STL без изменений"
   },
   {
    "basis": "карточка этапа 1",
    "id": "A21",
+   "text": "координаты модели в миллиметрах (подтверждено этапом 1)"
+  },
+  {
+   "basis": "карточка этапа 1",
+   "id": "A22",
    "text": "доли нависаний нет в отчёте STL этапа 1: поддержки по геометрии не включаются"
   },
   {
    "basis": "решение этапа 2",
-   "id": "A22",
+   "id": "A23",
+   "text": "требование part_class = shaft — допущение, а не подтверждённый факт"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A24",
+   "text": "требование food_safety не проверено по каталогу: food contact not declared in the catalog"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A25",
+   "text": "требование temperature_short_contact не проверено по каталогу: cannot be checked from the catalog"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A26",
    "text": "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте STL нет, поворот не подбирался"
+  },
+  {
+   "basis": "решение этапа 2",
+   "id": "A27",
+   "text": "диаметр основания 5D оставлен по умолчанию (6 мм): диаметр отверстия детали в отчёте STL не передан"
   }
  ],
  "card_ref": {
@@ -121,18 +146,61 @@
   "0": {
    "alternatives": [
     {
-     "id": "enduse_abs",
-     "why": "оценка 0.50"
+     "id": "generic_nylon_175",
+     "why": "оценка 0.65; нет данных: food_safety (food contact not declared in the catalog); temperature_short_contact (cannot be checked from the catalog); wear_resistance (catalog description does not mention the required media)"
     },
     {
-     "id": "enduse_pa6",
-     "why": "оценка 0.50"
+     "id": "fiberpart_tpu_c5",
+     "why": "оценка 0.65; нет данных: friction_without_lubrication (friction=None); food_safety (food contact not declared in the catalog); temperature_short_contact (cannot be checked from the catalog)"
     }
    ],
-   "checks": [],
-   "id": "generic_pla_175",
+   "checks": [
+    {
+     "detail": "abrasion=good",
+     "hard": true,
+     "key": "abrasion_resistant",
+     "requirement_id": "operating_environment",
+     "status": "ok"
+    },
+    {
+     "detail": "friction=low",
+     "hard": true,
+     "key": "low_friction",
+     "requirement_id": "friction_without_lubrication",
+     "status": "ok"
+    },
+    {
+     "detail": "food contact not declared in the catalog",
+     "hard": true,
+     "key": "food_safe",
+     "requirement_id": "food_safety",
+     "status": "unknown"
+    },
+    {
+     "detail": "service_max_c=100",
+     "hard": true,
+     "key": "service_temp_max_c",
+     "requirement_id": "temperature_operating",
+     "status": "ok"
+    },
+    {
+     "detail": "cannot be checked from the catalog",
+     "hard": true,
+     "key": "service_temp_peak_c",
+     "requirement_id": "temperature_short_contact",
+     "status": "unknown"
+    },
+    {
+     "detail": "catalog description mentions: oil, alkali",
+     "hard": true,
+     "key": "chemical_resistance",
+     "requirement_id": "wear_resistance",
+     "status": "ok"
+    }
+   ],
+   "id": "enduse_pa6",
    "source": "rule:MATERIAL-RANK",
-   "why": "требования задания не различают 29 материалов каталога: взят материал слайсера по умолчанию (PLA); оценка 0.50"
+   "why": "лучший из 29 материалов каталога по требованиям задания; оценка 0.77; нет данных: food_safety (food contact not declared in the catalog); temperature_short_contact (cannot be checked from the catalog)"
   }
  },
  "models": [
@@ -141,10 +209,10 @@
    "extruder": 0,
    "id": "m1",
    "orientation_candidate": "o1",
-   "source": "assumption:A22",
+   "source": "assumption:A26",
    "transform": {
     "position": [
-     -9.5,
+     0.0,
      0.0,
      20.25
     ],
@@ -171,44 +239,67 @@
      1.0
     ]
    },
-   "why": "модель стоит как в файле, в центре рабочей области стола режима 3D"
+   "why": "модель стоит как в файле: ось детали в отчёте STL не найдена или не стоит вертикально ни в одном кандидате, в центре рабочей области стола режима 5D"
   }
  ],
  "printer": "hte530v5.2.4",
  "printing_mode": {
-  "source": "rule:MODE-DEFAULT-CLASSIC",
-  "value": "classic",
-  "why": "режим 3D (classic) по умолчанию: 5D не запрошен"
+  "source": "rule:MODE-REVOLUTION-5D",
+  "value": "cylindrical_full",
+  "why": "вал, ось, колесо, ролик или втулка: деталь вращается на валу, 5D даёт непрерывные слои вокруг оси"
  },
  "quality": {
   "quality_type": "normal",
   "source": "default",
-  "why": "профиль принтера по умолчанию: Fine, слой 0.2 мм задан отдельно: обычный слой 0,2 мм, как в типовых проектах Stereotech"
+  "why": "профиль принтера по умолчанию: Fine, слой 0.15 мм задан отдельно: жёсткий допуск 0,15 мм и точнее: слой не толще 0,15 мм и печать медленнее"
  },
  "settings": {
-  "adhesion_type": {
-   "source": "rule:ADHESION-CLASSIC-SKIRT",
-   "value": "skirt",
-   "why": "3D: юбка вокруг детали, как в типовом проекте Stereotech; кайма не нужна"
+  "cool_fan_enabled_cylindrical": {
+   "scope": "extruder:0",
+   "source": "rule:FAN-OFF-NO-COOLING",
+   "value": false,
+   "why": "в файле материала обдув 0 %: обдув выключен"
+  },
+  "infill_pattern": {
+   "source": "rule:INFILL-GYROID",
+   "value": "gyroid",
+   "why": "ударная или циклическая нагрузка либо гибкая деталь: изотропное заполнение gyroid"
+  },
+  "infill_sparse_density": {
+   "source": "rule:SHAFT-TORSION-INFILL",
+   "unit": "%",
+   "value": 40.0,
+   "why": "вал передаёт крутящий момент через всё сечение: заполнение не ниже 40 %"
   },
   "layer_height": {
-   "source": "rule:LAYER-STANDARD",
+   "source": "rule:TOL-HARD-FINE-LAYER",
    "unit": "mm",
-   "value": 0.2,
-   "why": "обычный слой 0,2 мм, как в типовых проектах Stereotech"
+   "value": 0.15,
+   "why": "жёсткий допуск 0,15 мм и точнее: слой не толще 0,15 мм и печать медленнее"
+  },
+  "speed_print": {
+   "source": "rule:TOL-HARD-FINE-LAYER",
+   "unit": "mm/s",
+   "value": 45.0,
+   "why": "жёсткий допуск 0,15 мм и точнее: слой не толще 0,15 мм и печать медленнее"
+  },
+  "top_bottom_thickness": {
+   "source": "rule:LOAD-WALLS",
+   "unit": "mm",
+   "value": 0.9,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения"
   },
   "wall_thickness": {
-   "source": "rule:WALLS-STANDARD",
+   "source": "rule:LOAD-WALLS",
    "unit": "mm",
-   "value": 1.2,
-   "why": "три периметра, как в типовых проектах Stereotech; периметров: 3"
+   "value": 1.6,
+   "why": "циклическая или ударная нагрузка: периметры несут нагрузку лучше заполнения; периметров: 4"
   }
  },
  "status": "proposed",
  "unsatisfied": [],
  "version": "0.2",
  "warnings": [
-  "requirement wear_limit_reference (Предельный износ профиля оригинала) is not used by parameter selection",
   "stage 1 unknown: Количество деталей для печати",
   "stage 1 unknown: Число роликов, одновременно работающих с профилем, и суммарная радиальная нагрузка на ось",
   "stage 1 unknown: Способ крепления оси и наличие посадочных отверстий, шпонок, резьбы",
