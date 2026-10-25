@@ -325,3 +325,21 @@ async def test_a_decision_keeps_its_turn():
     agent, _ = assistant(assistant=[reply("Привет")])
     decision = await agent.decide(situation(), said)
     assert decision.turn
+
+
+async def test_a_model_and_a_task_start_and_the_checker_asks_later():
+    """Regression: with reasoning the assistant read the task itself and asked its own
+    questions instead of starting."""
+    files = [file("Шестерня.stl", "stl"), file("ТЗ.txt", "txt")]
+    ask = reply("", tool_calls=[call(ASK, {"text": "Какая температура верна?"})])
+    start = reply("", tool_calls=[call(START, {"title": "Шестерня"})])
+    agent, model = assistant(assistant=[ask, start])
+    assert (await agent.decide(situation(files=files), said)).action == "start"
+    assert "найдёт проверяющий" in model.requests["assistant"][1]["messages"][-1]["content"]
+    agent, model = assistant(assistant=[reply("Какая температура верна?"), start])
+    assert (await agent.decide(situation(files=files), said)).action == "start"
+    # Asked not to start, it keeps its word after the one reminder.
+    wait = reply("Хорошо, жду")
+    agent, model = assistant(assistant=[wait, wait])
+    decision = await agent.decide(situation(files=files, text="Пока не запускай"), said)
+    assert (decision.action, len(model.requests["assistant"])) == ("reply", 2)

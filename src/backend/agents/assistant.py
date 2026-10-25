@@ -68,10 +68,16 @@ START_ARGS = {
 }
 UPDATE_ARGS = {"type": "object", "properties": {"summary": _TEXT}, "required": ["summary"]}
 REPLY_ARGS = {"type": "object", "properties": {"text": _TEXT}, "required": ["text"]}
-# Said once more to an agent that answers in text while the questions wait.
-RECHECK = (
+# Said once more to an agent that answers in text where its tool was due: while the
+# questions wait, and when a model and a task are sent.
+RECHECK_ANSWER = (
     "Ты ответил текстом, а проект ждёт ответов на вопросы. Если сообщение пользователя "
     "отвечает на них, вызови update_project, иначе повтори свой ответ"
+)
+RECHECK_START = (
+    "Модель STL и ТЗ приложены, этого достаточно для запуска, противоречия и пробелы ТЗ "
+    "найдёт проверяющий и спросит в окне вопросов. Если пользователь просит пока не "
+    "запускать, повтори свой ответ, иначе начни проект через start_project"
 )
 INVESTIGATE_ARGS = {
     "type": "object",
@@ -140,7 +146,8 @@ class Assistant:
         ctx = self.context(situation.job)
         await self.sources.parse(situation.files, ctx)
         messages = assistant_messages(self.system, situation)
-        rechecked = not open_questions(situation.job)
+        reminder = recheck_reason(situation)
+        rechecked = reminder is None
         for step in range(1, STEPS + 1):
             offered = self.tools if step < STEPS else [self.reply]
             reply = await self.runner.talk(ASSISTANT, messages, offered, ctx, step)
@@ -152,7 +159,7 @@ class Assistant:
                 return Decision("reply", chat_text(text) or FALLBACK, turn=ctx.run_id)
             if replied:
                 rechecked = True
-                messages += _recheck(reply.content, calls)
+                messages += _recheck(reply.content, calls, reminder or "")
                 continue
             decision = self._decision(calls, reply.content, situation)
             if decision is not None:
@@ -265,6 +272,8 @@ def refusal(name: str, situation: Situation, arguments: dict[str, Any] | None = 
             "Подробности ты уже спрашивал, второй раз не спрашивай. Если среди новых файлов "
             "есть модель STL, начни проект, иначе ответь через reply"
         )
+    if name == ASK and described(situation):
+        return RECHECK_START
     waiting = job.status == Status.WAITING and job.card is not None
     if name == START and waiting and not (arguments or {}).get("drop_current"):
         return (
@@ -291,22 +300,37 @@ def asked(situation: Situation) -> bool:
     return any(m.get("kind") == "gate" and m.get("seq", 0) >= since for m in situation.messages)
 
 
+def described(situation: Situation) -> bool:
+    """A model and a task are sent: enough to start, the checker asks what is missing."""
+    kinds = {a.kind == "stl" for a in situation.files}
+    return kinds == {True, False}
+
+
+def recheck_reason(situation: Situation) -> str | None:
+    """Why a reply in text gets one more look: the questions wait or a task is sent."""
+    if open_questions(situation.job):
+        return RECHECK_ANSWER
+    if described(situation) and not situation.working:
+        return RECHECK_START
+    return None
+
+
 def open_questions(job: Job) -> list[str]:
     if job.card is None or job.status != Status.WAITING:
         return []
     return [q.title for q in job.card.questions if not q.answer]
 
 
-def _recheck(content: str, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _recheck(content: str, calls: list[dict[str, Any]], reminder: str) -> list[dict[str, Any]]:
     """The reply goes back to the agent with the reminder, as a tool answer or a user turn."""
     if not calls:
         return [
             {"role": "assistant", "content": content},
-            {"role": "user", "content": RECHECK},
+            {"role": "user", "content": reminder},
         ]
     return [
         {"role": "assistant", "content": content, "tool_calls": calls},
-        *({"role": "tool", "tool_call_id": c.get("id", ""), "content": RECHECK} for c in calls),
+        *({"role": "tool", "tool_call_id": c.get("id", ""), "content": reminder} for c in calls),
     ]
 
 
