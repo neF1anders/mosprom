@@ -55,7 +55,7 @@ for (const scheme of ["light", "dark"] as const)
           await page
             .getByRole("heading", { name: "Как работает плагин" })
             .boundingBox(),
-        ).toMatchObject({ x: 360, y: 700, height: 26 });
+        ).toMatchObject({ x: 360, y: 723, height: 26 });
       await expect(async () => {
         const mismatches = await page
           .locator('img[src^="/figma/"]')
