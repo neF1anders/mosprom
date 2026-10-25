@@ -1,8 +1,3 @@
-"""Messages queued while the job works and their delivery at its safe points, on SQLite.
-
-Only the provider is scripted; the assistant decides as the agent ``assistant``.
-"""
-
 import asyncio
 import json
 from datetime import timedelta
@@ -60,7 +55,7 @@ async def act(http, job_id: str, item_id: str, action: str, **body):
 
 
 def queued_while(http, job_id: str, text: str, review: dict | None = None):
-    """A checker reply that queues a message while stage one still runs."""
+    """Сообщение встаёт в очередь."""
 
     async def meanwhile(messages):
         await enqueue(http, job_id, text)
@@ -75,7 +70,7 @@ async def waiting(pg, job_id: str):
 
 
 async def hold(pg, job_id: str, **changes) -> None:
-    """Puts the job's queued messages in the state a delivery leaves them in."""
+    """Переводит сообщения в состояние доставки."""
     async with pg.uow() as uow:
         for message in await uow.queued.list(job_id):
             await uow.queued.save(message.model_copy(update=changes))
@@ -88,7 +83,7 @@ async def current(pg, job_id: str):
 
 
 async def run_queued(pg, model):
-    """Runs the stage-one task the job waits for, with the flags it was queued with."""
+    """Запускает задачу этапа один."""
     [task] = await todo(pg, "stage1")
     pg.stage1.runner.model = model
     await pg.stage1.run(**task)
@@ -105,7 +100,7 @@ async def kinds(http, job_id: str) -> list[tuple[str, str, str]]:
 
 
 def stage_two(pg, steps: Steps, check=None, check_gcode=None) -> ParameterPipeline:
-    """Stand-in steps; the messages queued meanwhile are delivered between them."""
+    """Заглушки этапа два с доставкой."""
     return ParameterPipeline(
         pg.uow,
         CATALOG,
@@ -128,7 +123,7 @@ async def test_a_message_waits_while_the_job_works_and_goes_at_once_otherwise(pg
     assert (sent_now["job"]["revision"], sent_now["job"]["status"]) == (0, "draft")
     assert sent_now["job"]["title"] == "Шестерня привода" and sent_now["queued"] == []
     assert await todo(pg, "steer") == [{"job_id": job_id}]
-    # The assistant started the work.
+    # ассистент запустил работу
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     queued = await enqueue(http, job_id, TEMPERATURE)
     assert queued["job"]["revision"] == 1
@@ -157,7 +152,7 @@ async def test_only_a_waiting_message_is_edited_deleted_or_sent(pg, http):
     path = f"/api/v1/jobs/{job_id}/queue/{first['id']}/edit"
     edited = await http.post(path, json=body)
     [after] = edited.json()["queued"]
-    # A new text gets new attempts.
+    # новые попытки
     assert (after["text"], after["attempts"]) == ("Температура до 80 C", 0)
     assert (await http.post(path, json=body)).json() == edited.json()
     conflict = await http.post(path, json={**body, "text": "Другое"})
@@ -166,7 +161,7 @@ async def test_only_a_waiting_message_is_edited_deleted_or_sent(pg, http):
     for action, extra in [("edit", {"text": "x"}), ("delete", {}), ("send", {})]:
         response = await act(http, job_id, first["id"], action, **extra)
         assert (response.status_code, response.json()["code"]) == (409, "queued_busy")
-    # A claim that outlived its delivery no longer holds the message.
+    # старый захват снят
     await hold(pg, job_id, claimed_at=now() - CLAIM_TIMEOUT - LATER)
     deleted = await act(http, job_id, first["id"], "delete")
     assert deleted.status_code == 200 and deleted.json()["queued"] == []
@@ -198,11 +193,11 @@ async def test_an_offtopic_message_at_the_end_of_stage_one_leaves_the_work_alone
     assert '"работа": "идёт, этап подбор параметров"' in state
     assert '"назначение": "Шестерня привода"' in state
     assert state.endswith("Какая сегодня погода")
-    # The agents that make the card never read it.
+    # агенты не читают
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     model = script()
     await run(pg, job_id, model)
-    # Its input is the same as before, so the interpreter's result is even reused.
+    # результат переиспользован
     assert "Какая сегодня погода" not in json.dumps(model.requests, ensure_ascii=False)
 
 
@@ -210,7 +205,7 @@ async def test_a_correction_at_the_end_of_stage_one_is_one_more_turn_of_the_chec
     job_id = await job_with(http, "box.stl", "task.txt")
     first = script(checker=[queued_while(http, job_id, TEMPERATURE)], assistant=[APPLY])
     job = await run(pg, job_id, first)
-    # The new revision took the card's place in the queue of stage two.
+    # ревизия заняла очередь
     assert (job.revision, job.status, job.stage, job.card.revision) == (
         2,
         Status.QUEUED,
@@ -242,7 +237,7 @@ async def test_a_correction_at_the_end_of_stage_one_is_one_more_turn_of_the_chec
     assert started[-1] == "Учитываю правку"
     assert await todo(pg, "stage2") == [{"job_id": job_id, "revision": 2}]
 
-    # A later correction goes on in the same dialog.
+    # тот же диалог
     await enqueue(http, job_id, "Количество 3")
     pg.stage1.runner.model = script(assistant=[APPLY])
     assert await pg.steering.deliver(job_id, 2)
@@ -284,7 +279,7 @@ async def test_new_files_sent_during_the_work_go_into_the_update(pg, http):
     assert '"extra.docx (документ)"' in model.requests["assistant"][0]["messages"][-1]["content"]
     assert (await events(pg, job_id))[-1]["data"] == {"summary": APPLIED}
     job = await run_queued(pg, model)
-    # The card of the old files has no dialog to go on with, so stage one runs anew.
+    # этап заново
     assert {"interpreter", "checker"} <= set(model.requests)
     assert "extra.docx" in {f.filename for f in job.card.files}
 
@@ -343,13 +338,13 @@ async def test_a_failing_agent_leaves_the_messages_queued_and_the_work_goes_on(p
     steps = Steps()
     await stage_two(pg, steps).run(job_id, 1)
     assert (await current(pg, job_id)).status == Status.COMPLETED and steps.gcode
-    # Two safe points tried, the later ones left the message for the user.
+    # поздние точки пропускают
     assert len(model.requests["assistant"]) == 2
     [message] = await waiting(pg, job_id)
     assert (message.status, message.claim, message.attempts) == ("queued", None, 2)
     failed = [e for e in await events(pg, job_id) if e["type"] == "steer.failed"]
     assert [e["data"] for e in failed] == [{"code": "model_unavailable"}] * 2
-    # The user's own send still delivers it.
+    # отправка пользователя доставляет
     pg.stage1.runner.model = script(assistant=[OFFTOPIC])
     assert not await pg.steering.deliver(job_id, force=True)
     assert await waiting(pg, job_id) == [] and (await kinds(http, job_id))[-1][1] == "steer"
@@ -405,7 +400,7 @@ async def test_a_retry_during_the_decision_takes_the_queue_first(pg, http):
         return APPLY
 
     pg.stage1.runner.model = script(assistant=[retry_meanwhile])
-    # The late decision is dropped: the retry took the message into its revision.
+    # позднее решение отброшено
     assert not await pg.steering.deliver(job_id, force=True)
     assert (await current(pg, job_id)).revision == 2
     assert [(m["revision"], m["text"]) for m in await chat(http, job_id)] == [(2, TEMPERATURE)]
@@ -445,8 +440,7 @@ async def test_a_claim_left_by_a_dead_delivery_is_taken_again(pg, http):
 
 
 async def waiting_for_answers(pg, http, text: str, decision=None):
-    """A job whose checker asked, with a message queued while it did; the assistant decides
-    on it as soon as the questions come."""
+    """Проверяющий спросил, сообщение ждёт."""
     job_id = await job_with(http, "box.stl", "task.txt")
     review = {"questions": [QUESTION]}
     model = script(checker=[queued_while(http, job_id, text, review)], assistant=[decision])
@@ -455,7 +449,7 @@ async def waiting_for_answers(pg, http, text: str, decision=None):
 
 
 async def test_a_message_queued_while_the_checker_asks_answers_the_questions(pg, http):
-    """Regression: the message waited unanswered until the user answered in the window."""
+    """Сообщение отвечает на вопросы."""
     job, model = await waiting_for_answers(pg, http, "Работает в масле", APPLY)
     assert len(model.requests["assistant"]) == 1
     assert (
@@ -464,7 +458,7 @@ async def test_a_message_queued_while_the_checker_asks_answers_the_questions(pg,
     )
     assert job.revision == 2 and await waiting(pg, job.id) == []
     assert (await kinds(http, job.id))[-1] == ("user", "chat", "Работает в масле")
-    # The questions wait, so the message answers them instead of correcting the card.
+    # вопросы ждут ответа
     assert await todo(pg, "stage1") == [{"job_id": job.id, "revision": 2, "start": False}]
     model = script(checker=[reply({})])
     await run_queued(pg, model)
@@ -556,13 +550,12 @@ async def test_the_model_server_drives_the_agent_through_the_real_client(pg, htt
 
 
 def test_a_message_sent_while_the_assistant_answered_stays_pending():
-    """Regression: the reply to the first message landed after the second, which then
-    looked answered."""
+    """Сообщение остаётся в ожидании."""
     messages = [
         {"id": "m1", "seq": 1, "role": "user", "kind": "chat", "text": "Привет"},
         {"id": "m2", "seq": 2, "role": "user", "kind": "chat", "text": "У меня деталь"},
         {"id": "r1", "seq": 3, "role": "assistant", "kind": "chat", "text": "Здравствуйте"},
     ]
     assert [m["id"] for m in _pending(messages, 1)] == ["m2"]
-    # A chat from before the mark counts what follows its last reply.
+    # чат после метки
     assert _pending(messages, 0) == []

@@ -18,7 +18,7 @@ def keys():
 
 @pytest.fixture
 def select(catalog, keys):
-    """select(card, feedback=None) -> the published parameter set."""
+    """Выбор набора параметров по карточке."""
 
     def run(card, feedback=None):
         return select_parameters(card, catalog, keys, feedback).published()

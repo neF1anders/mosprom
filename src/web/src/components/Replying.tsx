@@ -1,7 +1,7 @@
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
-// The message is on its way and the assistant has not started yet; then its card shows.
+// ответ в пути
 export function Replying() {
   return (
     <div className={styles.replying}>

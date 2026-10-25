@@ -1,10 +1,3 @@
-"""Every finished project keeps its files in a folder of its own, named after the part.
-
-The folders sit in ``Результаты`` inside the folder shared with the slicer, so the user finds
-them beside the slicer's own files. A name an earlier project took gets a number: a new
-project never overwrites an old one.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -26,7 +19,7 @@ class LocalResultFolders:
         await asyncio.to_thread((folder.path / name).write_bytes, data)
 
     async def discard(self, folder: ResultFolder) -> None:
-        """A folder left unused goes; one with files in it stays."""
+        """Убирает пустую неиспользованную папку проекта."""
         with contextlib.suppress(OSError):
             await asyncio.to_thread(folder.path.rmdir)
 
@@ -37,8 +30,7 @@ class LocalResultFolders:
         while True:
             candidate = name if number == 1 else f"{name} ({number})"
             try:
-                # Taking the name and making the folder is one step, so two projects
-                # finishing at once never share a folder.
+                # имя и папка
                 (root / candidate).mkdir()
             except FileExistsError:
                 number += 1

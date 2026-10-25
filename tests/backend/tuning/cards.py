@@ -1,5 +1,3 @@
-"""Synthetic stage-one task cards (TaskCard 2.0) with an embedded STL analysis report."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -17,8 +15,7 @@ def report(
     overhang_fraction=None,
     bore=None,
 ) -> dict[str, Any]:
-    """Only the report fields stage two reads, in the layout of ``src/mesh_analysis.py``; the
-    sections ``overhangs`` and ``revolution`` of the stage-one contract only when asked for."""
+    """Только поля отчёта второго этапа."""
     payload = {
         "schema_version": "1.0",
         "file": {"sha256": SHA, "triangles": 12, "encoding": "binary"},

@@ -10,7 +10,7 @@ type Recognition = {
   onerror: (() => void) | null;
   onend: (() => void) | null;
 };
-// Voice input of the browser, in Russian; each recognised phrase goes to onText.
+// голосовой ввод
 export function useDictation(onText: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const recognizer = useRef<Recognition | null>(null);

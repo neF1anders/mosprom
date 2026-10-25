@@ -1,8 +1,3 @@
-"""The StereotechAI backend as a child process of the slicer, on the Python 3.11 shipped in runtime/.
-
-The slicer embeds Python 3.5, so the app cannot run inside it. The portable build puts a Python 3.11
-and the app next to the plugin; this module starts it on a free port and stops it with the slicer.
-"""
 import atexit
 import base64
 import os
@@ -26,7 +21,7 @@ def python_path():
 
 
 def available():
-    """True in the portable build; a run from the sources has no runtime/ and uses mosprom.json."""
+    """Есть ли встроенная среда."""
     return os.path.isfile(python_path()) and os.path.isdir(os.path.join(RUNTIME_DIR, "app"))
 
 
@@ -55,7 +50,7 @@ class Sidecar(object):
         return os.path.join(RUNTIME_DIR, "data", "logs", "backend.log")
 
     def start(self):
-        """Start the backend and wait until it answers; raises RuntimeError with the reason."""
+        """Запускает бэкенд и ждёт ответа."""
         if self.running():
             return
         if not available():
@@ -66,27 +61,46 @@ class Sidecar(object):
         self._log = open(self.log_path(), "ab")
         config = settings.load()
         env = dict(os.environ)
-        env.update({
-            "DATA_DIR": os.path.join(RUNTIME_DIR, "data"),
-            "APP_ORIGIN": self.origin(),
-            "SESSION_SECRET": self.secret,
-            "QWEN_API_KEY": config.get("api_key") or "",
-            "QWEN_BASE_URL": config.get("base_url") or settings.DEFAULT_BASE_URL,
-            "QWEN_MODEL": config.get("model") or settings.DEFAULT_MODEL,
-            "SLICER_FOLDER": settings.data_dir(),
-            "SLICER_HOST": "127.0.0.1",
-            "PARENT_PID": str(os.getpid()),
-            "PYTHONUTF8": "1",
-            "PYTHONDONTWRITEBYTECODE": "1",
-        })
+        env.update(
+            {
+                "DATA_DIR": os.path.join(RUNTIME_DIR, "data"),
+                "APP_ORIGIN": self.origin(),
+                "SESSION_SECRET": self.secret,
+                "QWEN_API_KEY": config.get("api_key") or "",
+                "QWEN_BASE_URL": config.get("base_url") or settings.DEFAULT_BASE_URL,
+                "QWEN_MODEL": config.get("model") or settings.DEFAULT_MODEL,
+                "SLICER_FOLDER": settings.data_dir(),
+                "SLICER_HOST": "127.0.0.1",
+                "PARENT_PID": str(os.getpid()),
+                "PYTHONUTF8": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+        )
         for name in ("PYTHONPATH", "PYTHONHOME"):
             env.pop(name, None)
-        command = [python_path(), "-m", "uvicorn", "src.backend.api.app:create_app", "--factory",
-                   "--host", "127.0.0.1", "--port", str(self.port), "--loop", "asyncio"]
+        command = [
+            python_path(),
+            "-m",
+            "uvicorn",
+            "src.backend.api.app:create_app",
+            "--factory",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(self.port),
+            "--loop",
+            "asyncio",
+        ]
         flags = CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._process = subprocess.Popen(
-            command, cwd=os.path.join(RUNTIME_DIR, "app"), env=env, stdin=subprocess.DEVNULL,
-            stdout=self._log, stderr=subprocess.STDOUT, creationflags=flags)
+            command,
+            cwd=os.path.join(RUNTIME_DIR, "app"),
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=self._log,
+            stderr=subprocess.STDOUT,
+            creationflags=flags,
+        )
         self._wait_ready()
 
     def _wait_ready(self):
@@ -105,7 +119,9 @@ class Sidecar(object):
                 pass
             time.sleep(0.5)
         self.stop()
-        raise RuntimeError("the backend did not answer in %d s, see %s" % (START_SECONDS, self.log_path()))
+        raise RuntimeError(
+            "the backend did not answer in %d s, see %s" % (START_SECONDS, self.log_path())
+        )
 
     def stop(self):
         process, self._process = self._process, None

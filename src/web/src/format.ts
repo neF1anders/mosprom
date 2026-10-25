@@ -1,6 +1,6 @@
 import type { Geometry } from "./types";
 
-// Model size with its scale; before the user confirms one, the size is in file units.
+// размер с масштабом
 export function modelSize(geometry?: Geometry | null) {
   if (!geometry?.extents.length) return "";
   const size = geometry.extents.map((x) => Number(x.toFixed(3))).join(" × ");
@@ -10,7 +10,7 @@ export function modelSize(geometry?: Geometry | null) {
       : unitNames[geometry.units] || geometry.units;
   return `${size} ${units}`;
 }
-// Defects of the STL analysis as the chat names them.
+// дефекты анализа STL
 export const defectLabels: Record<string, string> = {
   boundary_edges: "открытая поверхность",
   duplicate_faces: "дублирующие грани",
@@ -25,7 +25,7 @@ const unitNames: Record<string, string> = {
   m: "м",
   in: "дюйм",
 };
-// The Russian form for a count: 1 требование, 2 требования, 5 требований.
+// русская форма числа
 export function plural(
   count: number,
   [one, few, many]: [string, string, string],

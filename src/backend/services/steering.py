@@ -1,12 +1,3 @@
-"""Every user message reaches the assistant: at once when the job is idle, at a safe point of
-the work when it runs, or at once again on «Скорректировать».
-
-Messages typed during the work are claimed under the job's lock and the assistant decides
-outside it. The decision is applied under the lock again, and only while nothing changed
-meanwhile: a new project or an update starts a new revision with the messages, a reply
-leaves the work as it is. Whatever goes wrong, the messages wait in the queue again.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -24,15 +15,14 @@ from ..ports.persistence import UnitOfWork, UowFactory
 from .commands import changed
 
 logger = logging.getLogger(__name__)
-# A claim older than this belongs to a delivery that died with its worker.
+# доставка умерла
 CLAIM_TIMEOUT = timedelta(seconds=120)
-# After this many failed deliveries only the user's own send delivers a message.
+# лимит неудачных доставок
 MAX_ATTEMPTS = 2
-# How long the work waits for the decision at a safe point, and a chat turn at most.
+# ожидание решения
 DECIDE_SECONDS = 30
 ANSWER_SECONDS = 180
-# A safe point delivers while the work goes on, waits for answers or has just ended; the
-# user's own send delivers whatever the job's state, except a deleted chat.
+# когда допустима доставка
 DELIVERABLE = {Status.QUEUED, Status.RUNNING, Status.WAITING, Status.COMPLETED}
 WORKING = {Status.QUEUED, Status.RUNNING}
 FAILED = "Сообщение пока не доставлено и ждёт в очереди"
@@ -55,21 +45,16 @@ class Steering:
         self.uow, self.assistant = uow, assistant
 
     async def deliver(self, job_id: str, revision: int | None = None, force: bool = False) -> bool:
-        """True when the messages replaced the work with a new revision.
-
-        ``revision`` is the work of the caller's safe point; ``force`` is the user's own send,
-        which takes the messages that failed before as well and answers the chat when the
-        queue is empty.
-        """
+        """Доставляет сообщения ассистенту."""
         claim = await self._claim(job_id, revision, force)
         replaced = await self._deliver(claim) if claim is not None else False
-        # The user's own send also answers what they wrote in the chat meanwhile.
+        # ответ чату
         if force:
             await self.answer(job_id)
         return replaced
 
     async def answer(self, job_id: str) -> None:
-        """The reply to the messages the user sent while the job was idle."""
+        """Отвечает на сообщения простоя."""
         job, messages, attachments = await self._read(job_id)
         pending = _pending(messages, job.answered)
         if not pending or job.deleted or job.status in WORKING:
@@ -92,7 +77,7 @@ class Steering:
         try:
             return await self._settle(claim, await self._decide(claim))
         except OperationCancelled:
-            # A stop or a new revision came first: the messages wait again or went with it.
+            # ревизия сменилась
             await self._release(claim)
         except TimeoutError:
             await self._release(claim, "steer_timeout")
@@ -102,7 +87,7 @@ class Steering:
             await asyncio.shield(self._release(claim))
             raise
         except Exception:
-            # The work goes on without the agent; the bug stays visible in the log.
+            # работа без агента
             logger.exception("Delivery of the queue of job %s failed", claim.job.id)
             await self._release(claim, "internal")
         return False
@@ -122,7 +107,7 @@ class Steering:
         return job, messages, attachments
 
     async def _claim(self, job_id: str, revision: int | None, force: bool) -> Claim | None:
-        """An empty queue costs one indexed read; the messages are claimed under the lock."""
+        """Захватывает сообщения очереди под блокировкой."""
         at = now()
         async with self.uow() as uow:
             waiting = await uow.queued.list(job_id)
@@ -142,8 +127,7 @@ class Steering:
         return claim
 
     async def _decide(self, claim: Claim) -> Decision:
-        """During the work nothing is said before the decision: the messages are not in the
-        chat yet."""
+        """Ассистент решает без блокировки."""
         _, messages, attachments = await self._read(claim.job.id)
         texts = [item.text for item in claim.items]
         new = unassigned(claim.job, attachments, _sent(item.model_dump() for item in claim.items))
@@ -151,8 +135,7 @@ class Steering:
         return await asyncio.wait_for(self.assistant.decide(situation, _silent), DECIDE_SECONDS)
 
     async def _settle(self, claim: Claim, decision: Decision) -> bool:
-        """The decision holds while the claim and the revision stand and the job still takes
-        deliveries; a stage that only moved on, say from stage one to stage two, keeps it."""
+        """Проверяет актуальность решения."""
         async with self.uow() as uow:
             job = await uow.jobs.get(claim.job.id, lock=True)
             items = await _claimed(uow, claim)
@@ -163,10 +146,9 @@ class Steering:
             if decision.action in ("reply", "ask"):
                 await _reply(uow, job, items, decision.text)
             else:
-                # The new revision takes the claimed messages into the chat before anything.
+                # сообщения в чат
                 sent = _sent(item.model_dump() for item in items)
                 await _act(uow, job, decision, [], sent, 0)
-            # Every message of the queue went into the chat with this decision.
             await _answered(uow, job, await _last_user_message(uow, job))
             await uow.commit()
         return decision.action not in ("reply", "ask")
@@ -174,11 +156,11 @@ class Steering:
     async def _apply(
         self, seen: Job, pending: list[dict[str, Any]], decision: Decision, first: int
     ) -> None:
-        """A turn that came too late for a newer revision or a started work only says so."""
+        """Применяет запоздавший ход ассистента."""
         async with self.uow() as uow:
             job = await uow.jobs.get(seen.id, lock=True)
             late = job.revision != seen.revision or job.status in WORKING or job.deleted
-            # The messages of this turn are answered; one sent meanwhile waits for its own.
+            # ход отвечен
             await _answered(uow, job, pending[-1]["seq"])
             if decision.action in ("reply", "ask"):
                 kind = "gate" if decision.action == "ask" else "chat"
@@ -195,7 +177,7 @@ class Steering:
             await uow.commit()
 
     async def _release(self, claim: Claim, failure: str | None = None) -> None:
-        """The messages wait again; a failure counts against them and tells the chat."""
+        """Возвращает сообщения в очередь."""
         async with self.uow() as uow:
             job = await uow.jobs.get(claim.job.id, lock=True)
             items = await _claimed(uow, claim)
@@ -217,12 +199,8 @@ async def _act(
     sent: set[str],
     first: int,
 ) -> None:
-    """A new project takes the files sent since; an update takes them into the current one.
-
-    Typed answers to the open questions continue the checker's dialog; files or a failed or
-    stopped run make the work start over; anything else is a correction of the card.
-    """
-    # The new files are told apart before a new project would take every unassigned one.
+    """Применяет решение ассистента."""
+    # различаем новые файлы
     new = unassigned(job, await uow.attachments.list(job.id), sent)
     if decision.action == "start":
         start_project(job, decision.title, decision.notes, first)
@@ -233,7 +211,7 @@ async def _act(
     if decision.action == "start":
         await _started(uow, job, pending)
         return
-    # New files, a file removed with the message or a run that did not end start over.
+    # новые файлы перезапускают
     fresh = bool(new) or job.files_changed or job.status in (Status.FAILED, Status.STOPPED)
     answering = job.status == Status.WAITING and not fresh
     typed = [m["id"] for m in pending]
@@ -245,8 +223,7 @@ async def _act(
 
 
 async def _started(uow: UnitOfWork, job: Job, pending: list[dict[str, Any]]) -> None:
-    """Messages typed during the work join the chat with the new revision; the project
-    counts its messages from the first of them."""
+    """Сообщения входят в новую ревизию."""
     first = await changed(uow, job, STARTED, start=True)
     project = job.project
     if project is not None and not pending and first is not None:
@@ -255,34 +232,29 @@ async def _started(uow: UnitOfWork, job: Job, pending: list[dict[str, Any]]) -> 
 
 
 def claimable(item: QueuedMessage, force: bool, at: datetime) -> bool:
-    """Free to deliver; a message that failed twice goes only with the user's own send."""
+    """Можно ли доставлять сообщение."""
     return not busy(item, at) and (force or item.attempts < MAX_ATTEMPTS)
 
 
 def busy(item: QueuedMessage, at: datetime) -> bool:
-    """Claimed by a delivery that is still running."""
+    """Доставка ещё идёт."""
     claimed = item.claimed_at
     return item.status == "delivering" and claimed is not None and at - claimed < CLAIM_TIMEOUT
 
 
 def _open(job: Job, revision: int | None, force: bool) -> bool:
-    """In the revision the delivery was meant for; a safe point only while the work goes on
-    or has just ended."""
+    """Открыта ли доставка ревизии."""
     current = revision in (None, job.revision)
     return not job.deleted and current and (force or job.status in DELIVERABLE)
 
 
 def _sent(messages: Iterable[dict[str, Any]]) -> set[str]:
-    """The files the messages were sent with."""
+    """Файлы, отправленные с сообщениями."""
     return {i for m in messages for i in m.get("attachment_ids") or []}
 
 
 def _pending(messages: list[dict[str, Any]], answered: int) -> list[dict[str, Any]]:
-    """The user's chat messages the assistant has not answered yet.
-
-    A message sent while the assistant answered an earlier one stays pending even though
-    the reply lands after it; a chat from before the mark counts from its last reply.
-    """
+    """Сообщения чата без ответа."""
     floor = answered or max((m["seq"] for m in messages if m["role"] == "assistant"), default=0)
     return [
         m
@@ -314,7 +286,7 @@ async def _free(uow: UnitOfWork, items: list[QueuedMessage], failed: bool = Fals
 
 
 async def _reply(uow: UnitOfWork, job: Job, items: list[QueuedMessage], text: str) -> None:
-    """The work goes on; the messages and the reply join the chat inside the running stage."""
+    """Ответ внутри идущего этапа."""
     for item in items:
         await uow.messages.add(
             Message(
@@ -342,7 +314,7 @@ async def _say(
     kind: str = "chat",
     turn: str | None = None,
 ) -> None:
-    """``kind`` "gate" marks the one request for details; ``turn`` links the reasoning."""
+    """Говорит от имени ассистента."""
     await uow.messages.add(
         Message(
             job_id=job.id,

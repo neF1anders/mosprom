@@ -326,7 +326,7 @@ describe("agents and their reasoning", () => {
       text: "Перевёл 2 in в mm",
       output: ['{"value": 50.8}'],
     });
-    // The row of an agent at work is in its card, not in the stage.
+    // строки в карточке
     expect(first.actions.some((a) => a.agent === "interpreter")).toBe(false);
   });
   it("a retry of a call starts its reasoning over", () => {
@@ -339,7 +339,7 @@ describe("agents and their reasoning", () => {
       event("agent.thinking", "running", { call, attempt: 2, text: "Вторая" }),
     );
     expect(two[call].chunks.map((c) => c.text)).toEqual(["Вторая"]);
-    // A late phrase of the first attempt does not bring it back.
+    // поздняя фраза
     const late = addThought(
       two,
       event("agent.narration", "running", {

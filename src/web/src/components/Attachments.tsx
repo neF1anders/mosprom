@@ -25,8 +25,7 @@ function uploadState(file: DraftFile) {
   if (file.uploading) return "uploading";
   return file.error ? "failed" : "ready";
 }
-// Files wait in the composer until the message is sent, as on Figma screen 11.
-// Without onRemove the cards only show what a sent message carried.
+// файлы ждут отправки
 export function Attachments({
   files,
   onRemove,
@@ -100,7 +99,7 @@ function AttachmentCard({
 function usePreview(file: DraftFile | undefined) {
   const [value, setValue] = useState<Preview>(null);
   const key = file?.load ? file.key : "";
-  // The key identifies the file; a fresh load callback on each render is the same file.
+  // ключ — файл
   useEffect(() => {
     if (!file?.load) return;
     let live = true;

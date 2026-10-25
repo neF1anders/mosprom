@@ -1,10 +1,3 @@
-"""Selection, its check, slicing and the G-code check after a ready card, against SQLite.
-
-The steps are stand-ins here: the pipeline's own job is the order of the steps, the
-revision guard, stop, retries and what the chat sees. The last tests run the real steps
-with the stand-in of the STE Slicer plugin.
-"""
-
 import asyncio
 import time
 import uuid
@@ -102,8 +95,7 @@ def gcode_verdict(iteration: int, ok: bool) -> GcodeCheck:
 
 
 class Steps:
-    """Records what the pipeline asked for; the check passes from pass ``passing_from`` on
-    and the G-code check from pass ``gcode_from`` on."""
+    """Запоминает, что просил пайплайн."""
 
     def __init__(self, passing_from: int = 1, gcode_from: int = 1, slicer: str = "sliced"):
         self.passing_from, self.gcode_from, self.slicer = passing_from, gcode_from, slicer
@@ -153,9 +145,9 @@ def pipeline(pg, steps, select=None, timeout: float = 5, slicer=None):
 
 
 async def ready_job(http, pg, **card) -> str:
-    """A job whose stage one just handed a ready card over, as RunStore.finish does."""
+    """Задача с готовой карточкой."""
     job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
-    # The assistant started the work, as its tool does.
+    # ассистент запустил работу
     async with pg.uow() as uow:
         await changed(uow, await uow.jobs.get(job_id, lock=True), "Новый проект", start=True)
         await uow.commit()
@@ -170,7 +162,7 @@ async def ready_job(http, pg, **card) -> str:
 
 
 async def revise(pg, job_id: str) -> None:
-    """A correction the assistant applied: a new revision with its stage-one task."""
+    """Правка ассистента с новой ревизией."""
     async with pg.uow() as uow:
         await changed(uow, await uow.jobs.get(job_id, lock=True), "Правка принята", correction=True)
         await uow.commit()
@@ -190,7 +182,7 @@ ORDER = ("parameters", "validation", "slicing", "gcode")
 
 
 async def results(pg, job_id: str) -> list[tuple[int, str, int]]:
-    """Stored steps in the order they run."""
+    """Сохранённые шаги по порядку."""
     found = await rows(
         pg, "SELECT revision, stage, iteration FROM stage_results WHERE job_id = :j", j=job_id
     )
@@ -210,7 +202,8 @@ async def events(pg, job_id: str) -> list[tuple[str, str]]:
 async def test_a_ready_card_goes_through_every_step_to_a_project(pg, http):
     job_id = await ready_job(http, pg)
     queued = await rows(
-        pg, "SELECT task AS task_name, status FROM task_queue WHERE task = 'stage2.select_parameters'"
+        pg,
+        "SELECT task AS task_name, status FROM task_queue WHERE task = 'stage2.select_parameters'",
     )
     assert queued == [{"task_name": "stage2.select_parameters", "status": "todo"}]
     steps = Steps()
@@ -284,12 +277,12 @@ async def test_problems_left_after_the_last_pass_ask_for_attention(pg, http):
     steps = Steps(passing_from=3)
     await pipeline(pg, steps).run(job_id, 1)
     assert steps.checked == [1, 2]
-    # The last pass is sliced with what is left, so the user still gets a project.
+    # последний проход режется
     assert [iteration for _, iteration, _ in steps.sliced] == [2]
     done = await job(pg, job_id)
     assert (done.status, done.parameters.check) == (Status.COMPLETED, "attention")
     assert done.result.sliced and done.result.gcode_check == "ok"
-    # The chat shows the server's verdict: the parameters ask for attention first.
+    # чат показывает вердикт
     assert done.outcome == "parameters_attention"
     assert ("pipeline.completed", "attention") in await events(pg, job_id)
 
@@ -356,7 +349,7 @@ async def test_a_redelivered_task_reuses_the_steps_already_done(pg, http):
     steps = Steps()
 
     def stuck_check(parameter_set):
-        # The worker dies during the check: the selection is stored, the job still running.
+        # сбой на проверке
         raise asyncio.CancelledError
 
     first = ParameterPipeline(
@@ -407,7 +400,7 @@ async def test_the_parameter_set_of_the_current_work_is_served(pg, http, other):
     served = (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json()
     assert served["iteration"] == 2 and served["version"] == "0.2"
     assert (await other.get(f"/api/v1/jobs/{job_id}/parameters")).status_code == 404
-    # A new revision alone keeps the finished project; only work started on it replaces the set.
+    # проект сохраняется
     await revise(pg, job_id)
     assert (await http.get(f"/api/v1/jobs/{job_id}/parameters")).json() == served
 
@@ -455,11 +448,11 @@ async def test_the_real_steps_and_the_plugin_stand_in_make_a_project(pg, http, p
     )
     assert served.card_ref.job_id == job_id and served.printer == "hte530v5.2.4"
     assert served.materials["0"].id in pg.catalog.materials
-    # The selected material has to hold 80 °C: the check of the requirement passed.
+    # нужны 80 °C
     temperature = next(c for c in served.materials["0"].checks if c.key == "service_temp_max_c")
     assert temperature.status in ("ok", "unknown")
     assert done.parameters.check in ("ok", "attention")
-    # The stand-in got the set as it was selected, and its G-code passed the real check.
+    # заглушка получила набор
     assert ("set_material", {"material_id": served.materials["0"].id}) in [
         (name, {k: v for k, v in args.items() if k != "reason"}) for name, args in plugin.calls
     ]
@@ -470,8 +463,7 @@ async def test_the_real_steps_and_the_plugin_stand_in_make_a_project(pg, http, p
     assert "result.gcode" in gcode.headers["content-disposition"]
     project = await http.get(f"/api/v1/jobs/{job_id}/result/project")
     assert project.content == (run / "project.3mf").read_bytes()
-    # The user keeps the project in a folder of its own, named after the part, with the
-    # report and a picture of the chat; the chat and the report point to that folder.
+    # папка по детали
     kept = pg.settings.slicer_folder / "Результаты" / folder_name(part_name(done))
     assert done.result.folder == str(kept)
     names = sorted(p.name for p in kept.iterdir())
@@ -503,12 +495,12 @@ async def test_without_a_running_slicer_the_parameters_stay_and_the_chat_says_wh
     messages = await rows(
         pg, "SELECT payload FROM messages WHERE job_id = :j ORDER BY seq", j=job_id
     )
-    # The report closes the project; without its model the template says the same.
+    # отчёт закрывает проект
     report = messages[-1]["payload"]
     assert report["kind"] == "report"
     assert report["text"].startswith("Параметры подобраны, но проект не создан")
     assert "STE Slicer с плагином AI Assistant не запущен" in report["text"]
-    # Nothing was sliced, yet the request keeps its folder with the report and the chat.
+    # папка без нарезки
     kept = pg.settings.slicer_folder / "Результаты" / folder_name(part_name(done))
     assert sorted(p.name for p in kept.iterdir()) == ["chat_01.png", "report.md"]
     assert "Проект лежит в папке" not in report["text"]
@@ -561,7 +553,7 @@ async def test_a_redelivered_task_does_not_slice_again(pg, http):
     steps = Steps()
 
     def lost(key, parameter_set, iteration):
-        # The worker dies during the G-code check, after the slicing was stored.
+        # сбой на G-code
         raise asyncio.CancelledError
 
     first = ParameterPipeline(

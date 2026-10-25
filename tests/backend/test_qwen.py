@@ -98,7 +98,7 @@ async def test_unconfigured_model_fails_fast_without_a_request(settings):
 
 
 async def test_a_save_in_the_chat_reaches_the_next_call(tmp_path):
-    """The client reads the address, model and key at every call, not once at startup."""
+    """Клиент читает настройки каждый вызов."""
     sent = []
 
     async def respond(request):

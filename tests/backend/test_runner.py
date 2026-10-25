@@ -161,7 +161,7 @@ async def test_same_input_reuses_the_result_and_new_input_asks_again():
 
 
 async def test_a_reply_that_lost_items_is_not_reused():
-    """Regression: a damaged reply was cached and every retry got the same empty draft."""
+    """Повреждённый ответ не переиспользуется."""
     damaged = reply({"purpose": "Деталь", "requirements": [{"label": "без значения"}]})
     whole = reply({"purpose": "Деталь", "requirements": [{"key": "t", "value": "25"}]})
     agent, model, uow = runner({"interpreter": [damaged, whole]})
@@ -228,7 +228,7 @@ async def test_talk_offers_the_tools_but_does_not_run_them():
 
 
 def test_a_null_in_an_optional_field_keeps_the_item():
-    """Regression: "conditions": null dropped the whole requirement it belonged to."""
+    """Null в поле сохраняет пункт."""
     text = """{"requirements": [
       {"key": "duty", "label": null, "value": "24/7", "unit": null, "conditions": null,
        "sources": [{"source_id": "f1p1", "page": null, "quote": "режим 24/7"}]},
@@ -238,7 +238,7 @@ def test_a_null_in_an_optional_field_keeps_the_item():
     [duty] = draft.requirements
     assert (duty.key, duty.label, duty.conditions, duty.unit) == ("duty", "", "", None)
     assert duty.sources[0].quote == "режим 24/7"
-    # A null in a required field still makes the item unusable.
+    # обязательное поле ломает
     assert dropped == ["requirements[1]: Input should be a valid string"]
 
 
@@ -374,7 +374,7 @@ async def test_reasoning_goes_out_after_a_pause_a_paragraph_or_a_full_buffer():
     for at, text in pieces:
         clock.now = at
         await stream(text, 1)
-    # A paragraph sends only up to its end, the rest waits for the next piece.
+    # абзац до конца
     assert [text for _, text in sent] == ["abc", "x\n\n", "yz" + "w" * BUFFER]
     await stream("конец", 1)
     assert len(sent) == 3
@@ -456,7 +456,7 @@ async def test_the_narrator_keeps_quiet_without_news_and_skips_a_failure():
     talk, said = narration(narrate)
     talk.feed("Reading the spec", 1)
     await asyncio.sleep(0.05)
-    # The failed phrase is skipped and nothing new came, so no second call is made.
+    # второго вызова нет
     assert calls == 1 and said == []
     talk.feed(" further", 2)
     await asyncio.sleep(0.03)

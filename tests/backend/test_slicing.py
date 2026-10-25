@@ -1,6 +1,3 @@
-"""Slicing and the G-code check without STE Slicer: the plan of plugin calls, the check of a
-written G-code and the MCP adapter against the stand-in of the plugin."""
-
 import asyncio
 import json
 import math
@@ -73,12 +70,9 @@ def tools(calls) -> list[str]:
     return [call.tool for call in calls]
 
 
-# -------------------------------------------------------------------- plan
-
-
 def test_the_plan_applies_the_set_in_the_order_checked_on_windows():
     calls, unsupported = build_plan(parameter_set(), {"att": "/m/att.stl"}, "/r.gcode", "/p.3mf")
-    # The material comes before the quality profile: the slicer offers the material's profiles.
+    # материал перед профилем
     assert tools(calls) == [
         "set_printer",
         "set_print_mode",
@@ -94,7 +88,7 @@ def test_the_plan_applies_the_set_in_the_order_checked_on_windows():
     ]
     assert calls[0].args == {"definition_id": "hte530v5.2.4"}
     assert calls[6].args == {"path": "/m/att.stl"}
-    # The set's Y is the machine's Y, which is minus z of the scene.
+    # ось Y станка
     assert calls[7].args == {"x": -9.5, "z": -0.0, "model_index": 0}
     assert calls[-2].args == {"path": "/r.gcode"} and calls[-1].args == {"path": "/p.3mf"}
     assert unsupported == []
@@ -107,9 +101,9 @@ def test_axes_of_the_set_become_axes_of_the_y_up_scene():
         return [(a, round(d, 6)) for a, d in (scene_rotation(*s) for s in euler_steps(rotation))]
 
     assert scene([[1, 0, 0], [0, 0, -1], [0, 1, 0]]) == [("x", 90.0)]
-    # A turn about Z of the set turns the part on the plate: y of the scene.
+    # поворот вокруг Z
     assert scene([[0, -1, 0], [1, 0, 0], [0, 0, 1]]) == [("y", 90.0)]
-    # Y of the set is z of the scene with the opposite sign.
+    # знак z обратный
     assert scene([[cos, 0, sin], [0, 1, 0], [-sin, 0, cos]]) == [("z", -45.0)]
 
 
@@ -143,9 +137,6 @@ def test_a_list_setting_goes_to_the_slicer_as_its_string():
 def test_a_model_without_its_file_stops_the_plan():
     with pytest.raises(KeyError):
         build_plan(parameter_set(), {}, "g", "p")
-
-
-# -------------------------------------------------------------------- G-code
 
 
 def gcode(layer=0.2, nozzle=230, bed=70, xs=(160.0, 190.0), layers=3, end=True, extra=()):
@@ -186,8 +177,7 @@ def test_a_layer_height_other_than_the_profile_is_an_apply_error():
 
 
 def test_every_heating_command_sets_a_temperature_the_set_asks_for():
-    """As the original check: one command at the requested temperature is not enough. The
-    first layer may differ only when the set gives it a temperature of its own."""
+    """Каждый нагрев задаёт нужную температуру."""
     pset = parameter_set(settings={"material_print_temperature": {"value": 240, **REASON}})
     assert checked(gcode(nozzle=240), pset).result == "ok"
     assert checked(gcode(nozzle=230), pset).result == "apply_failed"
@@ -227,8 +217,7 @@ def test_a_heated_bed_in_5d_is_a_warning():
 
 
 def test_settings_cut_into_lines_anywhere_are_read_whole():
-    """The slicer cuts the settings into lines of 80 characters, and a line may end in a space
-    that belongs to a value such as "[0, 90]"."""
+    """Настройки, порезанные на строки, читаются."""
     payload = json.dumps(
         {"global_quality": "[values]\\ninfill_angles = [0, 90]\\ninfill_sparse_density = 40\\n"}
     )
@@ -245,9 +234,6 @@ def test_written_settings_are_compared_with_the_set():
     result = checked(gcode(extra=[";SETTING_3 " + json.dumps(payload)]))
     errors = [f for f in result.findings if f.level == "error"]
     assert [e.key for e in errors] == ["infill_sparse_density"]
-
-
-# -------------------------------------------------------------------- adapter
 
 
 @pytest.fixture
@@ -268,8 +254,7 @@ def adapter(
 
 
 def slow_slicing(plugin, *seconds: float) -> list[tuple[str, float]]:
-    """Each slicing in the stand-in takes the next of ``seconds``, the last one from then on;
-    the moments calls arrive and slicings end."""
+    """Нарезка в заглушке по секундам."""
     moments: list[tuple[str, float]] = []
     original_call, original_slice = plugin.call, plugin.tool_slice_model
     delays = list(seconds)
@@ -298,13 +283,13 @@ async def test_the_adapter_slices_and_keeps_the_gcode_and_the_project(tmp_path, 
     assert (report.gcode, report.project) == ("job-r1-i1.gcode", "job-r1-i1.3mf")
     assert report.folder == str(plugin.folder / "mosprom" / "job-r1-i1")
     assert report.print_time_seconds and report.material_meters
-    # The plugin checks the Host header, which in Docker is not its own address.
+    # плагин проверяет Host
     assert {h["Host"] for h in plugin.headers} == {f"127.0.0.1:{plugin.port}"}
     loaded = next(args for name, args in plugin.calls if name == "load_model")
     assert loaded["path"].endswith("mosprom/job-r1-i1/att.stl")
     result = check_gcode(gcode_facts(files, report.gcode), parameter_set(), CATALOG, 1)
     assert result.result == "ok", result.findings
-    # The G-code carries the mode and the settings as the slicer's own writer saves them.
+    # режим в G-code
     messages = [finding.message for finding in result.findings]
     assert not [m for m in messages if "не проверить" in m or "не проверен" in m], messages
     with zipfile.ZipFile(files.path(report.project)) as archive:
@@ -334,7 +319,7 @@ async def test_the_scene_is_cleared_and_settings_reset_before_each_run(tmp_path)
         assert len(fake.models) == 1
         names = [name for name, _ in fake.calls]
         assert names.count("reset_settings") == 2
-        # The reset works on the active printer, so it follows the choice of the one that slices.
+        # сброс активного принтера
         assert names[names.index("reset_settings") - 1] == "set_printer"
     finally:
         fake.stop()
@@ -391,15 +376,14 @@ async def test_paths_go_to_the_slicer_as_it_sees_the_shared_folder(tmp_path, plu
     host = r"C:\Users\fedor\Documents\STE_AIAssistant"
     slicer, _ = adapter(tmp_path, plugin.folder, host)
     report = await slicer.slice("r", parameter_set(), {"att": "att"})
-    # The stand-in cannot open a Windows path, which is what the plan sent.
+    # путь Windows недоступен
     loaded = next(args for name, args in plugin.calls if name == "load_model")
     assert loaded["path"] == host + r"\mosprom\r\att.stl"
     assert report.status == "failed" and report.message == "Слайсер не загрузил модель"
 
 
 async def test_a_stopped_run_keeps_the_slicer_until_the_plugin_has_sliced(tmp_path, plugin):
-    """A stop or an edit ends the wait at once, but the next job's run talks to the plugin only
-    after the slicing it was busy with is over."""
+    """Остановка не освобождает слайсер рано."""
     moments = slow_slicing(plugin, 0.6, 0)
     slicer, _ = adapter(tmp_path, plugin.folder)
     first = asyncio.create_task(slicer.slice("a", parameter_set(), {"att": "att"}))
@@ -409,7 +393,7 @@ async def test_a_stopped_run_keeps_the_slicer_until_the_plugin_has_sliced(tmp_pa
     second = await slicer.slice("b", parameter_set(), {"att": "att"})
     assert first.cancelled() and second.status == "sliced", second
     assert moment(moments, "list_models", 1) > moment(moments, "sliced")
-    # The stopped run made no call after the slicing it was waiting for.
+    # после нарезки тишина
     assert [name for name, _ in moments].count("export_gcode") == 1
 
 

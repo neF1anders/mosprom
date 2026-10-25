@@ -11,8 +11,7 @@ from .cases import NAMES, load, parameter_set
 
 pytestmark = pytest.mark.unit
 
-# The original's selftest: each mutation of the contract example and the finding it expects.
-# Its other three cases are refused by the contract itself, test_parity covers them.
+# самопроверка оригинала
 SELFTEST = {
     "selftest_filament_285": ("error", "wrong_filament", "materials[0]"),
     "selftest_unknown_quality": ("error", "unknown_quality", "quality.quality_type"),
@@ -106,8 +105,7 @@ def test_findings_name_the_key_and_the_bound_feedback_needs(catalog):
 
 
 def test_conditions_follow_fdmprinter_formulas(catalog):
-    """``support_enable_cylindrical`` follows ``support_enable`` by an fdmprinter formula, so
-    ``support_offset_cylindrical`` acts with supports on and does not with them off."""
+    """Условия следуют формулам fdmprinter."""
     changed = load("extra_fdmprinter_formula_default")["parameter_set"]
     assert check_parameters(ParameterSet.model_validate(changed), catalog) == []
     changed["settings"]["support_enable"]["value"] = False
@@ -119,8 +117,7 @@ def test_conditions_follow_fdmprinter_formulas(catalog):
 
 
 def test_limits_written_as_formulas_are_compared(catalog):
-    """``speed_print`` is limited by the printer's feed rates and ``top_thickness`` by the
-    height of the mode; both limits are formulas of the build."""
+    """Пределы-формулы сравниваются корректно."""
     changed = load("example_bracket_petg_classic")["parameter_set"]
     changed["settings"]["speed_print"] = {"value": 100000, "why": "x", "source": "rule:T"}
     changed["settings"]["top_thickness"] = {"value": 5000, "why": "x", "source": "rule:T"}
@@ -137,8 +134,7 @@ def test_limits_written_as_formulas_are_compared(catalog):
 
 
 def test_formula_limits_see_the_quality_profile_and_the_mode(catalog):
-    """The recommended top is ``0.2 + layer_height``: the draft profile prints 0.2 mm layers.
-    The 5D height is lower than the 3D one."""
+    """Пределы-формулы видят профиль и режим."""
     changed = load("example_bracket_petg_classic")["parameter_set"]
     changed["settings"]["top_thickness"] = {"value": 0.3, "why": "x", "source": "rule:T"}
     (thin,) = check_parameters(ParameterSet.model_validate(changed), catalog)
@@ -152,8 +148,7 @@ def test_formula_limits_see_the_quality_profile_and_the_mode(catalog):
 
 
 def test_conditions_see_what_parameter_selection_sees(catalog):
-    """The build has two extruder trains, so the count of extruders follows its formula to 2
-    in selection and in the check alike: a prime tower acts, a print sequence does not."""
+    """Условия видны и выбору."""
     classic = load_printer(catalog).modes["classic"]
     assert classic.value("extruders_enabled_count") == 2
     changed = load("example_bracket_petg_classic")["parameter_set"]

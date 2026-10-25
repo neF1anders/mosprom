@@ -1,5 +1,3 @@
-"""In-memory doubles for agent tests; the provider is scripted per agent name."""
-
 from __future__ import annotations
 
 import inspect
@@ -58,7 +56,7 @@ class ScriptedModel:
         if callable(item):
             item = item(messages)
         item = await item if inspect.isawaitable(item) else item
-        # Like a provider answering in one body, the whole reasoning arrives at once.
+        # рассуждение приходит целиком
         if on_reasoning is not None and item.reasoning:
             await on_reasoning(item.reasoning, 1)
         return item

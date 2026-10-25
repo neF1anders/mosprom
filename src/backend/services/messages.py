@@ -5,7 +5,7 @@ from ..domain.models import Event, Job, Message, QueuedMessage, Status, now
 from ..ports.persistence import UnitOfWork
 from .commands import Commands
 
-# The job works: a message waits for the end of the current step instead of restarting it.
+# сообщение ждёт шага
 WORKING = {Status.QUEUED, Status.RUNNING}
 LIMIT = 10
 
@@ -23,8 +23,7 @@ class MessageService:
 
 
 async def post(uow: UnitOfWork, job: Job, text: str) -> None:
-    """Every message goes to the assistant with the files of the composer: at once when the
-    job is idle, after the current step while it works. The first message names the chat."""
+    """Отправляет сообщение ассистенту с файлами."""
     if job.title_source == "auto" and job.title == "Новое задание" and text.strip():
         job.title = text[:80]
     sent = await _send_files(uow, job)
@@ -43,7 +42,7 @@ async def post(uow: UnitOfWork, job: Job, text: str) -> None:
 
 
 async def _send_files(uow: UnitOfWork, job: Job) -> list[str]:
-    """The files waiting in the composer go with the message; a removal applies now too."""
+    """Прикладывает ожидающие файлы к сообщению."""
     sent = []
     for attachment in await uow.attachments.list(job.id):
         if not attachment.draft:

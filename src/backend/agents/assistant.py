@@ -1,11 +1,3 @@
-"""The assistant: one agent for the whole chat, before the work, during it and after it.
-
-It talks on any topic and acts only through its tools: it starts a new project or updates the
-current one, reads the project's journal or has the analyst work out an answer from the
-journal and the agents' saved reasoning. The code reads the decision from the call and never
-from the text; a call it refuses comes back to the agent as the tool's answer.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -30,14 +22,13 @@ from .store import RunStore
 logger = logging.getLogger(__name__)
 REPLY, ASK, START, UPDATE = "reply", "ask_details", "start_project", "update_project"
 LOG, INVESTIGATE = "project_log", "investigate"
-# Steps of one turn: a look at the journal or an investigation, then the answer.
+# шаги одного хода
 STEPS = 4
-# With reasoning the model acts by its tools as reliably as when forced to, while a forced
-# call switches the reasoning off; the chat shows the reasoning as it shows the agents'.
+# рассуждение повышает надёжность
 ASSISTANT = AgentSpec("assistant", "Ассистент", Output, max_steps=STEPS, budget=2000)
 ANALYST = AgentSpec("analyst", "Разбор работы", Output, max_steps=1, budget=4000)
 REPORTER = AgentSpec("report", "Итоговый отчёт", Output, max_steps=1, thinking=False)
-# The chat the assistant reads: the latest messages, a long report cut to its start.
+# чат для ассистента
 HISTORY = 40
 MESSAGE_CHARS = 2500
 REPORT_SECONDS = 60
@@ -68,8 +59,7 @@ START_ARGS = {
 }
 UPDATE_ARGS = {"type": "object", "properties": {"summary": _TEXT}, "required": ["summary"]}
 REPLY_ARGS = {"type": "object", "properties": {"text": _TEXT}, "required": ["text"]}
-# Said once more to an agent that answers in text where its tool was due: while the
-# questions wait, and when a model and a task are sent.
+# повторная подсказка агенту
 RECHECK_ANSWER = (
     "Ты ответил текстом, а проект ждёт ответов на вопросы. Если сообщение пользователя "
     "отвечает на них, вызови update_project, иначе повтори свой ответ"
@@ -89,11 +79,7 @@ Say = Callable[[str, str], Awaitable[None]]
 
 @dataclass(frozen=True)
 class Situation:
-    """The chat and the job as the assistant sees them in one turn.
-
-    ``new`` holds messages typed during the work that are not in the chat yet; ``files``
-    the files sent that no project has taken.
-    """
+    """Чат и задача ассистента."""
 
     job: Job
     messages: list[dict[str, Any]]
@@ -108,17 +94,14 @@ class Situation:
 
 @dataclass(frozen=True)
 class Decision:
-    """A reply in the chat, a new project or an update of the current one.
-
-    ``text`` is what the chat shows; ``summary`` says what an update changes.
-    """
+    """Ответ ассистента на ход."""
 
     action: Literal["reply", "ask", "start", "update"]
     text: str = ""
     title: str = ""
     notes: str = ""
     summary: str = ""
-    # The turn the decision came from, which the reply in the chat keeps.
+    # ход решения
     turn: str = ""
 
 
@@ -136,13 +119,7 @@ class Assistant:
         self.tools = [answer, ask, start, update, log, investigate]
 
     async def decide(self, situation: Situation, say: Say) -> Decision:
-        """One turn: tools until a decision or a reply, which is a tool too or plain text;
-        the last step offers only the reply.
-
-        What the agent says along with an investigation reaches the chat at once, so the
-        user sees «сейчас посмотрю» while it runs. A reply in text while the questions wait
-        is checked once more, as that is how a typed answer used to get lost.
-        """
+        """Один ход ассистента с инструментами."""
         ctx = self.context(situation.job)
         await self.sources.parse(situation.files, ctx)
         messages = assistant_messages(self.system, situation)
@@ -182,7 +159,7 @@ class Assistant:
     def _decision(
         self, calls: list[dict[str, Any]], text: str, situation: Situation
     ) -> Decision | None:
-        """The first decision the code accepts; a refused one is answered by ``_tool``."""
+        """Первое принятое решение ассистента."""
         ask = called(calls, ASK)
         if ask is not None and refusal(ASK, situation) is None:
             return Decision("ask", chat_text(str(ask.get("text") or text)) or FALLBACK)
@@ -210,10 +187,7 @@ class Assistant:
         return {"error": "Такого инструмента нет"}
 
     async def investigate(self, job: Job, question: str, turn: str = "") -> str:
-        """The analyst reasons over the journal and the agents' reasoning; it may take a while.
-
-        It shares the turn, so the chat opens its reasoning above the same reply.
-        """
+        """Разбор журнала аналитиком проекта."""
         facts = await self.journal.facts(job)
         reasoning = await self.journal.reasoning(job)
         content = (
@@ -229,10 +203,7 @@ class Assistant:
         return chat_text(reply.content) or "В журнале ответа на этот вопрос нет"
 
     async def report(self, job: Job, folder: str | None = None) -> str:
-        """The summary of a finished project; the template says the same if the model fails.
-
-        ``folder`` is where the project's files are kept for the user, once it is sliced.
-        """
+        """Итоговый отчёт по проекту."""
         facts = await self.journal.facts(job)
         if folder and facts.get("slicing"):
             facts["slicing"]["folder"] = folder
@@ -249,13 +220,13 @@ class Assistant:
             )
             text = chat_text(reply.content)
         except Exception:
-            # The project is done whatever the model says; the template reports it then.
+            # итог задаёт шаблон
             logger.warning("The report of job %s fell back to the template", job.id, exc_info=True)
             text = ""
         return text or template(facts)
 
     def context(self, job: Job, turn: str = "") -> RunContext:
-        """The chat is never cancelled by a newer revision: the caller checks it on apply."""
+        """Чат не отменяется ревизией."""
         return RunContext(
             job_id=job.id,
             revision=job.revision,
@@ -270,7 +241,7 @@ async def _nothing() -> None:
 
 
 def refusal(name: str, situation: Situation, arguments: dict[str, Any] | None = None) -> str | None:
-    """Why the code does not take the call, said to the agent; None when it does."""
+    """Причина отказа от вызова."""
     job = situation.job
     if name == ASK and asked(situation):
         return (
@@ -298,21 +269,20 @@ def refusal(name: str, situation: Situation, arguments: dict[str, Any] | None = 
 
 
 def asked(situation: Situation) -> bool:
-    """The details of this part were asked already: since the current project began, or in
-    the whole chat before the first one."""
+    """Детали этой части уже спрашивали."""
     project = situation.job.project
     since = project.first_message if project else 0
     return any(m.get("kind") == "gate" and m.get("seq", 0) >= since for m in situation.messages)
 
 
 def described(situation: Situation) -> bool:
-    """A model and a task are sent: enough to start, the checker asks what is missing."""
+    """Модель и задача уже заданы."""
     kinds = {a.kind == "stl" for a in situation.files}
     return kinds == {True, False}
 
 
 def recheck_reason(situation: Situation) -> str | None:
-    """Why a reply in text gets one more look: the questions wait or a task is sent."""
+    """Причина повторной проверки текстового ответа."""
     if open_questions(situation.job):
         return RECHECK_ANSWER
     if described(situation) and not situation.working:
@@ -327,7 +297,7 @@ def open_questions(job: Job) -> list[str]:
 
 
 def _recheck(content: str, calls: list[dict[str, Any]], reminder: str) -> list[dict[str, Any]]:
-    """The reply goes back to the agent with the reminder, as a tool answer or a user turn."""
+    """Возврат ответа агенту с напоминанием."""
     if not calls:
         return [
             {"role": "assistant", "content": content},
@@ -340,7 +310,7 @@ def _recheck(content: str, calls: list[dict[str, Any]], reminder: str) -> list[d
 
 
 def assistant_messages(system: str, situation: Situation) -> list[dict[str, Any]]:
-    """The chat as a dialog; the last user turn carries the state and the new documents."""
+    """Чат как диалог для ассистента."""
     names = {a.id: a.filename for a in situation.attachments}
     turns: list[dict[str, Any]] = []
     for message in situation.messages[-HISTORY:]:
@@ -411,7 +381,7 @@ def new_documents(files: list[Attachment]) -> str:
 
 
 def template(facts: dict[str, Any]) -> str:
-    """The report without the model, from the same facts."""
+    """Отчёт без модели, по фактам."""
     lines = [_headline(facts)]
     sections = [
         ("Что я взял из ваших файлов", facts.get("requirements", [])[:8]),
@@ -443,7 +413,7 @@ HEADLINES = {
 
 
 def _headline(facts: dict[str, Any]) -> str:
-    """The outcome first; a selection that found nothing says so, whatever was sliced."""
+    """Заголовок отчёта с итогом."""
     if (facts.get("parameters") or {}).get("status") == "infeasible":
         return "Подобрать параметры под все требования не получилось"
     return HEADLINES.get(str(facts.get("outcome")), "Работа завершена")

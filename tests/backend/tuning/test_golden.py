@@ -1,6 +1,3 @@
-"""Snapshots of the selection: the outputs of the original code, changed only together with a
-change of the method, see ``tests/fixtures/tuning/README.md``."""
-
 import json
 from pathlib import Path
 
@@ -15,7 +12,7 @@ CASES = sorted(path.name for path in FIXTURES.iterdir() if path.is_dir())
 
 
 def with_agreed_differences(expected: dict, card: TaskCard) -> dict:
-    """The contract 0.2 and the 2.0 card are the only changes the port is allowed."""
+    """Допустимые отличия порта от оригинала."""
     changed = {key: value for key, value in expected.items() if key != "idempotency_key"}
     changed["version"] = "0.2"
     changed["card_ref"] = {"job_id": card.job_id, "revision": card.revision}

@@ -1,10 +1,3 @@
-"""Printing mode: weighted votes of the fired rules and of a check constraint.
-
-A mode the part does not fit in the pose it takes there (as loaded in 3D, axis vertical in 5D),
-or one a constraint forbids, gets no votes; a request for it that outweighs the default is told
-to the user.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -37,7 +30,7 @@ class ModeChoice:
     assumptions: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
     unmet: tuple[Unmet, ...] = ()
-    # The part fits none of the modes it was meant for.
+    # деталь не помещается
     misfit: bool = False
 
 
@@ -49,7 +42,7 @@ def choose_mode(
     sizes: Mapping[str, Point],
     modes: Mapping[str, Mode],
 ) -> ModeChoice:
-    """``sizes``: the part's size in the pose it takes in each mode."""
+    """Выбирает режим печати голосованием."""
     votes = [
         Vote(vote_mode(action.mode, facts), action.weight, rule.id)
         for rule in fired
@@ -83,7 +76,7 @@ def choose_mode(
 
 
 def fits(size: Point, mode: Mode) -> bool:
-    """The part as loaded inside the print area: the ellipse of 5D, the usable strip of 3D."""
+    """Помещается ли деталь в область."""
     width, depth, height = size
     if height > mode.height + EPSILON:
         return False

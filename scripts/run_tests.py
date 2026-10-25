@@ -1,10 +1,3 @@
-"""The full check: fixtures, pytest with coverage, Ruff, mypy, Vitest and Playwright.
-
-Every test creates its own SQLite database, so there is nothing to migrate first. Playwright
-runs against E2E_BASE_URL when it is set; otherwise this script starts the stack itself: the
-scripted provider, the stand-in of STE Slicer and the app on a database of its own.
-"""
-
 import os
 import shutil
 import socket
@@ -76,7 +69,7 @@ def start(stack: ExitStack, name: str, command: list[str], env: dict[str, str]):
 
 
 def e2e(stack: ExitStack) -> dict[str, str]:
-    """What compose.test.yaml started before: the provider, the slicer stand-in and the app."""
+    """Стек для сквозных проверок."""
     if os.environ.get("E2E_BASE_URL"):
         return os.environ.copy()
     data, slicer = STACK / "data", STACK / "slicer"
@@ -101,7 +94,10 @@ def e2e(stack: ExitStack) -> dict[str, str]:
         stack, "model", [*uvicorn, "--port", model.split(":")[1], "tests.model_server:app"], env
     )
     plugin = start(
-        stack, "slicer", [sys.executable, "scripts/fake_ste_slicer.py", "--folder", str(slicer)], env
+        stack,
+        "slicer",
+        [sys.executable, "scripts/fake_ste_slicer.py", "--folder", str(slicer)],
+        env,
     )
     api = start(
         stack,

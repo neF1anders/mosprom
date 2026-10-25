@@ -1,10 +1,3 @@
-"""The port finds what the original check found, place by place and in the same order.
-
-The original's findings are stored in each fixture. Those ``ParameterSet`` now refuses on its
-own are not checked again, and where the port reads the build more fully it finds what
-``cases`` lists instead.
-"""
-
 import pytest
 from pydantic import ValidationError
 

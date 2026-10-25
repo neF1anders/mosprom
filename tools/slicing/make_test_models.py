@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Делает две несимметричные тестовые детали (бинарный STL, мм, Z вверх):
-  l_bracket.stl: основание 40x20x5 и стойка 5x10x20 сверху у края (40x20x25 в сумме); нужна для знака поворота;
-  mushroom.stl: ножка 10x10x20 и плита 40x40x4 сверху (нависание 15 мм со всех сторон); нужна для поддержек.
-Использование: python make_test_models.py <папка_вывода>"""
+
 import os
 import struct
 import sys
 
 
 def box(x0, y0, z0, x1, y1, z1):
-    v = {(a, b, c): (x, y, z) for a, x in enumerate((x0, x1)) for b, y in enumerate((y0, y1)) for c, z in enumerate((z0, z1))}
-    quads = [  # (нормаль, четыре угла против часовой стрелки снаружи)
+    v = {
+        (a, b, c): (x, y, z)
+        for a, x in enumerate((x0, x1))
+        for b, y in enumerate((y0, y1))
+        for c, z in enumerate((z0, z1))
+    }
+    quads = [  # нормаль и углы
         ((0, 0, -1), [(0, 0, 0), (0, 1, 0), (1, 1, 0), (1, 0, 0)]),
         ((0, 0, 1), [(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)]),
         ((0, -1, 0), [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)]),
@@ -36,11 +38,16 @@ def write_stl(path, tris):
 
 def main(argv):
     if len(argv) != 2:
-        print(__doc__)
+        print("Использование: python make_test_models.py <папка_вывода>")
         return 2
     os.makedirs(argv[1], exist_ok=True)
-    write_stl(os.path.join(argv[1], "l_bracket.stl"), box(0, 0, 0, 40, 20, 5) + box(0, 0, 5, 5, 10, 25))
-    write_stl(os.path.join(argv[1], "mushroom.stl"), box(15, 15, 0, 25, 25, 20) + box(0, 0, 20, 40, 40, 24))
+    write_stl(
+        os.path.join(argv[1], "l_bracket.stl"), box(0, 0, 0, 40, 20, 5) + box(0, 0, 5, 5, 10, 25)
+    )
+    write_stl(
+        os.path.join(argv[1], "mushroom.stl"),
+        box(15, 15, 0, 25, 25, 20) + box(0, 0, 20, 40, 40, 24),
+    )
     print("l_bracket.stl, mushroom.stl")
     return 0
 

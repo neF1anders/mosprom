@@ -1,11 +1,3 @@
-"""The model on the table: in the pose of its mode (``orientation.py``), centred in the usable
-area of the mode.
-
-In 5D the cylinder the slicer prints around follows the through bore of the part when the part
-is symmetric around that bore (a body of revolution, or an impeller whose blades break the round
-sections but not the symmetry).
-"""
-
 from __future__ import annotations
 
 import math
@@ -18,7 +10,7 @@ from .notes import SettingChoice, Unmet
 from .orientation import AS_LOADED, Pose
 from .printer import BASE_DIAMETER_KEY, Mode
 
-# Without and with the overhang share in the STL report.
+# с нависаниями
 ORIENTATION_ASSUMPTION = (
     "ориентация «как загружено» и положение в центре рабочей области стола: нависаний в отчёте "
     "STL нет, поворот не подбирался"
@@ -28,7 +20,7 @@ ORIENTATION_WITH_OVERHANGS = (
     "не подбирается"
 )
 BASE_DIAMETER_SOURCE = "assumption:stl.revolution.bore"
-# Symmetry of the part around its axis from which the bore is taken as the axis of 5D.
+# порог симметрии
 _SYMMETRIC = 0.9
 
 
@@ -39,18 +31,18 @@ class Placement:
     rotation: tuple[tuple[float, float, float], ...]
     position: tuple[float, float, float]
     why: str
-    # The assumption the placed model cites as its source.
+    # источник размещения
     orientation_assumption: str
     assumptions: tuple[str, ...]
     unmet: tuple[Unmet, ...]
-    # The 5D base diameter taken from the bore of the part.
+    # основание из отверстия
     settings: Mapping[str, SettingChoice]
 
 
 def place_model(
     request: TuningInput, mode: Mode, pose: Pose, excluded: Sequence[str | None]
 ) -> Placement:
-    """``excluded``: orientation candidates the check ruled out."""
+    """Размещает модель на столе."""
     low, high = mode.usable_x
     height = pose.size[2]
     orientation = ORIENTATION_ASSUMPTION
@@ -83,15 +75,14 @@ def place_model(
 
 
 def _base_diameter(geometry: Geometry, mode: Mode) -> tuple[dict[str, SettingChoice], list[str]]:
-    """The through bore of a body of revolution rounded down to 0.5 mm; the build default
-    without one or below its minimum."""
+    """Диаметр основания из отверстия детали."""
     if mode.base_diameter is None:
         return {}, []
     kept = f"диаметр основания 5D оставлен по умолчанию ({mode.base_diameter} мм)"
     bore = geometry.bore_diameter
     if bore is None:
         return {}, [f"{kept}: диаметр отверстия детали в отчёте STL не передан"]
-    # The base cylinder runs through the part along its axis.
+    # цилиндр вдоль оси
     if not geometry.revolution and (geometry.symmetry or 0.0) < _SYMMETRIC:
         return {}, [f"{kept}, деталь по отчёту STL не симметрична вокруг оси отверстия"]
     if not geometry.bore_through:

@@ -1,11 +1,3 @@
-"""Where a G-code prints, in machine coordinates; the classic bed's centre is X 175.5, Y 150.15.
-
-    uv run python tools/slicing/gcode_bounds.py result.gcode [--above-z 6]
-
-With ``--above-z`` only extruding moves above that height count, for instance the upright of a
-bracket above its base.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -39,7 +31,7 @@ def above_z(path: Path, threshold: float) -> dict[str, Bounds]:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description="Границы печати G-code в координатах станка.")
     parser.add_argument("gcode", type=Path)
     parser.add_argument("--above-z", type=float)
     args = parser.parse_args(argv)

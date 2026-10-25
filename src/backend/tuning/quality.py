@@ -1,12 +1,3 @@
-"""Quality profile and layer: the printer's default profile with the layer the rules ask for.
-
-Stereotech technologists save their projects with the default profile and the layer set on
-top of it (``quality_type = normal``, ``layer_height = 0.2``), so the profile stays the default
-and the layer is sent as a number when it differs from the profile's. The target layer snaps to
-the layers of the build's profiles inside the hard limits, so it is always a value the slicer
-offers; a check constraint on the profile chooses the profile instead.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,7 +15,7 @@ class QualityChoice:
     profile: QualityOption
     why: str
     source: str
-    # The layer the print uses, and the explicit layer setting when the profile's differs.
+    # слой и настройка
     layer_height: float
     layer_setting: SettingChoice | None = None
 
@@ -61,7 +52,7 @@ def choose_quality(
 
 
 def _layer(entry: AxisPlan, axis: Axis, t: float, mode: Mode) -> float:
-    """The profile layer nearest to the target inside the limits, else the target itself."""
+    """Ближайший слой профиля в пределах."""
     target = axis.v0 + t * (axis.v1 - axis.v0)
     offered = sorted({option.layer_height for option in mode.qualities.values()})
     inside = [

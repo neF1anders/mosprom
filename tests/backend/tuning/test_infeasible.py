@@ -30,8 +30,7 @@ def test_constraint_against_a_hard_requirement_gives_infeasible_with_both_sides(
 
 
 def test_constraint_beyond_the_search_range_gives_infeasible_without_a_crash(select):
-    # The axis of infill ends at 60 %: the minimum empties the interval with no rule on the
-    # other side. The original code sorted [rule, None] here and raised a TypeError.
+    # пустой интервал заполнения
     parameter_set = select(card(), feedback(constraint("C1", "infill_sparse_density", "min", 70)))
     assert parameter_set["status"] == "infeasible"
     (item,) = parameter_set["unsatisfied"]

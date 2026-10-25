@@ -1,8 +1,3 @@
-"""Stage work is a row written on the caller's transaction, so state and work commit together.
-
-One process serves the API and runs the stages: the runner claims the rows, a lock at a time.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -19,10 +14,9 @@ from . import tables as t
 logger = logging.getLogger(__name__)
 
 STAGE1_TASK = "stage1.run"
-# Parameter selection and its check run as this task; its payload is {job_id, revision}.
+# подбор и проверка
 STAGE2_TASK = "stage2.select_parameters"
-# Delivers the queued messages the user sends at once, beside the job's work; its payload is
-# {job_id}.
+# доставка очереди сообщений
 STEER_TASK = "steer.deliver"
 TODO, DOING, DONE, FAILED, CANCELLED = "todo", "doing", "done", "failed", "cancelled"
 
@@ -40,8 +34,7 @@ class SqlQueue:
         typed: list[str] | None = None,
     ) -> None:
         arguments: dict[str, Any] = {"job_id": job_id, "revision": revision, "start": start}
-        # Only a correction or typed replies carry their flags, so ordinary work keeps the
-        # payload it had.
+        # флаги только коррекции
         if correction:
             arguments["correction"] = True
         if typed:
@@ -53,12 +46,11 @@ class SqlQueue:
         await self._add(STAGE2_TASK, _lock(job_id), job_id, arguments)
 
     async def steer(self, job_id: str) -> None:
-        """Under the job's lock it would wait for the stage to end; a lock of its own keeps
-        one delivery of the job at a time."""
+        """Отдельная блокировка для доставки сообщений."""
         await self._add(STEER_TASK, f"steer:{job_id}", job_id, {"job_id": job_id})
 
     async def cancel_pending(self, job_id: str) -> None:
-        """Work queued for an earlier revision is obsolete; a delivery the user sent is not."""
+        """Снимает устаревшую работу прошлых ревизий."""
         await self._session.execute(
             update(t.task_queue)
             .where(t.task_queue.c.lock == _lock(job_id), t.task_queue.c.status == TODO)
@@ -75,20 +67,16 @@ class SqlQueue:
 
 
 def _lock(job_id: str) -> str:
-    """One lock per job keeps its stages in order."""
+    """Блокировка на каждую задачу."""
     return f"job:{job_id}"
 
 
-# Called with the task's payload as keyword arguments.
+# аргументы из payload
 Handler = Callable[..., Awaitable[None]]
 
 
 class TaskRunner:
-    """Runs queued work: at most ``concurrency`` tasks at a time, one task per lock at a time.
-
-    A job's stages share its lock, so they run in order; a delivery has a lock of its own and
-    runs beside them.
-    """
+    """Исполнитель очереди с блокировками."""
 
     def __init__(self, uow, wake: asyncio.Event, handlers: dict[str, Handler], concurrency: int):
         self._uow, self._wake, self._handlers = uow, wake, handlers
@@ -97,12 +85,10 @@ class TaskRunner:
         self._loop_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
-        # Work a stopped process left half done runs again; the handlers are idempotent.
+        # обработчики идемпотентны
         async with self._uow() as uow:
             await uow._session.execute(
-                update(t.task_queue)
-                .where(t.task_queue.c.status == DOING)
-                .values(status=TODO)
+                update(t.task_queue).where(t.task_queue.c.status == DOING).values(status=TODO)
             )
             await uow.commit()
         self._wake.set()
@@ -167,5 +153,4 @@ class TaskRunner:
                 update(t.task_queue).where(t.task_queue.c.id == row["id"]).values(status=status)
             )
             await uow.commit()
-        # The lock's next task, if any, was waiting for this one.
         self._wake.set()

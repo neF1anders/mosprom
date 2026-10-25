@@ -1,12 +1,3 @@
-"""Requirements stage one wrote under keys of its own -> codes of the dictionary.
-
-Stage one is asked for dictionary codes, but a model writes ``tg_min``, ``density_max`` or
-``chemical_washing`` as often as not. The other teams of the case read the task text themselves
-(printplan: a stem dictionary with number patterns); here the same is done over the key, the
-label and the value of each requirement, with the lexicon in ``free_keys.json``. What is read is
-told to the user as an assumption, so a wrong reading is visible.
-"""
-
 from __future__ import annotations
 
 import re
@@ -60,7 +51,7 @@ _MEDIA = {
 
 @dataclass(frozen=True)
 class Reading:
-    """A requirement of the card read as a code: the value in the code's kind."""
+    """Требование карточки как код."""
 
     requirement_id: str
     code: str
@@ -72,7 +63,7 @@ class Reading:
 @dataclass
 class Translation:
     readings: list[Reading] = field(default_factory=list)
-    # Requirement ids that were read; the others stay "not interpreted".
+    # прочитанные требования
     used: set[str] = field(default_factory=set)
 
 
@@ -95,8 +86,7 @@ def translate(
     skipped: set[str],
     read_number: NumberReader,
 ) -> Translation:
-    """Codes the card does not have yet, from the free requirements, one reading per code.
-    ``skipped``: codes the card already has and codes the selection does not read."""
+    """Коды из свободных требований карточки."""
     found = Translation()
     numbers: dict[str, list[Reading]] = {}
     media: list[str] = []
@@ -122,7 +112,7 @@ def translate(
 
 
 def _keep(found: Translation, numbers: dict[str, list[Reading]], reading: Reading) -> None:
-    """Numbers wait for the stricter end over all requirements; a flag is read once."""
+    """Более строгий конец побеждает."""
     if isinstance(reading.value, float):
         numbers.setdefault(reading.code, []).append(reading)
     elif reading.code not in {kept.code for kept in found.readings}:
@@ -138,8 +128,7 @@ def _first_reading(
     skipped: set[str],
     read_number: NumberReader,
 ) -> Reading | None:
-    """The first code of the lexicon whose stems match and whose value reads: «высокий модуль
-    упругости» without a number is the stiffness flag, not the modulus."""
+    """Первый подходящий код словаря."""
     for pattern in _PATTERNS:
         if pattern.code in skipped or not pattern.reads(text):
             continue
@@ -172,7 +161,7 @@ def _read(
 
 
 def _binding(code: str, readings: Sequence[Reading], keys: RequirementKeys) -> Reading:
-    """Several free requirements give one number code: the stricter end binds."""
+    """Строгий конец числового кода."""
     entry = keys.get(code)
     strict = entry.strict if entry is not None else None
     pick = max if strict == "upper" else min

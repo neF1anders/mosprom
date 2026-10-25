@@ -1,5 +1,3 @@
-"""5D from the part class and its axis, the pose the part prints in, and adhesion by mode."""
-
 import pytest
 
 from src.backend.tuning.select import select_parameters
@@ -7,12 +5,12 @@ from src.backend.validation.checks import check_parameters
 from tests.backend.tuning.cards import card, report, requirement
 
 pytestmark = pytest.mark.unit
-# The axis lies along Y in the file; o2 stands it upright, as the STL report measures.
+# ось вдоль Y
 UPRIGHT = [[1.0, 0.0, 0.0], [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]]
 
 
 def axial(length=25.0, diameter=60.0, round_part=True, overhang=0.12, upright_overhang=0.004):
-    """A part with its axis along Y: as loaded it lies on its side."""
+    """Деталь с осью вдоль Y."""
     stl_report = report(size=(diameter, length, diameter), overhang_fraction=overhang, bore=16.0)
     stl_report["revolution"].update(
         is_revolution=round_part,
@@ -63,9 +61,9 @@ def test_5d_part_stands_on_its_axis_and_supports_follow_that_pose(select):
     (model,) = parameter_set["models"]
     assert model["orientation_candidate"] == "o2"
     assert model["transform"]["rotation"] == UPRIGHT
-    # Centred on the axis of rotation, half the upright height above the table.
+    # по оси вращения
     assert model["transform"]["position"] == [0.0, 0.0, 12.5]
-    # As loaded 12 % overhangs, upright 0.4 %: no supports.
+    # без поддержек
     assert "support_enable" not in parameter_set["settings"]
     assert parameter_set["settings"]["cylindrical_mode_base_diameter"]["value"] == 16.0
 
@@ -80,15 +78,25 @@ def test_flexible_wheel_stays_in_3d(select):
 @pytest.mark.parametrize(
     ("length", "diameter", "round_part", "mode"),
     [
-        # A pump impeller: its blades break the round sections, the part is tall enough.
+        # крыльчатка насоса
         (50.7, 134.6, False, "cylindrical_full"),
-        # A motor fan: a flat disc.
+        # плоский диск вентилятора
         (22.0, 169.0, True, "classic"),
     ],
 )
 def test_impeller_goes_to_5d_unless_it_is_a_flat_disc(select, length, diameter, round_part, mode):
     impeller = coded(axial(length, diameter, round_part), requirement("part_class", "impeller_fan"))
     assert select(impeller)["printing_mode"]["value"] == mode
+
+
+def test_flat_fan_with_a_round_working_surface_stays_in_3d(select):
+    """Плоский вентилятор печатается в 3D."""
+    fan = coded(
+        axial(22.0, 169.0, True),
+        requirement("part_class", "impeller_fan"),
+        requirement("functional_surface_of_revolution", "да"),
+    )
+    assert select(fan)["printing_mode"]["value"] == "classic"
 
 
 def test_gear_with_a_round_working_surface_stays_in_3d(select):
@@ -117,7 +125,7 @@ def test_3d_print_uses_a_skirt(select):
 
 
 def test_warping_material_gets_a_brim(select):
-    # Brim is also the slicer's own value in 3D, so nothing is sent.
+    # кайма слайсера
     abs_part = card(requirements=[requirement("material", "Enduse ABS")])
     assert "adhesion_type" not in select(abs_part)["settings"]
 
@@ -169,5 +177,7 @@ def test_a_mode_invented_from_the_production_method_does_not_override_the_part_c
     invented["sources"] = [
         {"source_id": "s1", "quote": "Метод производства: Аддитивное производство (FDM / FFF)"}
     ]
-    wheel = select(coded(axial(50.7, 134.6, False), requirement("part_class", "impeller_fan"), invented))
+    wheel = select(
+        coded(axial(50.7, 134.6, False), requirement("part_class", "impeller_fan"), invented)
+    )
     assert wheel["printing_mode"]["value"] == "cylindrical_full"

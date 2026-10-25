@@ -14,7 +14,7 @@ from .commands import Commands
 from .queued import queued_view
 
 EVENT_PAGE = 100
-# A quiet stream still sends a heartbeat this often, so proxies and browsers keep it open.
+# пульс потока событий
 HEARTBEAT_SECONDS = 15
 
 
@@ -34,7 +34,7 @@ class JobService:
     async def delete(self, user_id: str, job_id: str, request_id: str):
         async def apply(uow: UnitOfWork, job: Job):
             job.deleted = True
-            # A running reading stops at its next safe point instead of spending tokens.
+            # остановка при чтении
             if job.status == Status.RUNNING:
                 job.status = transition(job.status, Status.STOPPING)
             elif job.status == Status.QUEUED:
@@ -81,12 +81,12 @@ class JobService:
             messages = await uow.messages.list(job_id, before)
             attachments = await uow.attachments.list(job_id)
             queued = await uow.queued.list(job_id)
-        # The full STL report is for the card export and stage two, not for the chat view.
+        # полный отчёт экспорта
         return {
             "job": job.model_dump(mode="json", exclude={"card": {"stl_analysis"}}),
             "messages": messages,
             "queued": queued_view(queued),
-            # Removed files too: an earlier message still shows what it was sent with.
+            # удалённые файлы тоже
             "attachments": [a.model_dump(mode="json", exclude={"fragments"}) for a in attachments],
             "message_cursor": messages[0]["seq"] if len(messages) == 100 else None,
         }
@@ -94,11 +94,7 @@ class JobService:
     async def follow(
         self, user_id: str, job_id: str, after: int | None
     ) -> AsyncIterator[Event | None]:
-        """Events after the cursor, then each new one as it commits; None is a heartbeat.
-
-        Without a cursor the stream starts at the revision of the job's work: older history
-        is never shown, so it is not replayed on every open.
-        """
+        """Следит за событиями задачи."""
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
             start = job.work_revision
@@ -108,7 +104,7 @@ class JobService:
     async def _stream(self, job_id: str, cursor: int) -> AsyncIterator[Event | None]:
         async with self.notifier.watch(job_id) as changed:
             while True:
-                # Cleared before the read: an event committed after it wakes the wait below.
+                # сброс перед чтением
                 changed.clear()
                 async with self.uow() as uow:
                     batch = await uow.events.list(job_id, cursor, EVENT_PAGE)
@@ -132,7 +128,7 @@ class JobService:
         return job.card.model_dump(mode="json")
 
     async def current_parameters(self, user_id: str, job_id: str) -> dict[str, Any]:
-        """The latest parameter set of the job's work, as the check and the slicer read it."""
+        """Актуальный набор параметров задачи."""
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
             found = await uow.stage_results.latest(job.id, job.work_revision, "parameters")

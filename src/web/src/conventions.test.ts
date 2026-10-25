@@ -23,7 +23,7 @@ function nestedConditionals(file: string) {
     file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const found: string[] = [];
-  // A JSX element or a function in a branch starts a new expression of its own.
+  // ветка начинает выражение
   const fresh = (node: ts.Node) =>
     ts.isJsxElement(node) ||
     ts.isJsxSelfClosingElement(node) ||

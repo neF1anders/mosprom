@@ -1,9 +1,3 @@
-"""Database steps every stage of a job shares, each in its own short transaction.
-
-A stage works only while its revision is current and nobody pressed Stop; the guard runs
-before each step and again when the step's result is written.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -14,8 +8,7 @@ from ..domain.transitions import transition
 from ..ports.persistence import UowFactory
 
 HALTED = {Status.STOPPING, Status.STOPPED}
-# Called by a stage between its steps with the job and the revision of its work; delivers
-# the messages queued meanwhile and tells whether a correction replaced that work.
+# доставка между шагами
 SafePoint = Callable[[str, int], Awaitable[bool]]
 
 
@@ -24,7 +17,7 @@ async def no_safe_point(job_id: str, revision: int) -> bool:
 
 
 def ensure_current(revision: int, status: Status, expected: int) -> None:
-    """A newer revision or a stop ends the work at its next safe point."""
+    """Прерывает устаревшую работу."""
     if revision != expected or status in HALTED:
         raise OperationCancelled()
 
@@ -64,7 +57,7 @@ class JobStore:
             await uow.commit()
 
     async def cancel(self, job_id: str) -> None:
-        """A stop requested during the work takes effect here; the event tells open chats."""
+        """Применяет остановку пользователя."""
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, lock=True)
             if job.status != Status.STOPPING:

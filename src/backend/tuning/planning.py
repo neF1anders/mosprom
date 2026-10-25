@@ -1,11 +1,3 @@
-"""Turn fired rules into a plan: per axis a shift and an allowed interval of t, discrete choices
-and the requirements the rules find unmet.
-
-The start point is not part of the plan: it is the value the slicer would use anyway (quality
-profile, material, definition) and is known only once the quality profile is chosen, see
-``resolve_t``.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
@@ -33,11 +25,11 @@ class AxisPlan:
     shift: float = 0.0
     low: float = 0.0
     high: float = 1.0
-    # Rules that shift the axis, in the order they fired.
+    # сдвигающие правила
     moving_rule_ids: tuple[str, ...] = ()
     low_rule: str | None = None
     high_rule: str | None = None
-    # A start value in t that replaces the slicer's own, and the rule that set it.
+    # начальное значение правила
     start: float | None = None
     start_rule: str | None = None
 
@@ -82,7 +74,7 @@ class Plan:
 
 
 def build_plan(fired: Sequence[Rule], axes: Mapping[str, Axis], context: AxisContext) -> Plan:
-    """Fired rules in file order; for a discrete setting the later rule wins."""
+    """Строит план из сработавших правил."""
     plan = Plan(axes={axis_id: AxisPlan() for axis_id in axes})
     for rule in fired:
         for action in rule.then:
@@ -93,14 +85,14 @@ def build_plan(fired: Sequence[Rule], axes: Mapping[str, Axis], context: AxisCon
 def limit_axis(
     plan: Plan, axis: Axis, rule_id: str, minimum: float | None, maximum: float | None
 ) -> Plan:
-    """Hard limits in the value domain (None = open), from a rule or a check constraint."""
+    """Жёсткие границы оси значений."""
     low, high = t_interval_for_limits(axis, minimum, maximum)
     entry = _lower_high(_raise_low(plan.axes[axis.id], rule_id, low), rule_id, high)
     return plan.with_axis(axis.id, entry)
 
 
 def find_conflicts(plan: Plan) -> list[Conflict]:
-    """Axes whose hard interval is empty, with the rules that bound it."""
+    """Оси с пустым интервалом."""
     conflicts = []
     for axis_id, entry in sorted(plan.axes.items()):
         if entry.low > entry.high + EPSILON:
@@ -115,7 +107,7 @@ def plan_unmet(
     requirement_ids: Mapping[str, Sequence[str]],
     rules: Mapping[str, Rule],
 ) -> list[Unmet]:
-    """Findings and conflicts named by the card requirements behind them, else by the rule."""
+    """Невыполненное по требованиям карточки."""
 
     def reference(rule_id: str) -> str:
         rule = rules.get(rule_id)
@@ -147,12 +139,7 @@ def _conflict_unmet(conflict: Conflict, reference: Callable[[str], str]) -> Unme
 
 
 def resolve_t(entry: AxisPlan, baseline_t: float) -> tuple[float, str | None]:
-    """t and the rule that decided it (None: the slicer value stands).
-
-    The start (a rule's start value, else the slicer value) is brought inside the hard
-    interval, shifted by the rules, then kept inside the interval again; a limit that cut the
-    shift decides the value. An empty interval collapses to its middle.
-    """
+    """Значение t и решившее правило."""
     low, high = entry.low, entry.high
     if low > high:
         low = high = (low + high) / 2.0
@@ -191,7 +178,7 @@ def _lower_high(entry: AxisPlan, rule_id: str, bound: float) -> AxisPlan:
 def _apply(
     plan: Plan, action: Action, rule_id: str, axes: Mapping[str, Axis], context: AxisContext
 ) -> Plan:
-    """Mode votes are counted by the mode choice, not by the plan."""
+    """Голоса режима считает выбор."""
     match action:
         case ShiftAction():
             entry = _shift(plan.axes[action.param], rule_id, action.delta)

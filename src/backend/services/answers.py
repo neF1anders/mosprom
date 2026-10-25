@@ -22,13 +22,13 @@ class AnswerService:
             questions = {q.id: q for q in job.card.questions}
             if not set(answers).issubset(questions):
                 raise AppError("Вопрос больше не актуален", "unknown_question", 409)
-            # Every way of saying "unknown" is stored as one value the interface recognises.
+            # «неизвестно» одним значением
             values = {key: canonical(value) for key, value in answers.items()}
             for key, value in values.items():
                 job.answers[key] = Answer(
                     title=questions[key].title, value=value, revision=revision
                 )
-            # The answers go back to the checker that asked, in a new revision.
+            # ответы идут проверяющему
             await changed(uow, job, "Ответы сохранены")
             text = "\n".join(f"{questions[k].title}, {v}" for k, v in values.items())
             await uow.messages.add(

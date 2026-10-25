@@ -37,7 +37,7 @@ describe("question window", () => {
     render(
       <Questions questions={[question]} onAnswer={answer} pending={false} />,
     );
-    // "Не знаю" is what sending without a choice records.
+    // ответ «Не знаю»
     if (value !== "Не знаю")
       await userEvent.click(screen.getByRole("button", { name: value }));
     await userEvent.click(

@@ -1,7 +1,7 @@
 import type { Job } from "../types";
 import styles from "../App.module.css";
 
-// The project STE Slicer made, inside the last timeline row; its files are in the project tree.
+// итог нарезки
 export function ResultSummary({ job }: { job: Job }) {
   const result = job.result;
   if (!result?.sliced) return null;
@@ -30,7 +30,7 @@ export function ResultSummary({ job }: { job: Job }) {
     </div>
   );
 }
-// The slicer's estimate as the chat says it: 5 ч 32 мин, 45 мин.
+// оценка слайсера
 export function duration(seconds: number) {
   const minutes = Math.round(seconds / 60);
   const hours = Math.floor(minutes / 60);

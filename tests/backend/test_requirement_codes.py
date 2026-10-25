@@ -1,5 +1,3 @@
-"""Requirement codes: how the interpreter's codes become requirements of the stage two contract."""
-
 import importlib.util
 import json
 from pathlib import Path
@@ -167,7 +165,7 @@ def test_a_code_replaces_a_free_key_and_appears_once():
     working = WorkingCard.from_draft(
         draft(no_supports={"value": "нет", "source_id": "m1"}, load_bearing="циклическая"), CODES
     )
-    # The free requirement under a code key gives way to the code block.
+    # код важнее свободного
     assert working.codes["no_supports"].value == "нет"
     assert [r.key for r in working.requirements.values()] == ["torque_nominal"]
     assert "load_bearing" not in working.codes
@@ -306,7 +304,7 @@ def test_a_cited_page_keeps_its_image_for_the_card():
 
 
 def test_a_bare_flag_or_list_is_still_a_code_value():
-    """Regression: a bare true or list was dropped though the schema promised to accept it."""
+    """Голый флаг остаётся значением кода."""
     output = draft(hydrophobic=True, chemical_resistance=["вода", "масло"])
     filled = output.codes.filled()
     assert filled["hydrophobic"].value == "да"
@@ -323,14 +321,14 @@ def sourced(key, value, source, quote, unit="°C"):
 
 
 def test_sources_that_disagree_on_a_code_reach_the_checker_and_the_answer_settles_it():
-    """Regression: the second value of a disputed code was silently dropped."""
+    """Спорные источники доходят до проверяющего."""
     message = sourced("service_temp_max_c", "90", "m1", "рабочая температура до 90")
     text = json.dumps(
         {
             "requirements": [
                 sourced("service_temp_max_c", "70", "f1p1", "до 70 °C"),
                 message,
-                # The same value from another source is no dispute.
+                # не спор
                 sourced("tg_min_c", "80", "f1p1", "80 °C"),
                 sourced("tg_min_c", "80", "m1", "80 °C"),
             ],
@@ -373,7 +371,7 @@ def test_a_stated_value_replaces_an_inferred_code():
 
 
 def test_a_code_fix_keeps_what_describes_the_same_source():
-    """Regression: a fix reset the label, conditions, mandatory flag and page of the code."""
+    """Правка кода хранит описание источника."""
     temperature = {**TEMPERATURE, "conditions": "длительно", "mandatory": False, "page": 2}
     working = WorkingCard.from_draft(draft(service_temp_max_c=temperature), CODES)
     same = {"code": "service_temp_max_c", "value": "до 85", "unit": "°C", "source_id": "m1"}

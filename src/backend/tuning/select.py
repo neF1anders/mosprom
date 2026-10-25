@@ -1,11 +1,3 @@
-"""Stage two: a ready task card (and, on the second pass, the check's feedback) -> the print
-parameters as ``stage2.parameter_set`` 0.2.
-
-The decisions follow one chain: material, printing mode, the plan of the rules and the check's
-constraints, quality profile, settings, model placement. Nothing is kept between calls: the same
-card and feedback always give the same parameter set.
-"""
-
 from __future__ import annotations
 
 import math
@@ -42,8 +34,7 @@ from .ranking import CHECKED_CODES
 from .rules import RULE_BY_ID, RULES, fired_rules, requirement_keys
 from .settings import choose_settings
 
-# Requirement codes the material checks and the rule conditions read; ``intake`` reads the card
-# fields itself and tells the user about a requirement under any other code.
+# коды требований
 READ_CODES = frozenset({*CHECKED_CODES, *(key for rule in RULES for key in requirement_keys(rule))})
 
 
@@ -53,7 +44,7 @@ def select_parameters(
     keys: RequirementKeys,
     feedback: Feedback | None = None,
 ) -> ParameterSet:
-    """First pass without feedback; the second and last pass with the feedback on the first."""
+    """Выбирает параметры по карточке задачи."""
     iteration = _iteration(feedback)
     request = read_card(card, keys, READ_CODES)
     printer = load_printer(catalog)
@@ -73,8 +64,7 @@ def select_parameters(
         printer.modes,
     )
     mode = printer.modes[mode_choice.value]
-    # Rules about the mode (adhesion) and the overhangs of the pose it prints in fire once the
-    # mode is known; mode votes read neither, so the choice stands.
+    # правила после режима
     fired = fired_rules(with_mode(facts, mode.name, poses[mode.name].overhang_fraction))
     context = _context(mode, printer.nozzle, material_choice.material, request.geometry)
     axes = build_axes(context)
@@ -110,7 +100,7 @@ def select_parameters(
             mode=mode_choice,
             quality=quality,
             material=material_choice,
-            # A value the check demands stays over the one taken from the bore.
+            # требование проверки приоритетнее
             settings={**placement.settings, **settings.settings},
             placement=placement,
             card_assumptions=request.assumptions,
@@ -138,7 +128,7 @@ def select_parameters(
 
 
 def _iteration(feedback: Feedback | None) -> int:
-    """Only the first proposal can be revised, once."""
+    """Первое предложение правится один раз."""
     if feedback is None:
         return 1
     if feedback.iteration != MAX_ITERATIONS - 1:
@@ -150,17 +140,16 @@ def _iteration(feedback: Feedback | None) -> int:
     return MAX_ITERATIONS
 
 
-# The wall minimum of STIFF-HARD (rules.json): the cap of a thin part never conflicts with it.
+# минимум стенки жёсткого
 WALLS_FLOOR_LINES = 4
 
 
 def _context(mode: Mode, nozzle: float, material: Candidate, geometry: Geometry) -> AxisContext:
-    """The machine ceiling never forces a material below the temperature its own file asks for."""
+    """Потолок станка не снижает материал."""
     default_speed = float(mode.value("speed_print"))
     fit = None
     if geometry.wall_thickness:
-        # Walls are laid from both faces of a wall; lines past its middle only overlap. The cap
-        # only takes back walls the rules add over the minimum of a hard stiffness.
+        # линии до середины
         lines = math.ceil(geometry.wall_thickness / (2.0 * mode.line_width))
         fit = float(max(lines, WALLS_FLOOR_LINES))
     return AxisContext(
@@ -193,8 +182,7 @@ def _requirement_ids(requirements: Sequence[CardRequirement]) -> dict[str, list[
 def _choice_results(
     constraints: Sequence[Constraint], chosen: Mapping[str, str]
 ) -> tuple[list[ConstraintResult], list[Unmet]]:
-    """Choice constraints checked against the final choice: a mode the part does not fit is
-    reported, not claimed."""
+    """Проверка ограничений выбора режима."""
     results, unmet = [], []
     for constraint in (constraint for constraint in constraints if is_choice(constraint)):
         note = _choice_note(constraint, chosen[constraint.key])

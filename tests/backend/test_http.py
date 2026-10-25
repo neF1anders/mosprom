@@ -22,11 +22,7 @@ pytestmark = pytest.mark.unit
     ],
 )
 async def test_protected_routes_need_session(path, tmp_path):
-    app = create_app(
-        Settings(
-            _env_file=None, session_secret="x" * 40, data_dir=tmp_path
-        )
-    )
+    app = create_app(Settings(_env_file=None, session_secret="x" * 40, data_dir=tmp_path))
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://localhost:8000"
     ) as client:
@@ -50,8 +46,7 @@ async def test_protected_routes_need_session(path, tmp_path):
 async def test_capabilities_name_the_folder_of_saved_projects(
     host_folder, exists, expected, tmp_path
 ):
-    """The folder that keeps the finished projects; in Docker it is named as the slicer's
-    computer sees it, not as the API does."""
+    """Папка проектов в возможностях."""
     folder = tmp_path / "slicer"
     if exists:
         folder.mkdir()

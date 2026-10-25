@@ -1,12 +1,3 @@
-"""STE Slicer through the MCP server of its AI Assistant plugin (``src/plugin/AIAssistant``).
-
-The plugin listens on 127.0.0.1 with a port and a token it writes to
-``Documents/STE_AIAssistant/server.json`` and reads and writes files by paths of its own
-machine. The worker shares that folder with it: models go to and results come from
-``mosprom/<run>`` inside it. In Docker the folder is mounted and ``host_dir`` is the same
-folder as the slicer sees it.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -27,13 +18,12 @@ from .files import LocalFiles
 
 logger = logging.getLogger(__name__)
 EXCHANGE = "mosprom"
-# The plugin gives slice_model 300 s in all, its wait for the settings check included, and
-# lets a call wait 50 s for the one before it; any other call answers within seconds.
+# лимиты плагина
 SLICE_SECONDS = 330
 CALL_SECONDS = 60
 RESET_TOOL = "reset_settings"
 OVERRUN = "Слайсер не ответил вовремя"
-# What the chat says when a call fails; the plugin's own error stays in the report.
+# текст ошибки чату
 FAILED = {
     "list_models": "Слайсер не очистил стол",
     "load_model": "Слайсер не загрузил модель",
@@ -51,7 +41,7 @@ class SlicerSettings:
     folder: Path
     host_folder: str
     host: str
-    # How long a run may hold the slicer; waiting for another job's run is not counted.
+    # предел занятости слайсера
     run_seconds: float
 
 
@@ -66,17 +56,15 @@ class CallFailed(Exception):
 class McpSlicer:
     def __init__(self, files: LocalFiles, settings: SlicerSettings):
         self.files, self.settings = files, settings
-        # One slicer, one scene: runs of different jobs wait for each other.
+        # одна сцена слайсера
         self._lock = asyncio.Lock()
-        # Runs a caller stopped waiting for, kept until the plugin is done with them.
+        # брошенные запуски
         self._runs: set[asyncio.Task[None]] = set()
 
     async def slice(
         self, run: str, parameter_set: ParameterSet, models: dict[str, str]
     ) -> SliceReport:
-        """The caller waits until the run ends, overruns ``run_seconds`` once it holds the
-        slicer, or is cancelled by a stop or an edit. The run itself keeps the slicer until
-        the call the plugin is busy with returns, so the next run never meets a busy plugin."""
+        """Выполняет нарезку и ждёт результат."""
         answer: asyncio.Future[SliceReport] = asyncio.get_running_loop().create_future()
         stop = asyncio.Event()
         task = asyncio.create_task(self._exclusive(run, parameter_set, models, answer, stop))
@@ -132,13 +120,13 @@ class McpSlicer:
                 return SliceReport(status="unavailable", message=str(exc))
 
     async def call(self, name: str, arguments: dict[str, Any]) -> Any:
-        """One tool of the plugin outside a run, for a check by hand."""
+        """Вызывает инструмент плагина вручную."""
         port, token = await asyncio.to_thread(self._server)
         async with self._lock, self._client(port, token) as client:
             return await self._tool(client, name, arguments)
 
     def _client(self, port: int, token: str) -> httpx.AsyncClient:
-        # The plugin checks the Host header, which in Docker is not its own address.
+        # проверка заголовка Host
         headers = {"Authorization": f"Bearer {token}", "Host": f"127.0.0.1:{port}"}
         return httpx.AsyncClient(base_url=f"http://{self.settings.host}:{port}", headers=headers)
 
@@ -154,7 +142,7 @@ class McpSlicer:
             raise SlicerUnavailable("Не удалось подключиться к STE Slicer") from None
 
     def _place_models(self, folder: Path, models: dict[str, str]) -> None:
-        """The slicer picks the reader by the extension, which stored files lack."""
+        """Раскладывает модели по расширениям."""
         folder.mkdir(parents=True, exist_ok=True)
         for attachment_id, key in models.items():
             shutil.copyfile(self.files.path(key), folder / f"{attachment_id}.stl")
@@ -229,7 +217,7 @@ class McpSlicer:
 
     async def _call(self, client: httpx.AsyncClient, call: SlicerCall) -> Any:
         if call.step == "clear_scene":
-            # Models of an earlier run would be sliced along with this one.
+            # старые модели мешают
             for _ in await self._tool(client, "list_models", {}):
                 await self._tool(client, "delete_model", {"model_index": 0})
             return None
@@ -256,7 +244,7 @@ class McpSlicer:
         return text
 
     def _keep(self, run: str, folder: Path) -> tuple[str, str]:
-        """Copies the chat serves; the originals stay where the slicer saved them."""
+        """Сохраняет копии файлов для чата."""
         kept = []
         for name, key in (("result.gcode", f"{run}.gcode"), ("project.3mf", f"{run}.3mf")):
             shutil.copyfile(folder / name, self.files.path(key))
@@ -264,7 +252,7 @@ class McpSlicer:
         return kept[0], kept[1]
 
     def _host(self, *parts: str) -> str:
-        """A path inside the shared folder as the slicer sees it."""
+        """Путь внутри общей папки."""
         return shown_path(self.settings.folder, self.settings.host_folder, EXCHANGE, *parts)
 
 
@@ -290,8 +278,7 @@ async def _rpc(
 
 
 def _steps(calls: list[SlicerCall], reset: bool) -> list[SlicerCall]:
-    """The plan after a clear plate, with the reset of earlier settings when the plugin has it.
-    The reset works on the active printer, so it follows the choice of the one that slices."""
+    """План после очистки стола."""
     steps = [SlicerCall(step="clear_scene", tool="list_models", args={})]
     for call in calls:
         steps.append(call)
@@ -306,7 +293,7 @@ def _settle(answer: asyncio.Future[SliceReport], report: SliceReport) -> None:
 
 
 def _note(report: SliceReport, call: SlicerCall, result: Any) -> None:
-    """What a call's answer says about the run: a clamped value or the slicer's estimate."""
+    """Что сказал ответ вызова."""
     if call.tool == "slice_model" and isinstance(result, dict):
         report.print_time_seconds = result.get("print_time_seconds")
         report.material_grams = result.get("material_grams")
@@ -321,7 +308,7 @@ def _note(report: SliceReport, call: SlicerCall, result: Any) -> None:
 
 
 def _typed(text: str, requested: Any) -> Any:
-    """The written value in the type of the requested one, as the plugin prints it."""
+    """Значение в типе запрошенного."""
     if isinstance(requested, bool):
         return text.lower() in ("true", "1")
     if isinstance(requested, int | float):

@@ -27,7 +27,7 @@
     return text.replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
   }
 
-  // small markdown subset: **bold**, `code`, "- " and "1. " lists, paragraphs
+  // мини-разметка markdown
   function render(text) {
     var html = "", list = null;
     function close() { if (list) { html += "</" + list + ">"; list = null; } }
@@ -75,7 +75,7 @@
     lastTool.querySelector(".status").textContent = event.ok ? "готово" : "ошибка";
     lastTool.querySelector("pre").textContent += "\n\n→ " + event.text;
     if (event.ok && (event.name === "export_gcode" || event.name === "save_project")) {
-      try { addFile(JSON.parse(event.text).path); } catch (e) { /* not a path result */ }
+      try { addFile(JSON.parse(event.text).path); } catch (e) { /* не путь */ }
     }
   }
 
@@ -164,7 +164,7 @@
       var labels = { not_started: "Не запускался.", processing: "Идёт нарезка…", done: "Готово.", error: "Ошибка слайсинга.", disabled: "Слайсинг отключён." };
       $("slicing").textContent = sl ? (labels[sl.state] || sl.state) + (sl.print_time ? " Время печати: " + sl.print_time + ", материал: " + sl.material_grams + " г." : "") : "—";
       if (!busy) { showChanges(data.changes); }
-    }).catch(function () { /* the next poll will show the error */ });
+    }).catch(function () { /* ошибку покажет опрос */ });
   }
 
   function banner(message, isError) {
@@ -174,7 +174,7 @@
     node.className = "banner" + (isError ? " error" : "");
   }
 
-  // ---------- scenarios
+  // сценарии
   function loadScenarios() {
     api("/api/scenarios").then(function (list) {
       var box = $("scenarios");
@@ -194,7 +194,7 @@
     });
   }
 
-  // ---------- files
+  // файлы
   function readBase64(file) {
     return new Promise(function (resolve, reject) {
       var reader = new FileReader();
@@ -248,7 +248,7 @@
   });
   chat.addEventListener("drop", function (e) { attach(e.dataTransfer.files); });
 
-  // ---------- send
+  // отправка
   $("composer").addEventListener("submit", function (e) {
     e.preventDefault();
     var text = textBox.value.trim();
@@ -269,7 +269,7 @@
     });
   });
 
-  // ---------- settings
+  // настройки
   var dialog = $("settings");
   function openSettings() {
     api("/api/config").then(function (c) {

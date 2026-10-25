@@ -5,11 +5,7 @@ from UM.Logger import Logger
 
 
 def run_on_main(func, timeout=60):
-    """Run func on the Qt main thread and return its result.
-
-    The slicer scene, settings and backend may only be touched from the main thread; the HTTP server
-    works in other threads and hands the work over with Application.callLater.
-    """
+    """Выполняет функцию в потоке Qt."""
     app = Application.getInstance()
     if threading.current_thread() is app.getMainThread():
         return func()

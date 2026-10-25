@@ -74,7 +74,7 @@ export function App() {
   );
   const [error, setError] = useState("");
   const { theme, toggle: toggleTheme } = useTheme();
-  // The model connection opens by itself once, while no model is configured.
+  // подключение открывается само
   const [modelOpen, setModelOpen] = useState(false);
   const modelAsked = useRef(false);
   const tools = (
@@ -96,7 +96,7 @@ export function App() {
     selected,
     !!session.data,
   );
-  // The agent whose train of thought is open, and the one pointed at in the panel.
+  // открытый и выбранный агент
   const [agentView, setAgentView] = useState("");
   const [highlighted, setHighlighted] = useState("");
   const jobs = useInfiniteQuery({
@@ -157,7 +157,7 @@ export function App() {
     past.reset();
     history.replaceState(null, "", id ? `?job=${id}` : location.pathname);
   }
-  // Another chat drops the files still waiting in this one's composer.
+  // файлы чата сбрасываются
   function open(id: string) {
     setUploads([]);
     select(id);
@@ -170,27 +170,27 @@ export function App() {
     },
     onError: (e) => setError(e.message),
   });
-  // Messages on their way to the assistant, by chat, until the chat that has them is loaded.
+  // сообщения в пути
   const [sending, setSending] = useState<Record<string, number>>({});
   const count = (id: string, step: number) =>
     setSending((now) => ({ ...now, [id]: (now[id] || 0) + step }));
-  // While the job works a message waits in the queue for the end of the stage.
+  // очередь до конца этапа
   const send = useMutation({
     mutationFn: async ({ text, queue }: { text: string; queue: boolean }) => {
       const id = await ensureJob();
-      // Files alone go as a message too: the assistant decides what they are for.
+      // только файлы
       const result = await command(
         `/jobs/${id}/${queue ? "queue" : "messages"}`,
         {
           text,
         },
       );
-      // The chat shows the message before the send ends, so the reply row never blinks out.
+      // сообщение видно сразу
       await client.refetchQueries({ queryKey: ["job", id], exact: true });
       return result;
     },
     onSuccess: () => {
-      // Rejected files never reached the server, so they are not part of the sent message.
+      // отклонённые не отправляются
       setUploads((list) => list.filter((file) => file.uploading));
       client.setQueryData<Snapshot>(
         ["job", selectedRef.current],
@@ -281,7 +281,7 @@ export function App() {
   });
   async function ensureJob() {
     if (selectedRef.current) return selectedRef.current;
-    // Files picked together must not create a job each.
+    // один запрос на файлы
     creating.current ??= command<Job>("/jobs").then((created) => {
       select(created.id);
       return created.id;
@@ -299,7 +299,7 @@ export function App() {
   ).sort((a, b) => a.seq - b.seq);
   const files = snapshot.data?.attachments || [];
   const project = job?.projects?.at(-1)?.number;
-  // Unsent files wait in the composer; the tree shows the files of the current project.
+  // файлы текущего проекта
   const sent = files.filter(
     (file) =>
       !file.draft &&
@@ -330,7 +330,7 @@ export function App() {
   ];
   const byId = new Map(files.map((file) => [file.id, file]));
   const running = isRunning(job);
-  // A reply that started no work keeps the timeline of the work before it.
+  // прежний таймлайн
   const current = events.filter((e) => e.revision >= (job?.work_revision ?? 0));
   const asking = asksQuestions(job);
   const now = useNow(running);
@@ -343,17 +343,17 @@ export function App() {
     now,
     connected,
   });
-  // Replies the timeline shows in place are not repeated in the chat.
+  // повторы не показываются
   const hidden = summaries(stages);
-  // What came after the work began, its report and the talk about it, follows the timeline.
+  // после начала работы
   const [before, after] = splitAt(
     messages,
     stages ? current[0]?.created_at : undefined,
   );
-  // A message on its way to the assistant already waits for its reply.
+  // ожидание ответа
   const replying =
     answering(events, messages, running) || (sending[selected] || 0) > 0;
-  // The assistant's turns show their reasoning as the agents of a stage do.
+  // рассуждения ассистента
   const turns = chatRuns(events, thoughts);
   const thinking = turns.filter((turn) => turn.state === "run");
   const thought = runsByReply(messages, turns);
@@ -362,7 +362,7 @@ export function App() {
     (agent) => agent.state === "run" && !agent.code,
   );
   const viewed = agents.find((agent) => agent.id === agentView);
-  // A click in the panel brings the agent's card into view, Figma screen 22.
+  // показать карточку агента
   function point(id: string) {
     setHighlighted(id);
     document
@@ -517,7 +517,7 @@ export function App() {
                 onAgent={setAgentView}
               />
               {replying && (
-                // One status while the assistant answers, whichever way it shows.
+                // один статус
                 <div
                   className={styles.answering}
                   role="status"
@@ -621,8 +621,7 @@ export function App() {
           <Composer
             onSend={(text) => {
               toBottom("smooth");
-              // Set in the click itself, so the reply row is on the page as the click ends;
-              // the mutation's own state arrives a task later.
+              // состояние в клике
               const chat = selected;
               const queue = running;
               if (!queue) count(chat, 1);

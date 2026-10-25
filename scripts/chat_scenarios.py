@@ -1,13 +1,3 @@
-"""Corner cases of the chat on a running stand with the real model.
-
-Each scenario talks to the assistant as a user does: messages, files, answers, a stop. It
-checks what the assistant did, a reply, a new project or an update of the current one, and
-the rules of the chat text, and writes every transcript for a person to read.
-
-    uv run python scripts/chat_scenarios.py --link "http://localhost:8002/#launch=..." \\
-        --examples "$HOME/Downloads/Примеры деталей" [--only 1,5,12]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -33,7 +23,7 @@ PARTS = {
 WORKING = {"queued", "running"}
 CHAT_AGENTS = {"assistant", "analyst", "report"}
 POLL = 1.5
-# A task whose sources disagree: the checker's prompt makes it ask which value holds.
+# источники расходятся
 DISAGREEING = (
     "Техническое задание на шестерню привода конвейера\n"
     "Раздел 2. Максимальная рабочая температура детали 60 °C.\n"
@@ -48,7 +38,7 @@ def rid() -> str:
 
 @dataclass
 class Turn:
-    """What one message led to."""
+    """Что дало одно сообщение."""
 
     action: str
     texts: list[str]
@@ -65,7 +55,7 @@ class Result:
     checks: list[tuple[str, bool, str]] = field(default_factory=list)
     transcript: list[str] = field(default_factory=list)
     error: str = ""
-    # Why the scenario could not be checked: the model never reached its starting state.
+    # сценарий не проверен
     skipped: str = ""
 
     def check(self, name: str, ok: bool, detail: Any = "") -> None:
@@ -77,7 +67,7 @@ class Result:
 
 
 class Chat:
-    """One chat on the stand: its snapshot, its events and the turns of its user."""
+    """Один чат на стенде."""
 
     def __init__(self, client: httpx.AsyncClient, examples: Path, result: Result):
         self.client, self.examples, self.result = client, examples, result
@@ -97,7 +87,7 @@ class Chat:
             self._reader.cancel()
 
     async def _read(self) -> None:
-        """The event stream, kept for the calls of the chat's own agents."""
+        """Поток событий для вызовов чата."""
         while True:
             try:
                 path = f"/jobs/{self.id}/events"
@@ -109,7 +99,7 @@ class Chat:
                 await asyncio.sleep(1)
 
     def busy(self) -> bool:
-        """A call of the assistant, the analyst or the report is still running."""
+        """Вызов ассистента ещё выполняется."""
         open_calls: set[str] = set()
         for event in self.events:
             data = event.get("data") or {}
@@ -149,7 +139,7 @@ class Chat:
         self.result.transcript.append(f"📎 {name}")
 
     async def say(self, text: str, timeout: float = 240) -> Turn:
-        """Sends a message and waits for what it led to."""
+        """Отправляет сообщение и ждёт итог."""
         before = await self.snapshot()
         started = time.monotonic()
         response = await self.client.post(
@@ -214,7 +204,7 @@ class Chat:
         raise TimeoutError(f"job did not reach {statuses}")
 
     async def finished(self, timeout: float = 600) -> dict[str, Any]:
-        """The project is done and its new report is in the chat."""
+        """Проект готов, отчёт в чате."""
         known = {m["id"] for m in (await self.snapshot())["messages"]}
         await self.until({"completed", "failed"}, timeout)
         started = time.monotonic()
@@ -265,7 +255,7 @@ class Chat:
 
 
 def rules(result: Result, texts: list[str]) -> None:
-    """Every text of the assistant follows the chat rules."""
+    """Тексты ассистента следуют правилам чата."""
     for text in texts:
         result.check("текст по-русски", len(re.findall(r"[а-яё]", text, re.I)) > 5, text)
         result.check("без длинного тире", "—" not in text and "–" not in text, text)
@@ -380,7 +370,7 @@ async def notes_against_the_task(chat: Chat, result: Result) -> None:
     result.check("ответ без работы", turn.action == "reply", turn)
     await chat.attach("gear")
     turn = await chat.say("")
-    # The task says a greenhouse up to +70, so the assistant asks which is right.
+    # теплица до +70
     asked = turn.action in ("reply", "ask") and "?" in " ".join(turn.texts)
     result.check("спросил, что верно, или учёл в заметках", asked or turn.action == "start", turn)
     if turn.action == "start":
@@ -436,8 +426,7 @@ async def new_part_during_work(chat: Chat, result: Result) -> None:
 
 
 async def asking(chat: Chat, result: Result) -> list[dict[str, Any]] | None:
-    """A project whose sources disagree, so its checker asks; None marks the scenario
-    skipped when it still did not."""
+    """Проект с расходящимися источниками данных."""
     await chat.attach("gear", ("stl",))
     await chat.attach_text("ТЗ шестерни.txt", DISAGREEING)
     turn = await chat.say("Нужна такая деталь, ТЗ и модель во вложении")
@@ -591,7 +580,7 @@ async def same_part_file(chat: Chat, result: Result) -> None:
 
 @scenario("Три проекта в одном чате, у каждого своя папка")
 async def kept_folders(chat: Chat, result: Result) -> None:
-    """The same part again gets a folder of its own; the earlier folders keep their files."""
+    """Повторная деталь получает свою папку."""
     folders: list[str] = []
     for part in ("gear", "fan", "gear"):
         await chat.attach(part)
@@ -646,7 +635,7 @@ async def run_one(
     chat = await Chat(client, examples, result).open()
     try:
         await function(chat, result)
-    except Exception as exc:  # the report shows what broke, the other scenarios go on
+    except Exception as exc:  # остальные сценарии идут
         result.error = f"{type(exc).__name__}: {exc}"
     finally:
         await chat.close()

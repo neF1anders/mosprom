@@ -1,5 +1,3 @@
-"""What each agent returns. Lenient by design: unknown fields are ignored, numbers become text."""
-
 from __future__ import annotations
 
 from typing import Any, cast
@@ -15,10 +13,7 @@ class Output(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def defaults_for_nulls(cls, data: Any) -> Any:
-        """A null in a field the model may leave out means its default, not a broken item.
-
-        Otherwise ``"conditions": null`` would drop the whole requirement it belongs to.
-        """
+        """Значения по умолчанию вместо null."""
         if not isinstance(data, dict):
             return data
         fields = cls.model_fields
@@ -70,7 +65,7 @@ class Draft(Output):
 
 
 def _lenient(data: Any) -> Any:
-    """A bare value, a list or a yes/no boolean is still a usable code value."""
+    """Мягкое приведение значения кода."""
     data = dict(data) if isinstance(data, dict) else {"value": data}
     value = data.get("value")
     if isinstance(value, list):
@@ -83,7 +78,7 @@ def _lenient(data: Any) -> Any:
 
 
 class CodeValue(Output):
-    """The value of one requirement code, either named by a source or inferred from it."""
+    """Значение одного кода требования."""
 
     value: str
     unit: str | None = None
@@ -103,10 +98,7 @@ class CodeValue(Output):
 
 
 class Codes(Output):
-    """One field per dictionary code; a code the model filled badly is dropped alone.
-
-    Otherwise one wrong value would make the whole block fail and lose every code.
-    """
+    """Поле на каждый код словаря."""
 
     @model_validator(mode="before")
     @classmethod
@@ -134,7 +126,7 @@ class DraftWithCodes(Draft):
 
 
 def draft_with_codes(keys: RequirementKeys) -> type[DraftWithCodes]:
-    """The interpreter's answer lists every code, so the schema itself asks for each one."""
+    """Схема черновика со всеми кодами."""
     fields: Any = {entry.key: (CodeValue | None, None) for entry in keys.keys}
     codes = create_model("Codes", __base__=Codes, **fields)
     model = create_model(
@@ -153,7 +145,7 @@ class Removal(Output):
 
 
 class CodeFix(Output):
-    """A corrected code; an empty value removes the code."""
+    """Исправление одного кода проверяющим."""
 
     code: str
     value: str | None = None
@@ -173,19 +165,19 @@ class CodeFix(Output):
 class ReviewQuestion(DraftQuestion):
     kind: str = "clarify"
     requirement_key: str | None = None
-    # The id of the interpreter's question it keeps, q1 and so on.
+    # идентификатор оставляемого вопроса
     source: str | None = None
 
 
 class Waived(Output):
-    """An interpreter's question the checker does not ask, and why."""
+    """Вопрос, который не задаём."""
 
     id: str
     reason: str
 
 
 class Review(Output):
-    """The checker's edit of the card; the server applies it by requirement id and code."""
+    """Правка карточки от проверяющего."""
 
     change: list[RequirementChange] = Field(default_factory=list)
     remove: list[Removal] = Field(default_factory=list)

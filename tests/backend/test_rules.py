@@ -66,6 +66,6 @@ def test_caveats_make_the_card_preliminary(extra):
 
 
 def test_an_unverified_requirement_does_not_block():
-    # A value without a source is an assumption the user is told about, not a blocker.
+    # допущение, не блокер
     unverified = Requirement(key="color", value="чёрный")
     assert assess(card(requirements=[unverified]), []).readiness == "ready"

@@ -1,5 +1,3 @@
-"""Files and the STL by code: documents parsed in separate processes, analysis cached by content."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -15,7 +13,7 @@ from .runner import RunContext
 from .store import RunStore
 
 ANALYZER_VERSION = "1.4-bore-axis"
-# STL has no units; like Cura, the file is read in millimetres and nobody is asked.
+# единицы STL миллиметры
 UNITS = "mm"
 
 
@@ -32,11 +30,7 @@ class Sources:
         self.store, self.files = store, files
 
     async def parse(self, attachments: list[Attachment], ctx: RunContext) -> None:
-        """Documents are parsed side by side; a file that failed before is tried again.
-
-        Parsing is silent: the assistant reads the documents before it decides to start, and a
-        plain chat reply must not open the timeline.
-        """
+        """Параллельный разбор документов без шума."""
         await together(
             *(self._parse(a, ctx) for a in attachments if a.kind != "stl" and _outdated(a))
         )
@@ -74,7 +68,7 @@ class Sources:
             report = await self.store.cached(key)
             if report is None:
                 report = await self.files.analyze(attachment.id, UNITS, key)
-                # A checkpoint cut by the time limit is not the final word on this file.
+                # обрыв по времени
                 if report.get("status") != "partial":
                     await self.store.cache(key, report)
             analysis = bind_analysis(attachment, UNITS, report)

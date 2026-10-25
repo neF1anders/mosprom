@@ -1,5 +1,3 @@
-"""Values the selection steps hand on: settings, unmet requirements, applied constraints."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,7 +8,7 @@ EPSILON = 1e-9
 
 @dataclass(frozen=True)
 class Unmet:
-    """A requirement or a check constraint the parameter set does not meet."""
+    """Невыполненное требование или ограничение проверки."""
 
     requirement_id: str
     why: str
@@ -19,7 +17,7 @@ class Unmet:
 
 @dataclass(frozen=True)
 class ConstraintResult:
-    """How one constraint of the check was applied on the second pass."""
+    """Результат применения одного ограничения."""
 
     id: str
     result: Literal["applied", "not_applied"]
@@ -28,7 +26,7 @@ class ConstraintResult:
 
 @dataclass(frozen=True)
 class SettingChoice:
-    """A setting sent to the slicer, with why and where its value comes from."""
+    """Настройка слайсера с причиной."""
 
     value: Any
     why: str

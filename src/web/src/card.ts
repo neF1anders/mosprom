@@ -8,7 +8,7 @@ export interface SectionItem {
   meta?: string;
   tag?: string;
   href?: string;
-  // The page of the document a value was read from.
+  // страница значения
   page?: string;
 }
 export interface Section {
@@ -18,7 +18,7 @@ export interface Section {
   summary: string;
   items: SectionItem[];
 }
-// The word next to a section; a done one has none, its check mark says it.
+// слово у раздела
 export const stateWords: Record<SectionState, string> = {
   done: "",
   error: "Ошибка",
@@ -26,7 +26,7 @@ export const stateWords: Record<SectionState, string> = {
   run: "В работе",
   wait: "Ждёт",
 };
-// The bar fills from the left: done first, then what needs a look, then the rest.
+// порядок заполнения полосы
 const ORDER: SectionState[] = ["done", "error", "warn", "run", "wait"];
 export function barOrder(sections: Section[]) {
   return sections
@@ -47,7 +47,7 @@ function sourceLabel(source?: Evidence) {
 function lowerFirst(text: string) {
   return text.charAt(0).toLowerCase() + text.slice(1);
 }
-// Without data a section waits; while the job works it is in progress; a failure marks it.
+// состояние раздела
 function emptyState(job: Job | undefined): SectionState {
   if (isRunning(job)) return "run";
   return job?.status === "failed" ? "error" : "wait";
@@ -91,7 +91,7 @@ function requirements(job: Job | undefined, card: Card | null): Section {
           : undefined,
     };
   });
-  // A new version of the task is checked again before stage two takes the card.
+  // повторная проверка
   const rechecking =
     isRunning(job) &&
     job?.stage === "understanding" &&
@@ -140,7 +140,7 @@ function geometry(
     });
   if (!defects.length)
     return { key: "geometry", title, state: "done", summary: size, items };
-  // A defect is settled once a card holds it and asks nothing more about it.
+  // дефект закрыт
   const settled = !!card && card.questions.every(answered);
   return {
     key: "geometry",
@@ -167,7 +167,7 @@ function assumptions(job: Job | undefined, card: Card | null): Section {
   const count = card.assumptions.length;
   const unknown = card.unknowns.length;
   const named = `${count} ${plural(count, ["допущение", "допущения", "допущений"])}`;
-  // What keeps the card from going on, such as files that could not be read.
+  // что мешает продолжить
   const blockers = [
     ...new Set(
       Object.entries(card.blocked_actions || {})
@@ -208,7 +208,7 @@ function assumptions(job: Job | undefined, card: Card | null): Section {
     items,
   };
 }
-// The four sections of the task card in the right panel, Figma node 197:168.
+// четыре раздела карточки
 export function cardSections(job: Job | undefined, events: ProgressEvent[]) {
   const card = job?.card ?? null;
   const measured =

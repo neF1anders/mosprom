@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""Полный прогон конвейера параметров через HTTP API и оценка качества.
-
-Создаёт задание, отправляет сообщение и STL, ждёт завершения конвейера (pipeline.completed)
-или таймаута, проверяет ожидания и собирает метрики. Результаты в <out-dir>/<время>/.
-
-Usage:
-    python scripts/eval_pipeline.py --cases out/eval_cases.json [--user-id local] [--timeout 900]
-    python scripts/eval_pipeline.py --organizer-dir ~/Downloads/"Примеры деталей" --user-id local
-    python scripts/eval_pipeline.py --selftest
-
-Авторизация: --user-id <id> (токен берётся из SESSION_SECRET в .env или переменной среды).
-Для получения токена используется тот же механизм, что в scripts/bootstrap.py.
-"""
 
 import argparse
 import base64
@@ -32,13 +19,13 @@ from threading import Thread
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-# Organizer examples whose facts are transcribed; the folder "1. Шестерня" is case "1".
+# примеры организаторов
 REFERENCE = Path("tests/eval/reference.json")
 
 
 @dataclass
 class CaseExpectation:
-    """Ожидания для случая."""
+    """Ожидания для одного случая."""
 
     printing_mode: Optional[str] = None
     material_contains: Optional[str] = None
@@ -55,7 +42,7 @@ class CaseResult:
     case_id: str
     status: str
     completed: bool = False
-    result: Optional[str] = None  # ok/attention/error
+    result: Optional[str] = None  # статусы результата
     iterations: int = 0
     validation_remarks: int = 0
     validation_remarks_text: List[str] = field(default_factory=list)
@@ -66,13 +53,13 @@ class CaseResult:
     parameters: Optional[Dict[str, Any]] = None
     project_folder: Optional[str] = None
     stage_times: Dict[str, float] = field(default_factory=dict)
-    expectations: Dict[str, str] = field(default_factory=dict)  # pass/fail/n/a
+    expectations: Dict[str, str] = field(default_factory=dict)  # итоги проверок
     error: Optional[str] = None
     elapsed_seconds: float = 0.0
 
 
 def sign_token(secret: str, kind: str, expires: int, user_id: str) -> str:
-    """Создаёт подписанный токен (как в bootstrap.py и tokens.py)."""
+    """Создаёт подписанный токен доступа."""
     payload = base64.urlsafe_b64encode(
         json.dumps(
             {
@@ -88,7 +75,7 @@ def sign_token(secret: str, kind: str, expires: int, user_id: str) -> str:
 
 
 class ApiClient:
-    """HTTP клиент для работы с API стенда."""
+    """HTTP клиент для API стенда."""
 
     def __init__(self, base_url: str, session_secret: str, user_id: str):
         self.base_url = base_url.rstrip("/")
@@ -104,37 +91,37 @@ class ApiClient:
         files: Optional[Dict] = None,
         headers: Optional[Dict] = None,
     ) -> Any:
-        """Выполняет HTTP запрос."""
+        """Выполняет один HTTP запрос."""
         url = self.base_url + path
         req_headers = headers or {}
 
-        # Добавляем cookie с сессией если есть
+        # cookie сессии
         if self.session_token:
             req_headers["Cookie"] = f"mosprom_session={self.session_token}"
 
-        # Для multipart/form-data создаём boundary и тело
+        # граница multipart
         if files:
             boundary = f"----WebKitFormBoundary{uuid4().hex[:16]}"
             req_headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
 
             parts = []
-            # Добавляем поля данных
+            # поля данных
             if data:
                 for key, value in data.items():
                     parts.append(f"--{boundary}\r\n")
                     parts.append(f'Content-Disposition: form-data; name="{key}"\r\n\r\n')
                     parts.append(f"{value}\r\n")
 
-            # Добавляем файлы
+            # файлы запроса
             for field_name, (filename, content) in files.items():
                 parts.append(f"--{boundary}\r\n")
                 parts.append(
                     f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
                 )
                 parts.append("Content-Type: application/octet-stream\r\n\r\n")
-                # content должен быть байтами
+                # нужны байты
                 body_data = "".join(parts).encode() + content + f"\r\n--{boundary}--\r\n".encode()
-                break  # Обрабатываем только один файл за раз
+                break  # один файл
         elif data is not None:
             req_headers["Content-Type"] = "application/json"
             body_data = json.dumps(data).encode()
@@ -156,21 +143,20 @@ class ApiClient:
             raise Exception(f"Network error: {e.reason}")
 
     def authenticate(self) -> None:
-        """Обменивает launch токен на session токен."""
+        """Меняет launch токен на сессию."""
         launch_token = sign_token(
             self.session_secret, "launch", int(time.time()) + 600, self.user_id
         )
 
         self._request("POST", "/api/v1/session/exchange", {"token": launch_token})
 
-        # Сервер устанавливает cookie, но в urllib нужно извлечь вручную
-        # Для простоты создадим session токен сразу
+        # cookie вручную
         self.session_token = sign_token(
             self.session_secret, "session", int(time.time()) + 30 * 86400, self.user_id
         )
 
     def create_job(self, title: str = "Eval case") -> Dict:
-        """Создаёт новое задание."""
+        """Создаёт новое задание на стенде."""
         return self._request("POST", "/api/v1/jobs", {"request_id": str(uuid4()), "title": title})
 
     def send_message(self, job_id: str, text: str) -> Dict:
@@ -184,13 +170,13 @@ class ApiClient:
         boundary = f"----WebKitFormBoundary{uuid4().hex[:16]}"
 
         parts = []
-        # request_id как form field
+        # поле request_id
         request_id = str(uuid4())
         parts.append(f"--{boundary}\r\n")
         parts.append('Content-Disposition: form-data; name="request_id"\r\n\r\n')
         parts.append(f"{request_id}\r\n")
 
-        # file field
+        # поле файла
         parts.append(f"--{boundary}\r\n")
         parts.append(f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n')
         parts.append("Content-Type: application/octet-stream\r\n\r\n")
@@ -211,7 +197,7 @@ class ApiClient:
             return json.loads(response.read().decode())
 
     def get_job_snapshot(self, job_id: str) -> Dict:
-        """Получает снимок задания."""
+        """Получает снимок состояния задания."""
         return self._request("GET", f"/api/v1/jobs/{job_id}")
 
     def get_parameters(self, job_id: str) -> Dict:
@@ -230,8 +216,7 @@ class ApiClient:
 def _answer_open_questions(
     client: ApiClient, job_id: str, job_data: dict, auto_answer: str
 ) -> bool:
-    """Отвечает на неотвеченные вопросы карточки; без вопросов (карточки ещё нет, шлюз просит
-    подтвердить запуск) отвечает в чат."""
+    """Отвечает на открытые вопросы карточки."""
     questions = (job_data.get("card") or {}).get("questions", [])
     answers = {
         q["id"]: ("mm" if q["id"] == "units" else auto_answer)
@@ -253,7 +238,7 @@ def _wait_for_job(
     timeout: float,
     auto_answer: str,
 ) -> dict:
-    """Опрашивает задание до конца; события в снимке не приходят, итог читаем из состояния задания."""
+    """Опрашивает задание до конца."""
     last_stage = None
     answered = 0
     deadline = time.time() + timeout
@@ -277,14 +262,14 @@ def _wait_for_job(
 
 
 def _fill_result(client: ApiClient, job_id: str, job_data: dict, result: CaseResult) -> None:
-    """Параметры и итог из набора параметров и сводок задания."""
+    """Заполняет результат из набора параметров."""
     if result.completed:
         try:
             result.parameters = client.get_parameters(job_id)
         except Exception as e:
             result.error = f"Не удалось получить параметры: {e}"
     summary = job_data.get("parameters") or {}
-    # The check of stage 3 left remarks when the set it passed on needs attention.
+    # замечания третьего этапа
     result.validation_remarks = int(summary.get("check") == "attention")
     result.iterations = max(
         summary.get("iteration", 0), (result.parameters or {}).get("iteration", 0)
@@ -331,7 +316,7 @@ def run_case(
 
 
 def check_expectations(expect: CaseExpectation, result: CaseResult) -> dict[str, str]:
-    """Проверяет ожидания случая. Возвращает {expectation: "pass"/"fail"/"n/a"}."""
+    """Проверяет ожидания случая по результату."""
     checks = {}
 
     if not result.parameters:
@@ -349,14 +334,14 @@ def check_expectations(expect: CaseExpectation, result: CaseResult) -> dict[str,
 
     params = result.parameters
 
-    # printing_mode
+    # режим печати
     if expect.printing_mode:
         mode = params.get("printing_mode", {}).get("value")
         checks["printing_mode"] = "pass" if mode == expect.printing_mode else "fail"
     else:
         checks["printing_mode"] = "n/a"
 
-    # material_contains
+    # материал содержит
     if expect.material_contains:
         materials = params.get("materials", {})
         material_ids = [m.get("id", "") for m in materials.values()]
@@ -365,14 +350,14 @@ def check_expectations(expect: CaseExpectation, result: CaseResult) -> dict[str,
     else:
         checks["material_contains"] = "n/a"
 
-    # quality_in
+    # качество из списка
     if expect.quality_in:
         quality = params.get("quality", {}).get("quality_type", "")
         checks["quality_in"] = "pass" if quality in expect.quality_in else "fail"
     else:
         checks["quality_in"] = "n/a"
 
-    # settings
+    # проверка настроек
     if expect.settings:
         settings = params.get("settings", {})
         all_match = all(
@@ -382,13 +367,13 @@ def check_expectations(expect: CaseExpectation, result: CaseResult) -> dict[str,
     else:
         checks["settings"] = "n/a"
 
-    # completed
+    # задание завершено
     if expect.completed:
         checks["completed"] = "pass" if result.completed else "fail"
     else:
         checks["completed"] = "n/a"
 
-    # result_attention
+    # результат с вниманием
     if expect.result_attention is not None:
         actual_attention = result.result == "attention"
         expected_attention = expect.result_attention
@@ -429,7 +414,7 @@ def load_cases_from_json(
 def load_cases_from_organizer(
     organizer_dir: Path, reference_path: Path
 ) -> list[tuple[str, str, list[Path], CaseExpectation]]:
-    """Загружает случаи из папки 'Примеры деталей' и reference.json."""
+    """Загружает случаи из примеров организаторов."""
     if not reference_path.exists():
         reference_data = {}
     else:
@@ -444,7 +429,7 @@ def load_cases_from_organizer(
         if number not in reference_data:
             continue
 
-        # Ищем файлы
+        # поиск файлов
         files = list(folder.glob("*"))
         stl_files = [f for f in files if f.suffix.lower() == ".stl"]
         doc_files = [f for f in files if f.suffix.lower() in (".docx", ".pdf", ".jpg", ".png")]
@@ -452,11 +437,11 @@ def load_cases_from_organizer(
         if not stl_files:
             continue
 
-        # Формируем сообщение
+        # текст сообщения
         message = f"Деталь {number}: см. приложенные файлы"
         attachments = doc_files + stl_files
 
-        # Для organizer случаев ожиданий нет, только метрики прогона
+        # ожиданий нет
         expect = CaseExpectation(completed=True)
 
         cases.append((f"org-{number}", message, attachments, expect))
@@ -465,7 +450,7 @@ def load_cases_from_organizer(
 
 
 def compute_metrics(results: list[CaseResult]) -> dict[str, Any]:
-    """Вычисляет общие метрики."""
+    """Вычисляет общие метрики прогона."""
     total = len(results)
     if total == 0:
         return {}
@@ -473,7 +458,7 @@ def compute_metrics(results: list[CaseResult]) -> dict[str, Any]:
     completed_count = sum(1 for r in results if r.completed)
     ok_count = sum(1 for r in results if r.result == "ok")
 
-    # Доля прошедших все ожидания
+    # доля прошедших
     passed_all = 0
     for r in results:
         expectations = r.expectations
@@ -552,8 +537,7 @@ def write_report(results: list[CaseResult], metrics: dict, out_dir: Path) -> Non
 
 
 class _MockApi(BaseHTTPRequestHandler):
-    """Поддельный стенд с формой ответов настоящего API: в снимке задания нет событий, карточка на
-    раннем этапе null, итог лежит в job.status, job.parameters и job.result."""
+    """Поддельный стенд с настоящими ответами."""
 
     polls = 0
     posts: dict[str, tuple[int, dict]] = {
@@ -624,7 +608,7 @@ class _MockApi(BaseHTTPRequestHandler):
 
 
 def selftest() -> int:
-    """Запускает встроенный selftest с поддельным HTTP сервером."""
+    """Запускает встроенный selftest с подделкой."""
     print("Запуск selftest...")
     server = HTTPServer(("127.0.0.1", 0), _MockApi)
     Thread(target=server.serve_forever, daemon=True).start()
@@ -650,7 +634,7 @@ def selftest() -> int:
 
 
 def _env(name: str) -> str | None:
-    """Значение из переменной среды или из .env в текущей папке."""
+    """Значение из среды или .env."""
     value = os.environ.get(name)
     env_path = Path(".env")
     if not value and env_path.exists():
@@ -696,7 +680,7 @@ def main() -> int:
         print("Укажите SESSION_SECRET в .env или переменной среды", file=sys.stderr)
         return 1
 
-    # Загружаем случаи
+    # загрузка случаев
     cases = []
     if args.cases:
         base_dir = args.cases.parent
@@ -713,7 +697,7 @@ def main() -> int:
         print("Нет случаев для прогона", file=sys.stderr)
         return 1
 
-    # Создаём клиент
+    # клиент стенда
     base_url = args.base_url or _env("APP_ORIGIN") or "http://localhost:8000"
     client = ApiClient(base_url, session_secret, args.user_id)
 
@@ -723,12 +707,12 @@ def main() -> int:
         print(f"Ошибка авторизации: {e}", file=sys.stderr)
         return 1
 
-    # Создаём выходную папку
+    # папка вывода
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = args.out_dir / timestamp
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Прогоняем случаи
+    # прогон случаев
     results = []
     for case_id, message, attachments, expect in cases:
         print(f"Запуск случая: {case_id}...")
@@ -737,7 +721,7 @@ def main() -> int:
         )
         results.append(result)
 
-        # Сохраняем результат случая
+        # сохранение результата
         case_file = run_dir / f"{case_id}.json"
         case_file.write_text(
             json.dumps(
@@ -770,10 +754,10 @@ def main() -> int:
             f"Время: {result.elapsed_seconds:.1f}s"
         )
 
-    # Вычисляем метрики
+    # расчёт метрик
     metrics = compute_metrics(results)
 
-    # Записываем отчёты
+    # запись отчётов
     write_report(results, metrics, run_dir)
     (run_dir / "summary.json").write_text(
         json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"

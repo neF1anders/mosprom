@@ -3,7 +3,7 @@ import type { Job } from "../types";
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
-// A long title runs on hover; the menu renames the chat in place or deletes it.
+// бегущий заголовок
 export function ChatItem({
   item,
   active,
@@ -47,11 +47,11 @@ export function ChatItem({
     const outer = title.current;
     const inner = outer?.firstElementChild as HTMLElement | null;
     if (!outer || !inner) return;
-    // The clipped outer span reports the full text width; an inline child reports zero.
+    // полная ширина текста
     const shift = outer.scrollWidth - outer.clientWidth;
     if (shift <= 0) return;
     inner.style.setProperty("--shift", `-${shift}px`);
-    // About 40 px a second, with pauses at both ends inside the keyframes.
+    // скорость прокрутки
     inner.style.setProperty("--duration", `${Math.max(2.5, shift / 28)}s`);
     outer.dataset.marquee = "true";
   }

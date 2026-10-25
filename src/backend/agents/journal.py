@@ -1,9 +1,3 @@
-"""What a project made, read from the database for the assistant, its analyst and the report.
-
-The facts are the code's own reading of the card, the parameter set and the results, so the
-report and the answers about the work never rest on what a model remembers.
-"""
-
 from __future__ import annotations
 
 from typing import Any
@@ -11,7 +5,7 @@ from typing import Any
 from ..domain.models import Job, Requirement
 from ..ports.persistence import UowFactory
 
-# Enough of each agent's reasoning to explain its choices, small enough for one request.
+# кусок рассуждения агента
 REASONING_CHARS = 6000
 SETTINGS = 30
 PROVENANCE = {
@@ -28,7 +22,7 @@ class Journal:
         self.uow = uow
 
     async def facts(self, job: Job) -> dict[str, Any]:
-        """The current project as the code knows it; empty parts are left out."""
+        """Текущий проект в виде фактов."""
         async with self.uow() as uow:
             revision = job.work_revision
             selected = await uow.stage_results.latest(job.id, revision, "parameters")
@@ -51,7 +45,7 @@ class Journal:
         return {key: value for key, value in facts.items() if value not in (None, [], {}, "")}
 
     async def reasoning(self, job: Job) -> str:
-        """The agents' saved reasoning of the current work, the end of each call kept."""
+        """Сохранённые рассуждения агентов текущей работы."""
         async with self.uow() as uow:
             calls = await uow.traces.calls(job.id, job.work_revision)
         parts = []
@@ -130,8 +124,7 @@ def _parameters(selected: dict[str, Any], job: Job) -> dict[str, Any]:
 
 
 def _quality(code: Any, job: Job) -> Any:
-    """The profile as the slicer's menu names it: by its code alone "normal" reads as Normal,
-    while the slicer calls it Fine and its Normal is "fast"."""
+    """Название профиля как в слайсере."""
     name = job.parameters.quality_type if job.parameters else None
     return f"{name} ({code})" if name and code and name != code else code
 

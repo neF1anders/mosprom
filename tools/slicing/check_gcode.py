@@ -1,9 +1,3 @@
-"""Checks a G-code of STE Slicer against the parameter set it was sliced from, as the pipeline's
-stage five does (``src/backend/slicing/gcode.py``).
-
-    uv run python tools/slicing/check_gcode.py result.gcode набор.json [--iteration N] [--json]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -21,7 +15,7 @@ _RESULTS = {"ok": "ОК", "needs_changes": "НУЖНЫ ИЗМЕНЕНИЯ", "app
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description="Проверка G-code по набору параметров.")
     parser.add_argument("gcode", type=Path, help="файл G-code")
     parser.add_argument("parameter_set", type=Path, help="файл stage2.parameter_set JSON")
     parser.add_argument("--iteration", type=int, default=1, help="номер захода")

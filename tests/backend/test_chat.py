@@ -1,5 +1,3 @@
-"""Helpers of the agents in the chat: tools from the prompt and the chat text rules."""
-
 import pytest
 
 from src.backend.agents.chat import called, chat_text, split_tool

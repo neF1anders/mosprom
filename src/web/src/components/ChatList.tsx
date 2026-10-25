@@ -33,7 +33,7 @@ export function ChatList({
   onDelete: (id: string) => void;
   onMore: () => void;
   onCollapse: () => void;
-  // The model connection and the theme switch, next to the title.
+  // модель и тема
   tools?: ReactNode;
 }) {
   return (

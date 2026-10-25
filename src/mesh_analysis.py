@@ -1,9 +1,3 @@
-"""Read-only STL inspection. Run with Python 3.10+, independently of STE Slicer.
-
-All lengths use report['units']['coordinate_unit']; no material or print profile
-is inferred from geometry. A passed check is not certification of printability.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -24,16 +18,14 @@ import trimesh
 
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
 DEFAULT_MAX_FACES = 2_000_000
-# Shared with stage 2 rules (docs/stage1-contract.schema.json), so a 0.05 overhang
-# threshold means the same on both sides.
-OVERHANG_ANGLE = 45  # degrees from vertical
-# A normal this close to the limit counts as on it: the float32 coordinates of STL leave a
-# 45 degree chamfer either side of sin 45 depending on where the part sits in the file.
+# общие с контрактом
+OVERHANG_ANGLE = 45  # градусы от вертикали
+# допуск float32
 LIMIT_TOLERANCE = 1e-4
 BED_BAND = 0.2
 BELTS, SECTORS = 24, 36
-ROUND_CV = 0.03  # radius variation below which a belt counts as round
-PAIRS = 1 << 22  # points x edges compared at once in the loop tests
+ROUND_CV = 0.03  # порог круглости пояса
+PAIRS = 1 << 22  # размер блока сравнения
 DOWN, UP = np.array([0.0, 0.0, -1.0]), np.array([0.0, 0.0, 1.0])
 
 
@@ -52,10 +44,8 @@ def statistics(values: np.ndarray) -> dict[str, Any]:
     }
 
 
-def read_stl(
-    path: Path, max_bytes: int, max_faces: int
-) -> tuple[trimesh.Trimesh, dict]:
-    """Preflight size/counts before parsing; preserve all faces and coordinates."""
+def read_stl(path: Path, max_bytes: int, max_faces: int) -> tuple[trimesh.Trimesh, dict]:
+    """Проверяет размер перед разбором."""
     size = path.stat().st_size
     if size > max_bytes:
         raise ValueError(f"File size {size} exceeds limit {max_bytes}")
@@ -71,9 +61,7 @@ def read_stl(
         try:
             text = data.decode("ascii")
         except UnicodeDecodeError as exc:
-            raise ValueError(
-                "Invalid STL: binary length/count mismatch or non-ASCII text"
-            ) from exc
+            raise ValueError("Invalid STL: binary length/count mismatch or non-ASCII text") from exc
         if "\x00" in text or not text.lstrip().lower().startswith("solid"):
             raise ValueError("Invalid STL header or truncated binary STL")
         count = len(re.findall(r"(?m)^\s*facet\s+normal\s", text, re.I))
@@ -103,10 +91,7 @@ def read_stl(
 
 
 def normal_chords(mesh: trimesh.Trimesh, samples: int) -> dict:
-    """Deterministic area-weighted surface samples; inward normal first exit.
-
-    These are chords, NOT a minimum wall-thickness proof or local feature size.
-    """
+    """Хорды поверхности по нормалям."""
     rng = np.random.default_rng(0)
     face_ids = rng.choice(len(mesh.faces), samples, p=mesh.area_faces / mesh.area)
     triangles = mesh.triangles[face_ids]
@@ -120,9 +105,7 @@ def normal_chords(mesh: trimesh.Trimesh, samples: int) -> dict:
     directions = -mesh.face_normals[face_ids]
     epsilon = max(float(np.linalg.norm(mesh.extents)) * 1e-8, np.finfo(float).eps)
     origins = starts + directions * epsilon
-    hits, rays, _ = mesh.ray.intersects_location(
-        origins, directions, multiple_hits=False
-    )
+    hits, rays, _ = mesh.ray.intersects_location(origins, directions, multiple_hits=False)
     lengths = np.linalg.norm(hits - starts[rays], axis=1)
     accepted = lengths > epsilon * 2
     hits, rays, lengths = hits[accepted], rays[accepted], lengths[accepted]
@@ -170,9 +153,7 @@ def section_summary(mesh: trimesh.Trimesh) -> list[dict]:
                     c
                     for c in curves
                     if len(c) > 2
-                    and np.allclose(
-                        c[0], c[-1], rtol=0, atol=max(mesh.extents.max() * 1e-8, 1e-12)
-                    )
+                    and np.allclose(c[0], c[-1], rtol=0, atol=max(mesh.extents.max() * 1e-8, 1e-12))
                 ]
                 record.update(
                     closed_contour_count=len(closed),
@@ -184,11 +165,11 @@ def section_summary(mesh: trimesh.Trimesh) -> list[dict]:
 
 
 def _finite(value: Any, digits: int) -> float | None:
-    """Rounded plain float, None for NaN/inf: checkpoints are dumped with allow_nan=False."""
+    """Округляет, NaN превращает в None."""
     value = float(value)
     if not math.isfinite(value):
         return None
-    return round(value, digits) + 0.0  # + 0.0 turns -0.0 into 0.0
+    return round(value, digits) + 0.0  # минус ноль
 
 
 def _vector(values: Any, digits: int) -> list[float] | None:
@@ -197,19 +178,16 @@ def _vector(values: Any, digits: int) -> list[float] | None:
 
 
 def _present(record: dict, keep: tuple[str, ...] = ()) -> dict:
-    # The contract types numbers as plain numbers: a missing value is omitted, not null.
+    # пропуск вместо null
     return {k: v for k, v in record.items() if v is not None or k in keep}
 
 
 def overhang_stats(mesh: trimesh.Trimesh, rotation: np.ndarray) -> dict:
-    """Down-facing faces beyond 45 degrees from vertical after the rotation.
-
-    Dropping the model onto the bed is a translation and does not change them.
-    """
-    up = rotation[2]  # rotated z in STL coordinates
+    """Статистика нависаний после поворота."""
+    up = rotation[2]  # z после поворота
     normal_z = mesh.face_normals @ up
     face_z = (mesh.vertices @ up)[mesh.faces]
-    # Faces wholly inside the band rest on the bed and need no support.
+    # грани на столе
     in_band = face_z.max(axis=1) <= face_z.min() + BED_BAND
     areas = mesh.area_faces
     over = (normal_z < -math.sin(math.radians(OVERHANG_ANGLE)) - LIMIT_TOLERANCE) & ~in_band
@@ -226,21 +204,23 @@ def overhang_stats(mesh: trimesh.Trimesh, rotation: np.ndarray) -> dict:
 
 def overhangs(mesh: trimesh.Trimesh) -> dict:
     stats = overhang_stats(mesh, np.eye(3))
-    return _present({
-        "critical_angle_deg": OVERHANG_ANGLE,
-        "bed_band_mm": BED_BAND,
-        "area_mm2": stats["area_mm2"],
-        "area_fraction": stats["area_fraction"],
-        "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
-        "method": (
-            f"face_normals_as_loaded; n_z_below_minus_sin45_by_{LIMIT_TOLERANCE:g}; "
-            "faces_within_bed_band_excluded"
-        ),
-    })
+    return _present(
+        {
+            "critical_angle_deg": OVERHANG_ANGLE,
+            "bed_band_mm": BED_BAND,
+            "area_mm2": stats["area_mm2"],
+            "area_fraction": stats["area_fraction"],
+            "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
+            "method": (
+                f"face_normals_as_loaded; n_z_below_minus_sin45_by_{LIMIT_TOLERANCE:g}; "
+                "faces_within_bed_band_excluded"
+            ),
+        }
+    )
 
 
 def _rotation_between(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """Rotation taking direction a onto direction b."""
+    """Поворот одного направления в другое."""
     a, b = a / np.linalg.norm(a), b / np.linalg.norm(b)
     v, c = np.cross(a, b), float(np.dot(a, b))
     if c < -1 + 1e-9:
@@ -252,7 +232,7 @@ def _rotation_between(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 
 def _surface_frame(mesh: trimesh.Trimesh) -> tuple[np.ndarray, np.ndarray]:
-    """Area-weighted centroid and principal axes of the surface; works on open meshes."""
+    """Центр и оси поверхности."""
     centers, weights = mesh.triangles_center, mesh.area_faces
     centroid = (centers * weights[:, None]).sum(0) / weights.sum()
     d = centers - centroid
@@ -267,11 +247,11 @@ def _loop_area(points: np.ndarray) -> float:
 
 
 def _inside(points: np.ndarray, loop: np.ndarray) -> np.ndarray:
-    """Even-odd test of each point against one closed loop."""
+    """Чётно-нечётная проверка точек."""
     xs, ys = loop[:, 0], loop[:, 1]
     xn, yn = np.roll(xs, -1), np.roll(ys, -1)
     result = np.empty(len(points), dtype=bool)
-    step = max(1, PAIRS // len(loop))  # bounds the points x edges arrays
+    step = max(1, PAIRS // len(loop))  # ограничивает размер массивов
     for first in range(0, len(points), step):
         x, y = points[first : first + step, :1], points[first : first + step, 1:]
         crosses = ((ys > y) != (yn > y)) & (x < (xn - xs) * (y - ys) / (yn - ys + 1e-30) + xs)
@@ -280,18 +260,20 @@ def _inside(points: np.ndarray, loop: np.ndarray) -> np.ndarray:
 
 
 def _boxes(loops: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
-    return np.array([loop.min(axis=0) for loop in loops]), np.array([loop.max(axis=0) for loop in loops])
+    return np.array([loop.min(axis=0) for loop in loops]), np.array(
+        [loop.max(axis=0) for loop in loops]
+    )
 
 
 def _material_area(loops: list[np.ndarray]) -> float:
-    """Area of a closed section: a loop inside an odd number of others cuts a hole."""
+    """Площадь сечения без отверстий."""
     starts = np.array([loop[0] for loop in loops])
     lows, highs = _boxes(loops)
     depth = np.zeros(len(loops), dtype=int)
     step = max(1, PAIRS // len(loops))
     for first in range(0, len(loops), step):
         chunk = starts[first : first + step, None]
-        # A start can be inside only the loops whose bounding box holds it.
+        # только охватывающие контуры
         near = ((chunk >= lows) & (chunk <= highs)).all(axis=2)
         rows = np.arange(len(near))
         near[rows, rows + first] = False
@@ -302,7 +284,7 @@ def _material_area(loops: list[np.ndarray]) -> float:
 
 
 def _sectors(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Smallest radius per angular sector around the origin and the farthest point of each."""
+    """Минимальный радиус по секторам."""
     radius = np.hypot(x, y)
     sector = ((np.arctan2(y, x) + np.pi) / (2 * np.pi) * SECTORS).astype(int) % SECTORS
     inner, outer_xy = np.full(SECTORS, np.nan), np.full((SECTORS, 2), np.nan)
@@ -316,17 +298,17 @@ def _sectors(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _bore(loops: list[np.ndarray], closed: bool, centre: np.ndarray, outer: float) -> float | None:
-    """Inscribed radius of the bore around the axis through ``centre``, None without one."""
+    """Радиус вписанной втулки."""
     if closed:
         lows, highs = _boxes(loops)
         around = np.nonzero(((centre >= lows) & (centre <= highs)).all(axis=1))[0]
         encircling = [loops[i] for i in around if _inside(centre[None], loops[i])[0]]
         if len(encircling) < 2:
             return None
-        # The smallest loop around the axis is the bore; its nearest point is the inscribed radius.
+        # наименьший контур
         smallest = min(encircling, key=lambda loop: abs(_loop_area(loop)))
         return float(np.hypot(*(_densify(smallest) - centre).T).min())
-    # Open section: a bore is the surface well inside the outer radius in every sector.
+    # открытое сечение
     points = np.vstack([_densify(loop) for loop in loops]) - centre
     inner, _ = _sectors(*points.T)
     ring = not np.isnan(inner).any() and (inner < 0.9 * outer).all()
@@ -334,15 +316,16 @@ def _bore(loops: list[np.ndarray], closed: bool, centre: np.ndarray, outer: floa
 
 
 def _densify(loop: np.ndarray) -> np.ndarray:
-    # Ten points per segment, so a coarse facet does not leave sectors empty.
+    # плотные точки сегмента
     steps = np.linspace(0, 1, 10, endpoint=False)
     start, step = loop[:-1, None, :], (loop[1:] - loop[:-1])[:, None, :]
     return (start + step * steps[None, :, None]).reshape(-1, loop.shape[1])
 
 
-def _belts(mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray) -> tuple[list, float, np.ndarray, np.ndarray]:
-    """Sections across the axis: the farthest point per sector around the centroid, the loops
-    in the plane of the belt and their area."""
+def _belts(
+    mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray
+) -> tuple[list, float, np.ndarray, np.ndarray]:
+    """Сечения поперёк оси."""
     axis = axis / np.linalg.norm(axis)
     u = np.cross(axis, [1, 0, 0] if abs(axis[0]) < 0.9 else [0, 1, 0])
     u /= np.linalg.norm(u)
@@ -351,12 +334,11 @@ def _belts(mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray) -> tup
     low, length = float(t.min()), float(np.ptp(t))
     face_t = t[mesh.faces]
     face_low, face_high = face_t.min(axis=1), face_t.max(axis=1)
-    pad = 1e-6 * (1.0 + length)  # wider than trimesh's merge tolerance
+    pad = 1e-6 * (1.0 + length)  # шире допуска trimesh
     rows: list[dict | None] = []
     for i in range(BELTS):
         height = low + (i + 0.5) * length / BELTS
-        # Only faces spanning the plane can cross it, so trimesh cuts the same segments
-        # without classifying the whole mesh 144 times.
+        # только пересекающие грани
         near = np.nonzero((face_low <= height + pad) & (face_high >= height - pad))[0]
         path = (
             mesh.section(plane_origin=centroid + axis * height, plane_normal=axis, local_faces=near)
@@ -377,7 +359,7 @@ def _belts(mesh: trimesh.Trimesh, centroid: np.ndarray, axis: np.ndarray) -> tup
 
 
 def revolution(mesh: trimesh.Trimesh) -> dict:
-    """Best axis among principal and coordinate axes by the share of round belts."""
+    """Лучшая ось вращения."""
     method = (
         f"surface_sections; {BELTS}_belts_x_{SECTORS}_sectors; principal_and_coordinate_axes; "
         f"round_if_radius_cv_below_{ROUND_CV}"
@@ -403,7 +385,7 @@ def revolution(mesh: trimesh.Trimesh) -> dict:
             centre = sol[:2] / 2
             r = np.hypot(*(xy - centre).T)
             fits.append((centre, float(r.std() / r.mean())))
-        # The axis passes through the median centre of the round belts, not the centroid.
+        # центр круглых поясов
         round_centres = [f[0] for f in fits if f is not None and f[1] < ROUND_CV]
         shift = np.median(round_centres, axis=0) if round_centres else np.zeros(2)
         cvs, outer_radii, bores, fills = [], [], [], []
@@ -417,7 +399,7 @@ def revolution(mesh: trimesh.Trimesh) -> dict:
             outer = np.hypot(*xy.T)
             cvs.append(float(outer.std() / outer.mean()))
             outer_radii.append(float(outer.mean()))
-            # Measured around the axis: the centroid of a lopsided part is off it.
+            # вокруг оси
             bores.append(_bore(row["loops"], row["closed"], shift, float(outer.mean())))
             if row["area"] is not None:
                 annulus = math.pi * (outer.mean() ** 2 - (bores[-1] or 0.0) ** 2)
@@ -441,14 +423,18 @@ def revolution(mesh: trimesh.Trimesh) -> dict:
             "round_fraction": _finite(round_fraction, 3),
             "outer_diameter_mm": _finite(2 * outer_radius, 2) if outer_radius else None,
             "length_along_axis_mm": _finite(length, 2),
-            "bore": _present({
-                "through": len(bores) == BELTS and all(b is not None for b in bores),
-                "diameter_mm": _finite(2 * bore_radius, 2),
-                "length_mm": _finite(len(present) * length / BELTS, 2),
-            }) if bore_radius is not None else None,
-            # Outer radius is a mean over sectors, so a non-round section can overfill the ring.
+            "bore": _present(
+                {
+                    "through": len(bores) == BELTS and all(b is not None for b in bores),
+                    "diameter_mm": _finite(2 * bore_radius, 2),
+                    "length_mm": _finite(len(present) * length / BELTS, 2),
+                }
+            )
+            if bore_radius is not None
+            else None,
+            # средний внешний радиус
             "annulus_fill": _finite(min(1.0, float(np.median(fill))), 3) if fill else None,
-            # Without a bore the wall reaches the axis: (R - 0) / R.
+            # стенка до оси
             "wall_to_radius": _finite(max(0.0, 1 - (bore_radius or 0.0) / outer_radius), 3)
             if outer_radius
             else None,
@@ -461,7 +447,7 @@ def revolution(mesh: trimesh.Trimesh) -> dict:
 
 
 def orientations(mesh: trimesh.Trimesh, axis: list[float] | None) -> list[dict]:
-    """Up to 12 bed orientations; o1 is always the file as loaded."""
+    """До двенадцати ориентаций на стол."""
     candidates = [("as_loaded", np.eye(3))]
     for side in ([1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1]):
         candidates.append(("axis_aligned", _rotation_between(np.array(side, float), DOWN)))
@@ -469,7 +455,7 @@ def orientations(mesh: trimesh.Trimesh, axis: list[float] | None) -> list[dict]:
     groups, inverse = np.unique(normals, axis=0, return_inverse=True)
     totals = np.bincount(inverse.ravel(), weights=mesh.area_faces)
     flat = groups[np.argmax(totals)].astype(float)
-    if np.linalg.norm(flat) > 0.5:  # degenerate faces have zero normals
+    if np.linalg.norm(flat) > 0.5:  # нулевые нормали
         candidates.append(("largest_flat_face", _rotation_between(flat, DOWN)))
     if axis is not None:
         a = np.array(axis, float)
@@ -477,22 +463,26 @@ def orientations(mesh: trimesh.Trimesh, axis: list[float] | None) -> list[dict]:
         candidates.append(("revolution_axis", _rotation_between(-a, UP)))
     result, seen = [], []
     for source, rotation in candidates:
-        # Rotations that put the same STL direction down are one candidate.
+        # одинаковые направления
         key = np.round(rotation.T @ DOWN, 3)
         if any(np.allclose(key, k) for k in seen):
             continue
         seen.append(key)
         stats = overhang_stats(mesh, rotation)
-        result.append(_present({
-            "id": f"o{len(result) + 1}",
-            "source": source,
-            "rotation": [_vector(row, 6) for row in rotation],
-            "overhang_area_mm2": stats["area_mm2"],
-            "overhang_area_fraction": stats["area_fraction"],
-            "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
-            "height_mm": stats["height_mm"],
-            "extents_mm": stats["extents_mm"],
-        }))
+        result.append(
+            _present(
+                {
+                    "id": f"o{len(result) + 1}",
+                    "source": source,
+                    "rotation": [_vector(row, 6) for row in rotation],
+                    "overhang_area_mm2": stats["area_mm2"],
+                    "overhang_area_fraction": stats["area_fraction"],
+                    "bed_contact_area_mm2": stats["bed_contact_area_mm2"],
+                    "height_mm": stats["height_mm"],
+                    "extents_mm": stats["extents_mm"],
+                }
+            )
+        )
     return result[:12]
 
 
@@ -505,7 +495,7 @@ def analyze_stl(
     max_faces: int = DEFAULT_MAX_FACES,
     checkpoint: Callable[[dict], None] | None = None,
 ) -> dict:
-    """Return JSON-serializable observations without modifying the input file."""
+    """Анализирует STL без изменения файла."""
     started = time.perf_counter()
     path = Path(path).resolve()
     if units not in {"unknown", "mm", "cm", "m", "inch"}:
@@ -514,19 +504,29 @@ def analyze_stl(
         raise ValueError("samples must be between 0 and 4096")
     raw, file_info = read_stl(path, max_bytes, max_faces)
     scale = {"unknown": 1, "mm": 1, "cm": 10, "m": 1000, "inch": 25.4}[units]
-    # Exact welding only: STL repeats vertices; do not round or repair the mesh.
+    # только точная сварка
     vertices, inverse = np.unique(raw.vertices * scale, axis=0, return_inverse=True)
     faces = inverse[raw.faces]
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
     if checkpoint:
-        checkpoint({
-            "schema_version": "1.2", "status": "partial",
-            "file": {"path": str(path), **file_info},
-            "geometry": {"bounds": mesh.bounds.tolist(), "extents": mesh.extents.tolist(), "volume": None},
-            "units": {"input_unit": units, "coordinate_unit": "unknown" if units == "unknown" else "mm"},
-            "validation": {"defects": ["topology_unchecked"]},
-            "warnings": ["Topology has not completed; physical volume is unavailable."],
-        })
+        checkpoint(
+            {
+                "schema_version": "1.2",
+                "status": "partial",
+                "file": {"path": str(path), **file_info},
+                "geometry": {
+                    "bounds": mesh.bounds.tolist(),
+                    "extents": mesh.extents.tolist(),
+                    "volume": None,
+                },
+                "units": {
+                    "input_unit": units,
+                    "coordinate_unit": "unknown" if units == "unknown" else "mm",
+                },
+                "validation": {"defects": ["topology_unchecked"]},
+                "warnings": ["Topology has not completed; physical volume is unavailable."],
+            }
+        )
     diagonal = float(np.linalg.norm(mesh.extents))
     area_tolerance = max(diagonal**2 * 1e-14, np.finfo(float).tiny)
     areas = mesh.area_faces
@@ -592,44 +592,41 @@ def analyze_stl(
         if volume_eligible
         else "unavailable_for_this_topology",
         "center_of_mass": mesh.center_mass.tolist() if volume_eligible else None,
-        "inertia_unit_density": mesh.moment_inertia.tolist()
-        if volume_eligible
-        else None,
+        "inertia_unit_density": mesh.moment_inertia.tolist() if volume_eligible else None,
         "aabb_volume": float(np.prod(mesh.extents)),
         "edge_lengths": statistics(mesh.edges_unique_length),
         "triangle_areas": statistics(areas),
-        "triangle_min_angles_degrees": statistics(
-            np.degrees(mesh.face_angles.min(axis=1))
-        ),
-        "adjacent_face_angles_degrees": statistics(
-            np.degrees(mesh.face_adjacency_angles)
-        ),
+        "triangle_min_angles_degrees": statistics(np.degrees(mesh.face_angles.min(axis=1))),
+        "adjacent_face_angles_degrees": statistics(np.degrees(mesh.face_adjacency_angles)),
     }
     partial_errors = {}
-    # Stage 2 sections; each is optional, a failure leaves the rest of the report intact.
+    # секции этапа 2
     extra: dict[str, Any] = {}
-    # Overhangs are cheap and go into the checkpoint, so a model cut by the time limit keeps them.
+    # нависания дёшевы
     try:
         extra["overhangs"] = overhangs(mesh)
     except Exception as exc:
         partial_errors["overhangs"] = type(exc).__name__
     base_checkpoint = {
-        "schema_version": "1.2", "status": "partial",
+        "schema_version": "1.2",
+        "status": "partial",
         "file": {"path": str(path), **file_info},
-        "geometry": geometry, "validation": {"defects": defects},
-        "units": {"input_unit": units, "coordinate_unit": "unknown" if units == "unknown" else "mm"},
+        "geometry": geometry,
+        "validation": {"defects": defects},
+        "units": {
+            "input_unit": units,
+            "coordinate_unit": "unknown" if units == "unknown" else "mm",
+        },
         "topology": {"component_count": len(parts)},
         **extra,
-        "warnings": warnings, "partial_errors": partial_errors,
+        "warnings": warnings,
+        "partial_errors": partial_errors,
     }
     if checkpoint:
         checkpoint(base_checkpoint)
     try:
-        # Convex hull and PCA describe shape, not the semantic identity of the part.
-        if (
-            len(vertices) >= 4
-            and np.linalg.matrix_rank(vertices - vertices.mean(axis=0)) == 3
-        ):
+        # форма без смысла
+        if len(vertices) >= 4 and np.linalg.matrix_rank(vertices - vertices.mean(axis=0)) == 3:
             hull = mesh.convex_hull
             covariance = np.cov((vertices - vertices.mean(axis=0)).T)
             eigenvalues, eigenvectors = np.linalg.eigh(covariance)
@@ -660,19 +657,19 @@ def analyze_stl(
     if samples and volume_eligible:
         try:
             chord_report = normal_chords(mesh, samples)
-        except Exception as exc:  # independent optional measurement boundary
+        except Exception as exc:  # независимая необязательная секция
             partial_errors["normal_chords"] = type(exc).__name__
             chord_report = {"status": "error", "reason": type(exc).__name__}
     try:
         sections = section_summary(mesh)
-    except Exception as exc:  # preserve validated geometry on section failure
+    except Exception as exc:  # сохраняем геометрию
         partial_errors["sections"] = type(exc).__name__
         sections = []
     try:
         extra["revolution"] = revolution(mesh)
     except Exception as exc:
         partial_errors["revolution"] = type(exc).__name__
-        extra["revolution"] = None  # contract: null means the analysis did not run
+        extra["revolution"] = None  # null: не запускалось
     try:
         axis_of = extra["revolution"] or {}
         extra["orientations"] = orientations(
@@ -736,7 +733,7 @@ def analyze_stl(
 
 
 def write_preview(path: Path, destination: Path) -> None:
-    """Orthographic surface projections; visual aid, never a measurement source."""
+    """Рисует ортогональные проекции поверхности."""
     from PIL import Image, ImageDraw
 
     mesh = trimesh.load_mesh(path, file_type="stl", process=False)
@@ -744,12 +741,12 @@ def write_preview(path: Path, destination: Path) -> None:
     sheet = Image.new("RGB", (panel_size * 3, panel_size + title_height), "white")
     draw = ImageDraw.Draw(sheet)
     triangles, centers, normals = mesh.triangles, mesh.triangles_center, mesh.face_normals
-    # Painter ordering keeps this renderer usable without OpenGL/display drivers.
+    # без OpenGL
     for index, (a, b, depth) in enumerate([(0, 1, 2), (0, 2, 1), (1, 2, 0)]):
         order = np.argsort(centers[:, depth])
         points = triangles[order][:, :, [a, b]]
         low, high = points.reshape(-1, 2).min(axis=0), points.reshape(-1, 2).max(axis=0)
-        # Equal scale on both axes, as the plot kept the aspect.
+        # равный масштаб
         scale = (panel_size - 2 * margin) / max(float((high - low).max()), 1e-9)
         offset = (panel_size - (high - low) * scale) / 2
         pixels = (points - low) * scale + offset
@@ -821,18 +818,12 @@ def markdown_report(report: dict) -> str:
 
 
 def main() -> int:
-    # Use a single encoding for worker pipes and Unicode model names on Windows.
+    # единая кодировка
     sys.stdout.reconfigure(encoding="utf-8")
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "inputs", nargs="+", type=Path, help="STL files or directories (recursive)"
-    )
-    parser.add_argument(
-        "--output-dir", type=Path, default=Path("artifacts/stl-analysis")
-    )
-    parser.add_argument(
-        "--units", choices=["unknown", "mm", "cm", "m", "inch"], default="unknown"
-    )
+    parser = argparse.ArgumentParser(description="Анализ STL без изменения файла.")
+    parser.add_argument("inputs", nargs="+", type=Path, help="STL files or directories (recursive)")
+    parser.add_argument("--output-dir", type=Path, default=Path("artifacts/stl-analysis"))
+    parser.add_argument("--units", choices=["unknown", "mm", "cm", "m", "inch"], default="unknown")
     parser.add_argument(
         "--samples",
         type=int,
@@ -847,15 +838,10 @@ def main() -> int:
         default=120,
         help="Seconds per file, enforced by parent process",
     )
-    parser.add_argument(
-        "--preview", action="store_true", help="Write orthographic PNG previews"
-    )
+    parser.add_argument("--preview", action="store_true", help="Write orthographic PNG previews")
     parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if (
-        not 0 <= args.samples <= 4096
-        or min(args.max_bytes, args.max_faces, args.timeout) <= 0
-    ):
+    if not 0 <= args.samples <= 4096 or min(args.max_bytes, args.max_faces, args.timeout) <= 0:
         parser.error("Invalid resource limits or samples (expected 0..4096)")
     if args.worker:
         try:
@@ -871,7 +857,7 @@ def main() -> int:
                     write_preview(args.inputs[0], args.output_dir)
                 except Exception as exc:
                     report.setdefault("partial_errors", {})["preview"] = type(exc).__name__
-        except Exception as exc:  # process boundary: convert failures into explicit machine-readable errors
+        except Exception as exc:  # граница процесса
             report = {
                 "schema_version": "1.2",
                 "status": "error",
@@ -884,9 +870,7 @@ def main() -> int:
     for entry in args.inputs:
         if entry.is_dir():
             files.update(
-                p.resolve()
-                for p in entry.rglob("*")
-                if p.is_file() and p.suffix.lower() == ".stl"
+                p.resolve() for p in entry.rglob("*") if p.is_file() and p.suffix.lower() == ".stl"
             )
         else:
             files.add(entry.resolve())
@@ -943,9 +927,7 @@ def main() -> int:
             json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
         )
-        (args.output_dir / (stem + ".md")).write_text(
-            markdown_report(report), encoding="utf-8"
-        )
+        (args.output_dir / (stem + ".md")).write_text(markdown_report(report), encoding="utf-8")
         index.append(
             {
                 "file": str(path),

@@ -1,5 +1,3 @@
-"""Bound incoming bytes before multipart parsing can spool an unbounded request."""
-
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 

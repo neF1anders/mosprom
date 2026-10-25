@@ -1,5 +1,3 @@
-"""Opt-in provider checks using synthetic, non-confidential inputs."""
-
 import asyncio
 import base64
 import io
@@ -31,7 +29,7 @@ TOOLS = [
 
 async def main():
     settings = Settings()
-    # The same provider the app calls: saved in the chat, otherwise from env.
+    # тот же провайдер
     saved = ModelSettingsFile(
         settings.data_dir,
         ModelSettings(settings.qwen_base_url, settings.qwen_model, settings.qwen_api_key),

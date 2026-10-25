@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// The thread stays at the newest content until the user scrolls up to read.
+// прокрутка за новым
 export function useFollow() {
   const threadRef = useRef<HTMLDivElement>(null);
   const following = useRef(true);
@@ -13,7 +13,7 @@ export function useFollow() {
   useEffect(() => {
     const element = threadRef.current;
     if (!element) return;
-    // New messages, progress and expanded details keep the newest content in view.
+    // новое остаётся видимым
     const observer = new MutationObserver(() => {
       if (following.current) element.scrollTop = element.scrollHeight;
     });

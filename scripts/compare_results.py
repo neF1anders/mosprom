@@ -1,14 +1,3 @@
-"""Side by side: the slicer projects of two runs of the same parts.
-
-Each pair is two folders with project.3mf and result.gcode, ours and the one compared with,
-for example a folder from Результаты and results/01_gear of the reserve archive:
-
-    python scripts/compare_results.py --pair "Результаты/Шестерня" reserve/results/01_gear
-
-The table shows the mode, profile, material and the settings that matter most, read from
-the 3MF, and the print time, filament and layers the slicer wrote into the G-code.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -29,7 +18,7 @@ HEADER = re.compile(r"^;(PRINTING_MODE|TIME|Filament used|LAYER_COUNT):\s*(.*?)\
 
 
 def project(path: Path) -> dict[str, str]:
-    """What the slicer saved: the user's values over the stacks, the profile and material."""
+    """Что сохранил слайсер в проекте."""
     found: dict[str, str] = {}
     with zipfile.ZipFile(path) as archive:
         for name in archive.namelist():
@@ -48,7 +37,7 @@ def project(path: Path) -> dict[str, str]:
 
 
 def gcode(path: Path) -> dict[str, str]:
-    """The header lines; a 5D file has a block per part of the print, so times add up."""
+    """Строки заголовка G-code файла."""
     times: list[float] = []
     filament: list[float] = []
     found: dict[str, str] = {}
@@ -89,7 +78,7 @@ def row(folder: Path) -> list[str]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description="Сравнение проектов слайсера двух прогонов.")
     parser.add_argument("--pair", nargs=2, action="append", metavar=("OURS", "THEIRS"))
     pairs = parser.parse_args().pair or []
     if not pairs:

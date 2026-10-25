@@ -1,12 +1,3 @@
-"""Deterministic OpenAI-compatible provider for browser E2E only; answers per agent header.
-
-Markers anywhere in the chat or in a document steer it. TEST_PROVIDER_401 and
-TEST_PROVIDER_INVALID_JSON break the provider, TEST_DELAY slows every call down. In the
-latest message TEST_OFFTOPIC keeps the assistant talking, TEST_GATE_ASK makes it ask for details,
-TEST_STEER_APPLY makes it update the project. TEST_TOOL makes the interpreter call a tool first. TEST_QUESTIONS, TEST_CONFLICT and
-TEST_STL_MISMATCH make the checker ask in its first turn.
-"""
-
 import asyncio
 import json
 import re
@@ -22,7 +13,7 @@ VISUAL = [
     ("torque_nominal", "25", "Nominal torque 25 Nm"),
     ("torque_peak", "75", "Peak torque 75 Nm"),
 ]
-# A line naming one of these becomes a requirement code instead of a free requirement.
+# код требования
 CODES = [
     ("service_temp_max_c", "°C", re.compile(r"[Тт]емпература\s+(.*\d)\s*°?\s*[CС]?\s*$")),
     ("quantity", None, re.compile(r"[Кк]оличество\s+(\d+)")),
@@ -37,7 +28,7 @@ ANALYSIS = "Так решила программа подбора по треб�
 ASK_DETAILS = (
     "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
 )
-# The report's first line by the outcome, as report.md asks; the rest is not the fake's job.
+# первая строка отчёта
 HEADLINES = {
     "ready": "Проект готов к печати",
     "attention": "Проект создан, но требует внимания",
@@ -65,10 +56,10 @@ async def complete(request: Request):
         return message(report(text(messages[-1])))
     if agent == "analyst":
         return message(ANALYSIS)
-    # The assistant replies in plain text, so a broken answer reaches the first JSON agent.
+    # простой текст ответа
     if "TEST_PROVIDER_INVALID_JSON" in everything:
         return message("invalid")
-    # An agent that thinks answers with its reasoning, which the chat shows as it works.
+    # рассуждение агента
     reasoning = REASONING if payload.get("enable_thinking") else ""
     called = any(m["role"] == "tool" for m in messages)
     if agent == "interpreter" and "TEST_TOOL" in everything and not called:
@@ -100,7 +91,7 @@ def tool_call(name: str, arguments: dict[str, Any], reasoning: str = "") -> dict
 
 
 def reply(body: dict[str, Any], finish: str, reasoning: str = "") -> dict:
-    """A provider that ignores stream answers with one body, its reasoning included."""
+    """Ответ без потоковой передачи."""
     return {
         "choices": [{"finish_reason": finish, "message": {**body, "reasoning_content": reasoning}}],
         "usage": {"prompt_tokens": 100, "completion_tokens": 100, "total_tokens": 200},
@@ -115,9 +106,7 @@ def report(content: str) -> str:
 
 
 def assistant(payload: dict[str, Any]) -> dict:
-    """Follows assistant.md: new files with a model start a project, an answer to the open
-    questions or a change of the current project updates it, small talk is answered, and a
-    refused request for details is followed by the start it asks for."""
+    """Ассистент по инструкции assistant.md."""
     messages = payload["messages"]
     users = [m for m in messages if m["role"] == "user"]
     latest = text(users[-1]) if users else ""
@@ -144,13 +133,13 @@ def assistant(payload: dict[str, Any]) -> dict:
 
 
 def interpret(messages: list[dict[str, Any]]) -> dict:
-    """Every line with a number is a requirement; a line naming a code fills that code."""
+    """Строка с числом это требование."""
     content = next(m["content"] for m in messages if m["role"] == "user")
     data = text({"content": content})
     found = dict(SOURCE.findall(data))
     codes: dict[str, Any] = {key: None for key in dictionary(data)}
     coded: set[str] = set()
-    # Documents first, so that a later chat message overrides the value they give.
+    # документы раньше сообщений
     for source, body in sorted(found.items(), key=lambda item: item[0].startswith("m")):
         for line in body.splitlines():
             for code, unit, pattern in CODES:
@@ -194,7 +183,7 @@ def interpret(messages: list[dict[str, Any]]) -> dict:
         if not found.get(source, "").strip()
         for key, value, quote in VISUAL
     ]
-    # Small talk the gate answered does not describe the part.
+    # болтовня не деталь
     purpose = next(
         (
             body.strip()[:150]
@@ -212,7 +201,7 @@ def dictionary(data: str) -> list[str]:
 
 
 def check(messages: list[dict[str, Any]]) -> dict:
-    """The first turn asks what the markers call for; the answer turn asks nothing again."""
+    """Первый ход задаёт вопросы."""
     turns = [m for m in messages if m["role"] != "system"]
     if len(turns) > 1:
         return answered(text(turns[-1]))
@@ -253,8 +242,7 @@ def check(messages: list[dict[str, Any]]) -> dict:
 
 
 def answered(turn: str) -> dict:
-    """An answer the user does not know becomes an assumption, and a value the user typed
-    corrects its code, as the prompt asks."""
+    """Ответ пользователя становится допущением."""
     answers = turn.split("<answers>")[-1].split("</answers>")[0]
     sources = SOURCE.findall(answers)
     unknown = [

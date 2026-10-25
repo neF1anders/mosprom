@@ -1,4 +1,3 @@
-"""OpenAI-compatible Chat Completions client with tool calling."""
 import json
 import urllib.error
 import urllib.request
@@ -21,17 +20,30 @@ def chat(base_url, api_key, model, messages, mcp_tools):
         raise LLMError("The API key is not set. Enter it in the settings of the chat.")
     body = {"model": model, "messages": messages}
     if mcp_tools:
-        body["tools"] = [{"type": "function", "function": {
-            "name": t["name"], "description": t["description"], "parameters": t["inputSchema"]}} for t in mcp_tools]
+        body["tools"] = [
+            {
+                "type": "function",
+                "function": {
+                    "name": t["name"],
+                    "description": t["description"],
+                    "parameters": t["inputSchema"],
+                },
+            }
+            for t in mcp_tools
+        ]
     request = urllib.request.Request(
-        base_url.rstrip("/") + "/chat/completions", data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Authorization": "Bearer " + api_key})
+        base_url.rstrip("/") + "/chat/completions",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + api_key},
+    )
     try:
         response = urllib.request.urlopen(request, timeout=180)
         data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         detail = error.read().decode("utf-8", "replace")[:400]
-        raise LLMError("LLM error %d (%s): %s" % (error.code, HINTS.get(error.code, "request failed"), detail))
+        raise LLMError(
+            "LLM error %d (%s): %s" % (error.code, HINTS.get(error.code, "request failed"), detail)
+        )
     except urllib.error.URLError as error:
         raise LLMError("No connection to the LLM at %s: %s" % (base_url, error.reason))
     except ValueError:

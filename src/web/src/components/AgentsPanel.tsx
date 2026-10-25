@@ -6,7 +6,7 @@ export interface AgentRow {
   title: string;
   icon: string;
 }
-// "Агенты", Figma node 132:451: the agents at work right now, each with a spinner.
+// работающие агенты
 export function AgentsPanel({
   agents,
   highlighted,

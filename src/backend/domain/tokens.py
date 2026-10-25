@@ -23,7 +23,7 @@ def sign_token(secret: str, kind: str, expires: int, user_id: str) -> str:
 
 
 def verify_token(secret: str, token: str, kind: str, timestamp: int) -> str:
-    """Return the user the plugin signed the token for."""
+    """Пользователь из подписанного токена."""
     try:
         payload, signature = token.split(".")
         expected = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()

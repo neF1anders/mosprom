@@ -1,9 +1,3 @@
-"""Rule engine: conditions and actions are data, see ``rules.json``.
-
-A condition is a tree over facts (``facts.py``); a fired rule's actions shift or bound axes,
-pick discrete values, vote for a printing mode or mark a requirement unmet.
-"""
-
 from __future__ import annotations
 
 import operator
@@ -21,7 +15,7 @@ Facts = Mapping[str, FactValue]
 
 
 class Always(Value):
-    """The empty condition: it always holds."""
+    """Пустое условие, всегда верное."""
 
 
 class AllOf(Value):
@@ -56,7 +50,7 @@ class ShiftAction(Value):
 
 
 class BoundAction(Value):
-    """Bounds of t itself, for axes whose limit is not a value."""
+    """Границы самого параметра t."""
 
     op: Literal["bound"]
     param: str
@@ -72,7 +66,7 @@ class LimitAction(Value):
 
 
 class StartAction(Value):
-    """A start value of an axis in place of the slicer's own, when practice disagrees with it."""
+    """Начальное значение оси вместо слайсера."""
 
     op: Literal["start"]
     param: str
@@ -117,7 +111,7 @@ Action = Annotated[
 
 
 class Rule(Value):
-    # Rule ids end up in ``source: rule:<id>``, which the contract matches against this pattern.
+    # шаблон идентификатора правила
     id: Annotated[str, StringConstraints(pattern=r"^[\w\-.]+$")]
     source: Annotated[str, StringConstraints(min_length=1)]
     reason: Annotated[str, StringConstraints(min_length=1)]
@@ -157,7 +151,7 @@ _COMPARISONS: dict[str, Callable[[Any, Any], bool]] = {
 
 
 def holds(condition: Condition, facts: Facts) -> bool:
-    """An empty condition always holds; a comparison with an absent fact never does."""
+    """Выполняется ли условие правила."""
     if isinstance(condition, Always):
         return True
     if isinstance(condition, AllOf):
@@ -185,14 +179,14 @@ def fired_rules(facts: Facts) -> list[Rule]:
 
 
 def vote_mode(spec: str | FactRef, facts: Facts) -> str:
-    """A literal mode or the mode a fact names."""
+    """Режим из литерала или факта."""
     if isinstance(spec, FactRef):
         return str(facts[spec.ref])
     return spec
 
 
 def requirement_keys(rule: Rule) -> list[str]:
-    """Requirement codes a rule reads (from ``req.*`` and ``reqhard.*`` facts), sorted."""
+    """Коды требований, читаемые правилом."""
     found = set()
     for comparison in _comparisons(rule.when):
         prefix, _, key = comparison.fact.partition(".")
@@ -220,7 +214,7 @@ def _children(condition: Condition) -> list[Condition]:
 
 
 def reason(rule_id: str | None) -> str:
-    """Why a value was set, for the user."""
+    """Причина значения для пользователя."""
     if rule_id is None:
         return "значение слайсера"
     if rule_id.startswith("constraint:"):
@@ -229,7 +223,7 @@ def reason(rule_id: str | None) -> str:
 
 
 def source_of(rule_id: str | None) -> str:
-    """``source`` of a value set by a rule, a check constraint or the slicer."""
+    """Источник значения настройки слайсера."""
     if rule_id is None:
         return "default"
     if ":" in rule_id:

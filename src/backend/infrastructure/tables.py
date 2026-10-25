@@ -1,5 +1,3 @@
-"""Persistence schema. JSON payloads are versioned domain values, not ORM entities."""
-
 from __future__ import annotations
 
 from sqlalchemy import (
@@ -104,15 +102,14 @@ stage_results = Table(
 queued_messages = Table(
     "queued_messages",
     metadata,
-    # The rowid keeps the order the messages were sent in; the id names one to the chat.
+    # порядок по rowid
     Column("seq", Integer, primary_key=True),
     Column("id", String, nullable=False, unique=True),
     Column("job_id", String, nullable=False),
     Column("payload", JSON, nullable=False),
 )
 Index("ix_queued_messages_job_seq", queued_messages.c.job_id, queued_messages.c.seq)
-# Work for the stages. Rows are written on the caller's transaction, so state and work commit
-# together. Tasks of one lock run one at a time, in the order they were queued.
+# очередь работы этапов
 task_queue = Table(
     "task_queue",
     metadata,

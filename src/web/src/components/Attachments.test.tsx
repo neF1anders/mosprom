@@ -9,7 +9,7 @@ const ready: DraftFile = {
   key: "a1",
   name: "Требования.txt",
   kind: "txt",
-  // jsdom's Blob has no text(); browsers and Node's Blob do.
+  // нет text()
   load: async () =>
     new NodeBlob(["# Корпус подшипника\nРабота в помещении"]) as Blob,
 };

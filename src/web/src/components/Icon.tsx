@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import styles from "../App.module.css";
 
-// A line icon of the Figma set; the mask paints it in the colour of the text around it.
+// линейная иконка
 export function Icon({
   name,
   size = 16,

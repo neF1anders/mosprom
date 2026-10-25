@@ -1,5 +1,3 @@
-"""Render the decisions of stage two as ``stage2.parameter_set`` 0.2."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -28,13 +26,13 @@ from .quality import QualityChoice
 
 STAGE1_BASIS = "карточка этапа 1"
 STAGE2_BASIS = "решение этапа 2"
-# Rotation and scale of the model as loaded.
+# поворот и масштаб
 _UNSCALED = [1.0, 1.0, 1.0]
 
 
 @dataclass(frozen=True)
 class Selection:
-    """Everything stage two decided for one card revision."""
+    """Все решения для карточки."""
 
     job_id: str
     revision: int
@@ -45,12 +43,12 @@ class Selection:
     material: MaterialChoice
     settings: Mapping[str, SettingChoice]
     placement: Placement
-    # Assumptions of the card and its reading, then those of the decisions.
+    # допущения карточки, решений
     card_assumptions: Sequence[str]
     assumptions: Sequence[str]
     unmet: Sequence[Unmet]
     warnings: Sequence[str]
-    # Only on the second pass.
+    # только второй проход
     constraint_results: Sequence[ConstraintResult] | None
     infeasible: bool
 
@@ -104,7 +102,7 @@ def render(selection: Selection) -> ParameterSet:
 def _numbered(
     from_card: Sequence[str], from_selection: Sequence[str]
 ) -> tuple[list[SelectionAssumption], dict[str, str]]:
-    """Assumptions A1, A2, ... and the id of each text, for ``source: assumption:<id>``."""
+    """Нумерует допущения и их тексты."""
     entries: list[SelectionAssumption] = []
     ids: dict[str, str] = {}
     for texts, basis in ((from_card, STAGE1_BASIS), (from_selection, STAGE2_BASIS)):

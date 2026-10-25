@@ -1,5 +1,3 @@
-"""Rank catalog materials against the requirements of the task card."""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
@@ -11,14 +9,14 @@ from .intake import CardRequirement
 from .materials import TRAITS, Candidate
 
 Status = Literal["ok", "warn", "fail", "unknown"]
-# None: the requirement does not apply (a flag that is not asked for).
+# требование не применяется
 Verdict = tuple[Status, str] | None
 TextFlags = Mapping[str, bool]
 
 _SCORE: dict[Status, float] = {"ok": 1.0, "warn": 0.4, "unknown": 0.3, "fail": 0.0}
 _HARD_WEIGHT, _SOFT_WEIGHT = 3.0, 1.0
 _POOL_PREFIXES = ("enduse_", "fiberpart_", "sealant_", "generic_")
-# Soluble support filament: never the material of the part itself.
+# поддержка не деталь
 _SUPPORT_ONLY_MARKER = "pva"
 
 
@@ -47,7 +45,7 @@ def _scale(value: str | None, mapping: Mapping[str, Status]) -> Status:
 
 
 def _threshold(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
-    """Check that a numeric trait reaches the required value."""
+    """Числовое свойство достигает порога."""
     read = attrgetter(trait)
 
     def check(material: Candidate, required: float, flags: TextFlags) -> Verdict:
@@ -60,7 +58,7 @@ def _threshold(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
 
 
 def _ceiling(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
-    """Check that a numeric trait stays at or below the required value."""
+    """Числовое свойство не выше порога."""
     read = attrgetter(trait)
 
     def check(material: Candidate, required: float, flags: TextFlags) -> Verdict:
@@ -73,8 +71,7 @@ def _ceiling(trait: str) -> Callable[[Candidate, float, TextFlags], Verdict]:
 
 
 def _heat(material: Candidate, required: float, flags: TextFlags) -> Verdict:
-    """A heat limit asked as Tg: a semi-crystalline polymer (PP, PA) keeps its shape far above
-    its Tg, so the higher of Tg and the heat deflection temperature is compared."""
+    """Проверка теплостойкости по Tg."""
     found = [value for value in (material.traits.tg_c, material.traits.hdt_c) if value is not None]
     if not found:
         return "unknown", "no tg_c or hdt_c data (general knowledge table, not verified)"
@@ -94,7 +91,7 @@ def _uv(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
 
 
 def _stems_of(item: str) -> list[str]:
-    """Stems for a medium given as our code ("alkali") or as a Russian word ("щёлочи")."""
+    """Основы слов для среды."""
     stems = TRAITS.chemical_stems
     if item in stems:
         return stems[item]
@@ -123,7 +120,7 @@ def _chemicals(material: Candidate, required: Sequence[str], flags: TextFlags) -
 
 
 def _medium(item: str) -> str:
-    """Our code of a medium given as a code or a Russian word; the word itself if unknown."""
+    """Код среды по слову."""
     stems = TRAITS.chemical_stems
     word = item.lower().replace("ё", "е")
     if word in stems:
@@ -143,7 +140,7 @@ def _low_friction(material: Candidate, required: bool, flags: TextFlags) -> Verd
 
 
 def _smooth_surface(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
-    """A surface without visible defects: fibres of a filler stand out of every wall."""
+    """Поверхность без видимых дефектов."""
     if not required:
         return None
     if material.traits.abrasive_filler:
@@ -170,7 +167,7 @@ def _density(material: Candidate, required: float, flags: TextFlags) -> Verdict:
 def _level(
     trait: str, mapping: Mapping[str, Status]
 ) -> Callable[[Candidate, bool, TextFlags], Verdict]:
-    """Check a flag against a graded trait."""
+    """Флаг против градуированного свойства."""
     read = attrgetter(trait)
 
     def check(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
@@ -191,13 +188,13 @@ def _food(material: Candidate, required: bool, flags: TextFlags) -> Verdict:
 
 
 def _unverifiable(material: Candidate, required: Any, flags: TextFlags) -> Verdict:
-    """The catalog has no data for it: told to the user, the same for every material."""
+    """Каталог не имеет данных."""
     if required is False:
         return None
     return "unknown", "cannot be checked from the catalog"
 
 
-# The value each check receives has the kind of its requirement code (number, flag, list).
+# тип значения требования
 _CHECKS: dict[str, Callable[[Candidate, Any, TextFlags], Verdict]] = {
     "tg_min_c": _heat,
     "service_temp_max_c": _threshold("service_max_c"),
@@ -230,7 +227,7 @@ def _text_flags(material: Candidate) -> dict[str, bool]:
     return {name: any(marker in text for marker in found) for name, found in markers.items()}
 
 
-# A cost priority of the card prefers cheaper families; it weighs as a wish, not a requirement.
+# стоимость как пожелание
 _COST: dict[str, Status] = {"low": "ok", "medium": "warn", "high": "fail"}
 COST_PRIORITY = "cost"
 
@@ -238,7 +235,7 @@ COST_PRIORITY = "cost"
 def evaluate(
     material: Candidate, requirements: Sequence[CardRequirement], priority: Sequence[str] = ()
 ) -> Evaluation:
-    """Verdicts on one material per requirement, and a weighted score."""
+    """Вердикты по материалу и оценка."""
     flags = _text_flags(material)
     checks = []
     total_weight = earned = 0.0
@@ -268,7 +265,7 @@ def rank_materials(
     requirements: Sequence[CardRequirement],
     priority: Sequence[str] = (),
 ) -> list[Evaluation]:
-    """The printable pool, best first; ties go by material id for determinism."""
+    """Печатаемые материалы от лучшего."""
     pool = [
         material
         for material in materials.values()

@@ -29,7 +29,7 @@ const actionIcons: Record<Action["kind"], string> = {
   edit: "pencil",
   help: "help",
 };
-// One row of what an agent or the code did; a row with output opens it, Figma screen 17.
+// строка действия
 export function ActionRow({
   action,
   plain = false,
@@ -74,7 +74,7 @@ export function ActionRow({
     </div>
   );
 }
-// A running agent: the narrator's phrase about its reasoning and what it does now, Figma node 132:350.
+// работающий агент
 export function AgentCard({
   agent,
   highlighted,
@@ -99,7 +99,7 @@ export function AgentCard({
         {agent.title}
       </span>
       {phrase && (
-        // A new phrase fades in over the old one.
+        // плавная смена фразы
         <span key={phrase} className={styles.reasoning}>
           {phrase}
         </span>
@@ -108,7 +108,7 @@ export function AgentCard({
     </button>
   );
 }
-// A finished agent in an opened stage, Figma screen 16, and a turn of the assistant.
+// завершённый агент
 export function AgentDone({
   agent,
   onOpen,
@@ -141,7 +141,7 @@ function Result({ stage, job }: { stage: Stage; job?: Job }) {
   if (stage.result === "parameters") return <ParameterSummary job={job} />;
   return <ResultSummary job={job} />;
 }
-// What a folded running stage says: who works and how much is done.
+// сводка свёрнутого этапа
 function Compact({ stage }: { stage: Stage }) {
   const running = stage.agents.filter((a) => a.state === "run" && !a.code);
   const agents = running.length
@@ -188,7 +188,7 @@ function StageRow({
     stage.notes.length > 0 ||
     !!stage.result;
   const future = stage.state === "wait" && !body;
-  // A finished stage folds; the first one waiting for answers stays open.
+  // этап сворачивается сам
   const folds =
     body &&
     (stage.state === "done" ||
@@ -280,7 +280,7 @@ function StageRow({
     </details>
   );
 }
-// The vertical timeline under the user's message, Figma screen 09.
+// вертикальный таймлайн
 export function Timeline({
   stages,
   job,
@@ -297,7 +297,7 @@ export function Timeline({
     <section className={styles.timeline} aria-label="Ход работы">
       {stages.map((stage) => (
         <StageRow
-          // A stage remounts when its default changes, so a fresh result opens.
+          // новый результат открыт
           key={`${stage.key}-${defaultOpen(stage)}`}
           stage={stage}
           job={job}

@@ -1,12 +1,3 @@
-"""Feedback of the check for stage two's second and last pass.
-
-A finding becomes what stage two can act on: a constraint on a slicer key or on one of its
-choices (``quality_type``, ``material``), an orientation candidate to drop, or a warning when
-the contract has no operation for it, as for a setting that does not act in the mode. A
-finding that means stage two broke its own contract is not feedback: ``stage_two_errors``
-returns those so the caller stops with them. Notes for people are not passed on.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
@@ -19,7 +10,7 @@ Operation = Literal["eq", "ne", "min", "max", "in"]
 Severity = Literal["error", "warning"]
 Item = TypeVar("Item")
 
-# The constraint each kind asks for; the finding's ``key`` and ``bound`` are its key and value.
+# ограничение по виду
 _CONSTRAINTS: dict[str, tuple[Operation, Severity]] = {
     "below_min": ("min", "error"),
     "above_max": ("max", "error"),
@@ -31,8 +22,7 @@ _CONSTRAINTS: dict[str, tuple[Operation, Severity]] = {
     "wrong_filament": ("ne", "error"),
     "unlinked_mode_key": ("eq", "warning"),
 }
-# Findings stage two must never produce, and no operation of the contract fixes: a key or a
-# JSON type the slicer does not take, an empty or broken set, a model placed off the plate.
+# запрещённые находки этапа
 _STAGE_TWO_ERRORS = (
     "wrong_printer",
     "no_materials",
@@ -44,7 +34,7 @@ _STAGE_TWO_ERRORS = (
     "outside_bed",
     "height_out_of_range",
 )
-# What becomes of each kind. A kind missing here fails loudly rather than being dropped.
+# судьба каждого вида
 _HANDLING: dict[str, str] = {
     **{kind: "constraint" for kind in _CONSTRAINTS},
     "bad_rotation": "exclusion",
@@ -53,12 +43,12 @@ _HANDLING: dict[str, str] = {
     **{kind: "stage_two_error" for kind in _STAGE_TWO_ERRORS},
     "formula_unknown": "note",
 }
-# Every kind of finding the check reports.
+# все виды замечаний
 KINDS = frozenset(_HANDLING)
 
 
 def build_feedback(issues: list[Issue], iteration: int) -> Feedback:
-    """Asks for changes when there is a constraint or an exclusion; warnings alone are ok."""
+    """Просит правок при ограничениях."""
     constraints = _first(map(_constraint, _handled(issues, "constraint")), attrgetter("id"))
     exclude = _first(map(_exclusion, _handled(issues, "exclusion")), attrgetter("candidate"))
     warnings = [
@@ -75,7 +65,7 @@ def build_feedback(issues: list[Issue], iteration: int) -> Feedback:
 
 
 def stage_two_errors(issues: list[Issue]) -> list[Issue]:
-    """Findings no feedback can fix: an unknown key, a wrong JSON type, a broken model."""
+    """Замечания, которые не исправить."""
     return _handled(issues, "stage_two_error")
 
 
@@ -102,8 +92,7 @@ def _exclusion(issue: Issue) -> Exclusion:
 
 
 def _first(items: Iterable[Item], identity: Callable[[Item], Hashable]) -> list[Item]:
-    """The first item of each identity, in order: stage two picks one material for all
-    extruders, so two extruders with the same finding ask for one constraint."""
+    """Первый элемент каждой идентичности."""
     first: dict[Hashable, Item] = {}
     for item in items:
         first.setdefault(identity(item), item)

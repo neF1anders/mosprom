@@ -1,5 +1,3 @@
-"""Untrusted document parsing runs only in the resource-limited process runner."""
-
 from __future__ import annotations
 
 import signal
@@ -77,7 +75,7 @@ def _docx(path: Path, limits: InputLimits) -> dict[str, Any]:
         else:
             blocks.append(block.text)
     fragments, artifacts = [_fragment("\n".join(blocks), 1)], []
-    # Drawings embedded in the document are read by the model like scanned pages.
+    # рисунки читает модель
     for number, part in enumerate(_docx_images(doc), 2):
         artifact = _image_artifact(_open_image(part.blob, limits), path, f"figure-{number}")
         fragments.append(_fragment("", number, artifact))
@@ -130,8 +128,7 @@ def page_deadline(seconds: float):
         raise AppError(f"Страница PDF не обработана за {seconds:g} секунд", "page_timeout", 503)
 
     if not hasattr(signal, "SIGALRM"):
-        # Windows has no alarm signal: a slow page is reported once it ends, and the parent
-        # kills the whole process when the document takes longer than its own timeout.
+        # нет сигнала alarm
         started = time.monotonic()
         yield
         if time.monotonic() - started > seconds:
@@ -147,7 +144,7 @@ def page_deadline(seconds: float):
 
 
 def _image_artifact(image, path: Path, suffix: str) -> str:
-    """Full-resolution page; the request downsizes it, view_page crops it."""
+    """Страница в полном разрешении."""
     artifact = f"{path.name}-{suffix}.png"
     page = image.convert("RGB")
     page.thumbnail((FULL_PAGE_PIXELS, FULL_PAGE_PIXELS))
@@ -159,7 +156,7 @@ def _pdf_page(path, number, page, rendered, limits):
     text = page.extract_text(extraction_mode="layout") or ""
     pdf_page = rendered[number - 1]
     width, height = pdf_page.get_size()
-    # Render as sharply as the pixel budget allows; large drawings get a smaller scale.
+    # резкость в бюджете
     scale = min(3.0, (limits.image_pixels / (width * height)) ** 0.5)
     image = pdf_page.render(scale=scale).to_pil()
     artifact = _image_artifact(image, path, f"page-{number}")

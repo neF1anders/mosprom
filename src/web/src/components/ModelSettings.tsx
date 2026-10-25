@@ -9,7 +9,7 @@ interface ModelState {
   api_key_set: boolean;
   configured: boolean;
 }
-// The OpenAI compatible API the plugin works on: its address, the model and the key.
+// настройки модели
 export function ModelSettings({ onClose }: { onClose: () => void }) {
   const client = useQueryClient();
   const current = useQuery({

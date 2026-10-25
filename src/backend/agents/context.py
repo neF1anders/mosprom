@@ -1,5 +1,3 @@
-"""Model input: every message, document page, answer and STL fact in one request."""
-
 from __future__ import annotations
 
 import asyncio
@@ -31,7 +29,7 @@ class Inputs:
     answers: list[Source]
     geometry: Geometry | None
     preview: str | None
-    # The assistant's question the user answered, by the id of that user message.
+    # ответ ассистенту
     asked: dict[str, str] = field(default_factory=dict)
 
     def sources(self) -> dict[str, Source]:
@@ -83,7 +81,7 @@ def collect(
 
 
 def _chat(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, str]]:
-    """The user's chat messages, and the gate's request for details each one answers."""
+    """Сообщения чата и ответы."""
     chat: list[dict[str, Any]] = []
     asked: dict[str, str] = {}
     question = None
@@ -115,7 +113,7 @@ def answer_sources(answers: dict[str, Answer]) -> list[Source]:
 
 
 def follow_up(intro: str, answers: list[Source], card: dict[str, Any]) -> str:
-    """The next turn of a dialog: the user's answers and the card as it stands now."""
+    """Следующий ход диалога проверяющего."""
     lines = [f'<source id="{a.id}">{_data(a.text)}</source>' for a in answers]
     return (
         f"{intro}\n\n<answers>\n"
@@ -125,7 +123,7 @@ def follow_up(intro: str, answers: list[Source], card: dict[str, Any]) -> str:
 
 
 def codes_block(codes: RequirementKeys) -> str:
-    """The requirement codes parameter selection understands, one compact line per code."""
+    """Коды требований одной строкой."""
     lines = [
         json.dumps(entry.model_dump(exclude={"strict"}, exclude_defaults=True), ensure_ascii=False)
         for entry in codes.keys
@@ -134,12 +132,7 @@ def codes_block(codes: RequirementKeys) -> str:
 
 
 class ContentBuilder:
-    """Encodes each image once per run, all at once, and assembles the input of every agent.
-
-    An agent gets only the blocks it depends on: answers, STL facts, the STL report, the
-    knowledge base and the requirement codes are opt-in, so its cached result survives
-    changes to the rest.
-    """
+    """Сборщик входа для агентов."""
 
     def __init__(
         self,
@@ -150,7 +143,7 @@ class ContentBuilder:
         codes: str = "",
     ):
         self.files, self.inputs, self.ctx = files, inputs, ctx
-        # Every record is citable, whichever agent read it.
+        # запись цитируема
         self.knowledge = [
             Source(
                 id="kb:" + record.id,
@@ -161,7 +154,7 @@ class ContentBuilder:
             for record in knowledge or []
         ]
         ctx.sources.update({source.id: source for source in self.knowledge})
-        # Built once by codes_block; only the agents that write requirements ask for it.
+        # строится один раз
         self.codes = codes
         self._encoded: dict[str, asyncio.Future[str]] = {}
 
@@ -197,7 +190,7 @@ class ContentBuilder:
             for s in self.inputs.documents
             if s.image
         ]
-        # The report replaces the summary, but the projections still show the shape.
+        # отчёт заменяет сводку
         if (stl or report) and self.inputs.preview:
             label = "Проекции STL XY, XZ и YZ в единицах файла, только для формы"
             images.append((self.inputs.preview, label))
@@ -210,7 +203,7 @@ class ContentBuilder:
         return [{"type": "text", "text": label}, await self._image_part(artifact)]
 
     async def restore(self, parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """A stored input again, with its images encoded from the artifacts it refers to."""
+        """Восстановление входа из артефактов."""
         restored = []
         for part in parts:
             artifact = part.get("artifact") if part.get("type") == "image_url" else None
@@ -220,12 +213,12 @@ class ContentBuilder:
     async def _image_part(self, artifact: str) -> dict[str, Any]:
         if artifact not in self._encoded:
             self._encoded[artifact] = asyncio.ensure_future(self._encode(artifact))
-        # Agents building at the same time share one encoding; one cancelled keeps it alive.
+        # общая кодировка изображений
         url = await asyncio.shield(self._encoded[artifact])
         return {"type": "image_url", "image_url": {"url": url}}
 
     async def _encode(self, artifact: str) -> str:
-        # A region the agent looked at closer is stored as "<file>#<region>".
+        # ссылка файл#область
         key, _, region = artifact.partition("#")
         content = await self.files.read(key)
         url = await asyncio.to_thread(crop, content, REGIONS[region or "full"], REQUEST_PIXELS)
@@ -254,7 +247,7 @@ class ContentBuilder:
         return "<answers>\n" + "\n".join(lines) + "\n</answers>"
 
     def _report(self) -> str:
-        """The full STL report up front, instead of a tool call per section."""
+        """Полный отчёт STL сразу."""
         report = self.ctx.stl_report
         if report is None:
             return "<stl_report>STL не приложен или не проанализирован</stl_report>"
@@ -262,7 +255,7 @@ class ContentBuilder:
         return f"<stl_report>\n{_json(sections)}\n</stl_report>"
 
     def _knowledge(self) -> str:
-        """The whole knowledge base is small, so it goes into the request and is citable."""
+        """База знаний целиком во входе."""
         lines = [f'<source id="{s.id}">{_data(s.text)}</source>' for s in self.knowledge]
         return "<knowledge>\n" + "\n".join(lines) + "\n</knowledge>"
 
@@ -275,12 +268,12 @@ class ContentBuilder:
 
 
 def _data(text: str) -> str:
-    """Documents cannot close our blocks and smuggle text outside the data area."""
+    """Защита от подмены блоков данных."""
     return _CLOSING.sub(lambda m: f"</ {m.group(1)}>", text)
 
 
 def _json(value: Any) -> str:
-    """Sorted keys: a report read back from JSONB gives the same text and the same cache key."""
+    """Стабильный JSON для кеша."""
     if hasattr(value, "model_dump"):
         value = value.model_dump()
     if isinstance(value, list):

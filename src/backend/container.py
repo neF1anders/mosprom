@@ -1,5 +1,3 @@
-"""Composition root: the only place that binds infrastructure to application ports."""
-
 from __future__ import annotations
 
 import asyncio
@@ -61,7 +59,7 @@ class Container:
         self.queued = QueuedService(commands)
         self.uploads = UploadService(commands, self.files, self.uow, settings.limits)
         self.artifacts = ArtifactService(self.uow, self.files)
-        # One runner for stage one and the assistant, which answers between the steps too.
+        # общий исполнитель
         runner = AgentRunner(
             self.model,
             ToolBox(self.files),
@@ -115,7 +113,7 @@ class Container:
 
     @cached_property
     def catalog(self) -> Catalog:
-        """Read on first use: only the stage-two task selects and checks parameters."""
+        """Каталог читается при первом обращении."""
         return load_catalog(self.settings.build_dir, self.settings.printer)
 
     @cached_property
@@ -133,7 +131,7 @@ class Container:
 
     @cached_property
     def pipeline(self) -> ParameterPipeline:
-        """Selection, its check, slicing and the G-code check, bound to the build catalog."""
+        """Подбор, проверка и нарезка."""
         catalog, keys, files = self.catalog, self.requirement_keys, self.files
         return ParameterPipeline(
             self.uow,

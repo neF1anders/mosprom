@@ -1,15 +1,3 @@
-"""Applies a parameter set in STE Slicer through the AI Assistant plugin, without the chat.
-
-The pipeline's own plan and MCP adapter do the work (``src/backend/slicing``,
-``src/backend/infrastructure/slicer.py``): the models go to ``mosprom/<run>`` in the plugin's
-folder, the slicer saves ``result.gcode`` and ``project.3mf`` there, copies come to
-``--out-dir`` and the G-code is checked against the set.
-
-    uv run python tools/slicing/apply_parameter_set.py набор.json --model <attachment_id>=путь.stl
-        [--folder ~/Documents/STE_AIAssistant] [--out-dir папка] [--check] [--dry-run]
-        [--report report.json]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -33,10 +21,9 @@ from src.backend.validation.checks import check_parameters  # noqa: E402
 
 
 def main(argv: list[str]) -> int:
-    # The build and the plugin's folder as the worker reads them, ``.env`` included; the script
-    # runs next to the slicer, so the folder is the slicer's own.
+    # сборка и плагин
     settings = Settings()
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description="Применение набора параметров в STE Slicer.")
     parser.add_argument("parameter_set", type=Path, help="файл stage2.parameter_set JSON")
     parser.add_argument("--model", action="append", default=[], help="attachment_id=путь.stl")
     parser.add_argument("--folder", type=Path, default=settings.slicer_folder)
@@ -82,7 +69,7 @@ def _plan(parameter_set: ParameterSet, paths: dict[str, str]) -> int:
 
 
 def _checked(parameter_set: ParameterSet, catalog: Catalog) -> bool:
-    """Stage three's findings; a set with errors is not applied."""
+    """Находки третьего этапа блокируют применение."""
     issues = check_parameters(parameter_set, catalog)
     for issue in issues:
         print(f"[{issue.level}] {issue.where}: {issue.message}")

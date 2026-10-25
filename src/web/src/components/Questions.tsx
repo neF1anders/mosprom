@@ -14,7 +14,7 @@ export function Questions({
   onAnswer: (values: Record<string, string>) => void;
   pending: boolean;
 }) {
-  // "Не знаю" is not an answer: such questions stay open and can be answered later.
+  // «Не знаю» открыт
   const open = questions.filter((q) => !answered(q));
   const [index, setIndex] = useState(0);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -33,10 +33,10 @@ export function Questions({
   );
   const several = open.length > 1;
   const last = index >= open.length - 1;
-  // Moving on without an answer records "Не знаю": the question stays open for later.
+  // пропуск «Не знаю»
   const settle = () =>
     answer.trim() ? values : { ...values, [question.id]: UNKNOWN_ANSWER };
-  // A field typed into and cleared again is not an answer, whichever way the window closes.
+  // пустое поле
   const submit = (next: Record<string, string>) => {
     if (pending) return;
     onAnswer(
@@ -52,7 +52,7 @@ export function Questions({
   const advanceRef = useRef(advance);
   advanceRef.current = advance;
   useEffect(() => {
-    // Enter works as Далее even when nothing on the page has focus.
+    // клавиша Enter
     const key = (event: globalThis.KeyboardEvent) => {
       if (
         event.key === "Enter" &&

@@ -1,7 +1,7 @@
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
-// The moon switches to the dark theme, the sun back to the light one.
+// переключатель темы
 export function ThemeToggle({
   theme,
   onToggle,

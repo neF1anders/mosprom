@@ -29,7 +29,7 @@ async def capabilities(services: Services):
 
 
 def project_folder(settings: Settings) -> str | None:
-    """Where finished projects are kept, as the user's computer names it, when it is known."""
+    """Папка проектов на компьютере пользователя."""
     if settings.slicer_host_folder or settings.slicer_folder.is_dir():
         return shown_path(settings.slicer_folder, settings.slicer_host_folder, RESULTS)
     return None

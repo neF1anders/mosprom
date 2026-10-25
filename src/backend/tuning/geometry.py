@@ -1,11 +1,3 @@
-"""The STL analysis report of the card (``stl_analysis.report``) -> the model geometry.
-
-Only the fields of ``src/mesh_analysis.py`` that parameter selection reads are parsed, with the
-optional sections of the stage-one contract: the overhang share (``overhangs``) and the bore of
-a body of revolution (``revolution``). A report without the overhang share leaves the rules
-that depend on overhangs silent; the user is told so through an assumption.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -59,7 +51,7 @@ class _ChordDistribution(_Part):
 
 
 class _NormalChords(_Part):
-    """Wall thickness sampled along inward normals of the surface."""
+    """Толщины стенок вдоль нормалей."""
 
     status: str = "not_run"
     distribution: _ChordDistribution | None = None
@@ -88,7 +80,7 @@ class _Report(_Part):
 
 @dataclass(frozen=True)
 class Orientation:
-    """A bed orientation the STL report measured: its rotation and what it puts on the table."""
+    """Ориентация на столе из отчёта."""
 
     id: str
     rotation: tuple[Point, Point, Point]
@@ -100,28 +92,27 @@ class Orientation:
 
 @dataclass(frozen=True)
 class Geometry:
-    """Bounding box size in millimetres and the measures selection reads."""
+    """Габариты и меры модели."""
 
     size: Point
-    # Share of the surface overhanging past 45 degrees, the model as loaded.
+    # доля нависаний
     overhang_fraction: float | None = None
-    # The coaxial bore: smallest diameter, whether it runs through and whether the part is a
-    # body of revolution around it.
+    # сквозное осевое отверстие
     bore_diameter: float | None = None
     bore_through: bool = False
     revolution: bool = False
-    # The axis the round sections are measured around, and how alike the part is around it.
+    # ось круглых сечений
     axis: Point | None = None
     symmetry: float | None = None
-    # Length along the axis over the outer diameter: a flat disc is well below 0.3.
+    # длина к диаметру
     length_to_diameter: float | None = None
-    # Typical wall thickness: the median chord along the inward surface normals.
+    # типичная толщина стенки
     wall_thickness: float | None = None
     orientations: tuple[Orientation, ...] = ()
 
     @property
     def slenderness(self) -> float:
-        """Height over the narrower side of the footprint: a tall thin part may tip over."""
+        """Высота к узкой стороне."""
         width, depth, height = self.size
         return height / min(width, depth) if min(width, depth) > 0 else 0.0
 
@@ -191,7 +182,7 @@ def _unit_assumption(unit: str) -> str:
 
 
 def _overhang_fraction(report: _Report) -> float | None:
-    """Not rounded: the rules compare it with a threshold of 0.05."""
+    """Доля нависаний без округления."""
     return None if report.overhangs is None else report.overhangs.area_fraction
 
 

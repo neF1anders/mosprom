@@ -1,5 +1,3 @@
-"""Analytical fixtures verify geometry, defects and units independently of STL names."""
-
 import time
 
 import numpy as np
@@ -65,7 +63,7 @@ def test_separate_components(tmp_path):
     b.apply_translation([3, 0, 0])
     report = analyze_stl(save(tmp_path, a + b), samples=0)
     assert report["topology"]["component_count"] == 2
-    assert report["geometry"]["volume"] is None  # nesting/intersections not resolved
+    assert report["geometry"]["volume"] is None  # вложенность не разрешена
 
 
 def test_unit_conversion_is_explicit(tmp_path):
@@ -149,9 +147,7 @@ def test_independent_binary_verifier(tmp_path):
     import runpy
     from pathlib import Path
 
-    verify = runpy.run_path(str(Path(__file__).parent / "verify_stl_reports.py"))[
-        "verify"
-    ]
+    verify = runpy.run_path(str(Path(__file__).parent / "verify_stl_reports.py"))["verify"]
     path = save(tmp_path, trimesh.creation.box(extents=[2, 3, 4]))
     assert verify(analyze_stl(path, samples=0))["verified"]
 
@@ -183,7 +179,7 @@ def test_tube_is_a_revolution_with_a_through_bore(tmp_path):
 
 def test_open_tube_is_still_a_revolution(tmp_path):
     mesh = tube()
-    mesh.update_faces(np.abs(mesh.face_normals[:, 2]) < 0.5)  # drop both caps
+    mesh.update_faces(np.abs(mesh.face_normals[:, 2]) < 0.5)  # убрать обе крышки
     mesh.remove_unreferenced_vertices()
     report = analyze_stl(save(tmp_path, mesh), units="mm", samples=0)
     assert "boundary_edges" in report["validation"]["defects"]
@@ -192,7 +188,7 @@ def test_open_tube_is_still_a_revolution(tmp_path):
 
 
 def test_bore_of_a_lopsided_tube_is_measured_around_its_axis(tmp_path):
-    # The lug pulls the surface centroid 3.4 mm off the axis, inside the 5 mm bore.
+    # проушина смещает центроид
     lug = trimesh.creation.box(extents=(20, 8, 10))
     lug.apply_translation((20, 0, -15))
     mesh = trimesh.util.concatenate([trimesh.creation.annulus(r_min=5, r_max=10, height=40), lug])
@@ -213,13 +209,13 @@ def test_many_separate_shells_are_analysed_in_bounded_time(tmp_path):
     path = save(tmp_path, trimesh.util.concatenate(cubes))
     started = time.perf_counter()
     report = analyze_stl(path, units="mm", samples=0)
-    # Every belt cuts 400 loops; comparing each with each took about a minute.
+    # пары сравнивать долго
     assert time.perf_counter() - started < 20
     assert report["revolution"]["is_revolution"] is False
 
 
 def chamfered(offset):
-    """A bar whose underside edge is cut at exactly 45 degrees, from (y, z) = (0, 5) to (5, 0)."""
+    """Брусок со срезом в 45°."""
     section = [(0, 5), (5, 0), (20, 0), (20, 10), (0, 10)]
     n = len(section)
     vertices = np.array([(x, y, z) for x in (0.0, 10.0) for y, z in section]) + offset
@@ -250,7 +246,7 @@ def test_overhangs_reach_the_checkpoint_before_the_slow_sections(tmp_path, monke
     checkpoints = []
 
     def cut(mesh):
-        # What the parent keeps when the time limit kills the process here.
+        # что остаётся родителю
         raise KeyboardInterrupt
 
     monkeypatch.setattr(analysis, "revolution", cut)
@@ -285,7 +281,7 @@ def test_wide_plate_on_a_post_overhangs_outside_the_bed_band(tmp_path):
 
 
 def test_orientations_start_as_loaded_and_are_rotations(tmp_path):
-    # Tilted, so standing on the axis is not one of the axis-aligned candidates.
+    # наклон вне осей
     mesh = tube()
     mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(30), [1, 0, 0]))
     report = analyze_stl(save(tmp_path, mesh), units="mm", samples=0)

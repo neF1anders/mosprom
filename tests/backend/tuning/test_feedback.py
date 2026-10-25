@@ -25,7 +25,7 @@ def applied(parameter_set):
 
 def test_constraints_on_searched_settings_become_hard_limits_on_the_second_iteration(select):
     first = select(card(**STRONG))
-    # LOAD-INFILL-MIN starts a loaded part at 30 %, strength first adds on top.
+    # порог загруженной детали
     assert first["settings"]["infill_sparse_density"]["value"] == 40
     assert "applied_constraints" not in first
     review = feedback(
@@ -36,7 +36,7 @@ def test_constraints_on_searched_settings_become_hard_limits_on_the_second_itera
     assert ParameterSet.model_validate(second).iteration == 2
     density = second["settings"]["infill_sparse_density"]
     assert density["value"] <= 25 and density["source"] == "constraint:C1"
-    # At least five walls; the strength rules still add on top of the check's minimum.
+    # минимум стенок проверки
     assert second["settings"]["wall_thickness"]["value"] >= 2.0
     assert applied(second) == {"C1": "applied", "C2": "applied"}
 
@@ -57,7 +57,7 @@ def test_discrete_and_unmodelled_keys_follow_the_constraints(select):
         5.0,
         "constraint:C2",
     )
-    # The fan stays at the slicer default (on), so the switch is no longer sent.
+    # вентилятор по умолчанию
     assert "cool_fan_enabled_classic" not in settings
 
 
@@ -82,7 +82,7 @@ def test_constraints_can_choose_mode_quality_and_material(select):
 
 
 def test_constraint_naming_a_catalog_material_selects_it(select):
-    # The original code raised TypeError here: "requirement:" + None.
+    # ошибка на None
     second = select(card(), feedback(constraint("C1", "material", "eq", "enduse_pc")))
     material = second["materials"]["0"]
     assert (material["id"], material["source"]) == ("enduse_pc", "constraint:C1")
@@ -148,7 +148,7 @@ def test_wall_thickness_constraint_counts_lines(select):
 
 
 def test_limits_are_kept_on_the_step_grid(select):
-    # The nearest step went past the limit (35 for at most 33) and still counted as applied.
+    # шаг за пределом
     second = select(card(), feedback(constraint("C1", "speed_print", "max", 33)))
     assert second["settings"]["speed_print"]["value"] == 30
     assert applied(second) == {"C1": "applied"}
@@ -164,7 +164,7 @@ def test_limits_are_kept_on_the_step_grid(select):
 def test_wall_thickness_limit_counts_whole_lines_toward_the_limit(
     select, fields, op, thickness, meets
 ):
-    # The nearest line count sent 1.2 mm for at most 1.1 and left 0.8 mm for at least 0.9.
+    # линии у границы
     second = select(card(**fields), feedback(constraint("C1", "wall_thickness", op, thickness)))
     walls = second["settings"].get("wall_thickness", {"value": 0.8})
     assert meets(float(walls["value"]), thickness)
@@ -184,7 +184,7 @@ def test_unsupported_constraint_is_reported_not_silently_dropped(select):
 
 
 def test_unmodelled_key_with_no_values_to_choose_from_is_not_applied(select):
-    # The original code took value[0] of the empty list and raised IndexError.
+    # пустой список значений
     second = select(card(), feedback(constraint("C1", "retraction_amount", "in", [])))
     assert applied(second) == {"C1": "not_applied"}
     assert "retraction_amount" not in second["settings"]

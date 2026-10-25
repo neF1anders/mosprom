@@ -1,12 +1,3 @@
-"""Builds dist/AIAssistant-portable.zip: the plugin with its own Python 3.11 and the app.
-
-The zip unpacks into STE Slicer's plugins folder; the plugin starts the bundled backend itself
-(src/plugin/AIAssistant/agent/sidecar.py). Runs on Mac and Windows, needs network unless the
-embeddable Python is cached and --offline is given (wheels are then taken from --wheels).
-
-Usage: python3 scripts/build_portable.py [--skip-web] [--skip-download] [--offline] [--dry-run]
-"""
-
 import argparse
 import re
 import shutil
@@ -18,16 +9,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON_VERSION = "3.11.9"
-EMBED_URL = "https://www.python.org/ftp/python/{v}/python-{v}-embed-amd64.zip".format(v=PYTHON_VERSION)
+EMBED_URL = "https://www.python.org/ftp/python/{v}/python-{v}-embed-amd64.zip".format(
+    v=PYTHON_VERSION
+)
 CACHE = ROOT / "build" / "cache"
 STAGE = ROOT / "build" / "portable"
 PLUGIN = ROOT / "src" / "plugin" / "AIAssistant"
 OUTPUT = ROOT / "dist" / "AIAssistant-portable.zip"
-APP_ITEMS = [("src/backend", "src/backend"), ("src/mesh_analysis.py", "src/mesh_analysis.py"),
-             ("knowledge", "knowledge"), ("src/web/dist", "src/web/dist")]
+APP_ITEMS = [
+    ("src/backend", "src/backend"),
+    ("src/mesh_analysis.py", "src/mesh_analysis.py"),
+    ("knowledge", "knowledge"),
+    ("src/web/dist", "src/web/dist"),
+]
 IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", ".env", "*.db", "model.json")
 APP = "AIAssistant/runtime/app/"
-# What the app reads at runtime besides its code: prompts, tuning tables, knowledge, the chat.
+# файлы времени выполнения
 REQUIRED = [
     "AIAssistant/plugin.json",
     "AIAssistant/agent/sidecar.py",
@@ -44,7 +41,7 @@ REQUIRED = [
     APP + "knowledge/ste_5.2.4/definitions/fdmprinter.def.json",
     APP + "src/web/dist/index.html",
 ]
-# Settings, keys and data of the build machine never ship; neither does the Docker setup.
+# секреты не входят
 PRIVATE = re.compile(
     r"(^|/)(\.env[^/]*|[^/]*compose[^/]*\.ya?ml|Dockerfile|model\.json|[^/]*\.db)$"
 )
@@ -69,7 +66,7 @@ def embeddable_python(skip_download):
 
 
 def enable_site(python_dir):
-    """Turn on site-packages and put the app folder on sys.path (the embeddable build ignores PYTHONPATH)."""
+    """Включает site-packages и sys.path."""
     pth = next(python_dir.glob("python*._pth"))
     lines = [line for line in pth.read_text(encoding="utf-8").splitlines() if line.strip()]
     lines = [re.sub(r"^#\s*import site", "import site", line) for line in lines]
@@ -86,7 +83,7 @@ def build_web():
 
 
 def check_plugin_syntax():
-    """The slicer runs the plugin on Python 3.5; vermin flags newer syntax and modules."""
+    """Проверяет синтаксис плагина для 3.5."""
     result = subprocess.run([sys.executable, "-m", "vermin", "--version"], capture_output=True)
     command = ["vermin", "--no-tips", "--target=3.5-", "--violations", str(PLUGIN)]
     if result.returncode != 0 and shutil.which("vermin") is None:
@@ -99,13 +96,40 @@ def install_packages(python_dir, args):
     requirements = ROOT / "requirements.portable.txt"
     target = python_dir / "Lib" / "site-packages"
     if shutil.which("uv"):
-        pip = ["uv", "pip", "install", "--python-platform", "x86_64-pc-windows-msvc",
-               "--python-version", "3.11", "--only-binary", ":all:", "--target", target,
-               "-r", requirements]
+        pip = [
+            "uv",
+            "pip",
+            "install",
+            "--python-platform",
+            "x86_64-pc-windows-msvc",
+            "--python-version",
+            "3.11",
+            "--only-binary",
+            ":all:",
+            "--target",
+            target,
+            "-r",
+            requirements,
+        ]
     else:
-        pip = [sys.executable, "-m", "pip", "install", "--no-compile", "--only-binary=:all:",
-               "--platform", "win_amd64", "--python-version", "3.11", "--implementation", "cp",
-               "--target", target, "-r", requirements]
+        pip = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--no-compile",
+            "--only-binary=:all:",
+            "--platform",
+            "win_amd64",
+            "--python-version",
+            "3.11",
+            "--implementation",
+            "cp",
+            "--target",
+            target,
+            "-r",
+            requirements,
+        ]
     if args.offline:
         pip += ["--no-index", "--find-links", args.wheels]
     run(pip)
@@ -123,7 +147,7 @@ def copy_app(app):
 
 
 def check_zip():
-    """The archive must hold what the app reads at runtime and nothing private of this machine."""
+    """Проверяет содержимое готового архива."""
     with zipfile.ZipFile(OUTPUT) as bundle:
         broken = bundle.testzip()
         names = set(bundle.namelist())
@@ -171,10 +195,16 @@ def build(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(
+        description="Сборка переносного архива AIAssistant-portable.zip."
+    )
     parser.add_argument("--skip-web", action="store_true", help="use the existing src/web/dist")
-    parser.add_argument("--skip-download", action="store_true", help="fail unless the embeddable Python is cached")
+    parser.add_argument(
+        "--skip-download", action="store_true", help="fail unless the embeddable Python is cached"
+    )
     parser.add_argument("--offline", action="store_true", help="install wheels only from --wheels")
-    parser.add_argument("--wheels", default=str(ROOT / "build" / "wheels"), help="folder of wheels for --offline")
+    parser.add_argument(
+        "--wheels", default=str(ROOT / "build" / "wheels"), help="folder of wheels for --offline"
+    )
     parser.add_argument("--dry-run", action="store_true", help="print the plan and build nothing")
     build(parser.parse_args())

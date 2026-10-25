@@ -1,25 +1,3 @@
-"""Measure parameter selection offline, without stage one and the slicer.
-
-Two sets, both kept outside the repository (``.scratch/bench`` by default):
-
-- ``native``: 41 SeeMeCNC projects of the validation branch (``fedor/validation-ste``). The STL
-  is the project's model, the card is what stage one gives for the customer text: material
-  PLA, the quality wish as a code. The selection is compared with the settings the human chose
-  in the same project. The human is one opinion, not the truth.
-- ``seven``: the seven parts of the case. The card holds the dictionary codes written by hand
-  from the task documents; the mode is compared with the organisers' folder labels, the other
-  fields with the ranges of the Stereotech wiki (materials, three reference 3MF projects).
-
-Usage:
-  uv run python scripts/bench_tuning.py [--bench .scratch/bench] [--cards current|coded]
-      [--out result.json]
-
-``--cards current`` writes only the codes stage one emits today; ``coded`` adds the quality
-code ``print_quality`` of the dictionary; ``stage1`` takes the seven cards stage one really
-wrote in the eval run (``tests/fixtures/tuning/eval-N``, free keys, no ``part_class``) with a
-fresh STL report, so the selection is measured on what the pipeline hands over.
-"""
-
 import argparse
 import hashlib
 import json
@@ -40,13 +18,13 @@ CATALOG = load_catalog(Path("knowledge/ste_5.2.4"), "hte530v5.2.4")
 KEYS = load_requirement_keys(Path("knowledge/requirement_keys.json"))
 PRINTER = load_printer(CATALOG)
 
-# Quality wish of the native texts -> what stage one writes as codes.
+# качество в кодах
 WISHES = {
     "обычное качество": {"print_quality": "standard"},
     "быстро, внешний вид не важен": {"priority": "speed", "print_quality": "draft"},
     "высокое качество поверхности, время не важно": {"print_quality": "fine"},
 }
-# Codes stage one already has in the dictionary; ``print_quality`` is new.
+# коды из словаря
 CURRENT_CODES = {"priority", "material", "load_bearing", "part_class", "printing_mode"}
 
 
@@ -85,7 +63,7 @@ def card(job_id: str, report: dict[str, Any], requirements: list[Requirement]) -
 
 
 def effective(found: ParameterSet) -> dict[str, Any]:
-    """Values the slicer prints with: chosen settings over the quality profile and the build."""
+    """Значения, с которыми печатает слайсер."""
     mode = PRINTER.modes[found.printing_mode.value]
     quality = mode.qualities[found.quality.quality_type]
     chosen = {key: setting.value for key, setting in found.settings.items()}
@@ -145,8 +123,7 @@ def native_cases(bench: Path, coded: bool) -> list[dict[str, Any]]:
     return results
 
 
-# Labels of the organisers' folders (mode) and ranges of the Stereotech wiki: material
-# datasheets, the "print parameter" memo and the three reference projects (see docs/tuning).
+# источники эталонов
 SEVEN = {
     "1_gear": {
         "stl": "1. Шестерня - 3D/Шестерня.stl",
@@ -213,8 +190,7 @@ SEVEN = {
     "5_pump_impeller": {
         "stl": "5. Рабочее колесо насоса Wilo - 5D/Рабочее_колесо насоса Wilo IPL 80140-42. 2063106.STL",
         "part_class": "impeller_fan",
-        # The label "5D" is the build's name of cylindrical_full; Stereotech prints its own
-        # Wilo impeller in cylindrical (5D Spiral), so both count.
+        # 5D тоже считается
         "modes": ["cylindrical_full", "cylindrical"],
         "layer": (0.15, 0.2),
         "walls": (3, 5),
@@ -258,7 +234,7 @@ _UNITS = {
 
 
 def seven_requirements(old: dict[str, Any], part_class: str) -> list[Requirement]:
-    """The hand-written cards of ``.scratch/cases`` in today's dictionary codes."""
+    """Ручные карточки в нынешних кодах."""
     found = [
         requirement("part_class", part_class),
         requirement("load_bearing", old["part"]["load"]),
@@ -280,7 +256,7 @@ EVAL_CARDS = Path("tests/fixtures/tuning")
 
 
 def stage1_card(number: int, report: dict[str, Any]) -> TaskCard:
-    """The card of the eval run with the STL report of today's analysis."""
+    """Карточка прогона с отчётом STL."""
     found = TaskCard.model_validate_json(
         (EVAL_CARDS / f"eval-{number}" / "card.json").read_text(encoding="utf-8")
     )

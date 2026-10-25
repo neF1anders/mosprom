@@ -1,10 +1,3 @@
-"""What the G-code of a slicing shows, checked against the parameter set it was sliced from.
-
-Ported from ``tools/slicing/check_gcode.py`` (FedorSolodkin), checked on two G-code files of
-STE Slicer 7.10.12 for the Hybrid 530 V5.2.4. The file is read line by line: a 15 MB G-code
-takes about two seconds and is never held in memory.
-"""
-
 from __future__ import annotations
 
 import json
@@ -18,7 +11,7 @@ from ..domain.catalog import Catalog, ModeValues
 from ..domain.parameters import Exclusion, Feedback, FeedbackWarning, ParameterSet
 from ..domain.slicing import GcodeCheck, GcodeFinding
 
-# A move this far past the bed is still rounding of the slicer, not a model off the bed.
+# допуск у стола
 COORD_TOLERANCE = 0.5
 FIVE_D = ("cylindrical", "cylindrical_full")
 _AXIS = {axis: re.compile(axis + r"([-\d.]+)") for axis in "XYZE"}
@@ -66,7 +59,7 @@ def read_gcode(lines: Iterable[str]) -> GcodeFacts:
         facts.lines = number
         line = raw.strip()
         if line.startswith(";SETTING_3 "):
-            # A piece of the settings may end in a space that belongs to a value.
+            # пробел значим
             serialized.append(raw.rstrip("\r\n").lstrip()[len(";SETTING_3 ") :])
         elif line.startswith(";"):
             _comment(facts, line)
@@ -110,7 +103,7 @@ def _move(facts: GcodeFacts, line: str) -> None:
 
 
 def _settings(facts: GcodeFacts, text: str) -> None:
-    """The changed settings the slicer serialized at the end of the file, as INI sections."""
+    """Изменённые настройки из конца файла."""
     try:
         data = json.loads(text)
         profiles = [data.get("global_quality", ""), *data.get("extruder_quality", [])]
@@ -151,7 +144,7 @@ def check_gcode(
     _file(facts, add)
     written_mode = facts.header.get("printing_mode")
     if written_mode is None:
-        # Plugins before the export through the slicer's G-code writer saved no such header.
+        # плагины без заголовка
         add("apply", "info", "в G-code нет строки ;PRINTING_MODE, режим не проверен")
     elif written_mode != mode:
         add("apply", "error", f"режим в G-code {written_mode}, ожидался {mode}", "printing_mode")
@@ -176,8 +169,7 @@ def _file(facts: GcodeFacts, add) -> None:
         add("file", "error", "в G-code нет слоёв")
     if not facts.ended:
         add("file", "error", "G-code оборван: нет строки ;End of Gcode")
-    # The last layer is not always marked, and a turned model gave 762 layers for 765 on
-    # Windows, so a gap is a warning: a cut file is caught by the missing end above.
+    # пропуск слоёв предупреждение
     declared = facts.layer_count
     if declared is not None and facts.layers not in (declared, declared - 1):
         add("file", "warning", f"заявлено слоёв {declared}, найдено {facts.layers}")
@@ -206,8 +198,7 @@ def _expected_layer_height(parameter_set: ParameterSet, catalog: Catalog) -> Any
 def _temperatures(
     facts: GcodeFacts, values: ModeValues, settings: dict[str, Any], mode: str, add
 ) -> None:
-    """Every heating command sets a temperature the set asks for: the print's or the first
-    layer's, which follows the print by the build's formula unless the set gives its own."""
+    """Температуры нагрева соответствуют набору."""
     nozzle = settings.get("material_print_temperature")
     if nozzle is not None:
         layer = values.get("material_print_temperature_layer_0")
@@ -258,7 +249,7 @@ def _same(value: Any, written: str) -> bool:
 
 
 def _bed(facts: GcodeFacts, catalog: Catalog, add) -> None:
-    """Moves in machine coordinates of the classic bed, its corner at zero."""
+    """Ходы в координатах станка."""
     values = catalog.values("classic")
     sizes = {"X": "machine_width", "Y": "machine_depth", "Z": "machine_height"}
     for axis, key in sizes.items():

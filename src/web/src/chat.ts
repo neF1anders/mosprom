@@ -30,11 +30,11 @@ export function composerPlaceholder(
     return "Можно написать сообщение, я отвечу после текущего шага";
   return "Напишите, что нужно напечатать…";
 }
-// Questions come with the finished card; the window shows only while the job waits for them.
+// вопросы с карточкой
 export function asksQuestions(job?: Job | null) {
   return job?.status === "waiting_user" && job.card?.revision === job.revision;
 }
-// Mirrors KINDS and the upper InputLimits on the server, which may be configured lower.
+// повторяет лимиты сервера
 const LIMITS_MIB: Record<string, number> = {
   stl: 256,
   pdf: 25,
@@ -46,7 +46,7 @@ const LIMITS_MIB: Record<string, number> = {
   jpeg: 20,
 };
 const CAD = new Set(["step", "stp", "iges", "igs", "obj", "3mf", "ply", "f3d"]);
-// A file the server would refuse is rejected before it is sent.
+// отказ до отправки
 export function rejected(file: File, kind: string) {
   if (!(kind in LIMITS_MIB))
     return CAD.has(kind)
@@ -58,7 +58,7 @@ export function rejected(file: File, kind: string) {
 export function extension(name: string) {
   return name.includes(".") ? name.split(".").pop()!.toLowerCase() : "";
 }
-// Answers are stored as "question, answer" lines; known titles split them unambiguously.
+// разбор ответов
 export function answerPairs(text: string, job: Job | undefined) {
   const titles = Object.values(job?.answers || {})
     .map((answer) => answer.title)
@@ -72,7 +72,7 @@ export function answerPairs(text: string, job: Job | undefined) {
       : { question: line.slice(0, cut), answer: line.slice(cut + 2) };
   });
 }
-// Messages sent before the work began come before the timeline, the rest after it.
+// порядок сообщений
 export function splitAt(
   messages: Message[],
   start: string | undefined,
@@ -84,7 +84,7 @@ export function splitAt(
   return [messages.filter((m) => !later(m)), messages.filter(later)];
 }
 const CHAT_AGENTS = new Set(["assistant", "analyst", "report"]);
-// The assistant is answering: the last message waits for its reply, or one of its calls runs.
+// ассистент отвечает
 export function answering(
   events: ProgressEvent[],
   messages: Message[],

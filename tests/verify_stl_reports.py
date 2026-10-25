@@ -1,9 +1,3 @@
-"""Independent binary STL cross-check, without importing Trimesh.
-
-Usage: python tests/verify_stl_reports.py /path/to/report-directory
-Only binary STL is supported here; ASCII and defects have separate pytest cases.
-"""
-
 import hashlib
 import json
 import struct
@@ -28,12 +22,8 @@ def verify(report: dict) -> dict:
         offset=84,
         count=count,
     )
-    triangles = (
-        records["vertices"].astype(np.float64) * report["units"]["scale_applied"]
-    )
-    vertices, face_indices = np.unique(
-        triangles.reshape(-1, 3), axis=0, return_inverse=True
-    )
+    triangles = records["vertices"].astype(np.float64) * report["units"]["scale_applied"]
+    vertices, face_indices = np.unique(triangles.reshape(-1, 3), axis=0, return_inverse=True)
     faces = face_indices.reshape(-1, 3)
     edges = np.sort(faces[:, [[0, 1], [1, 2], [2, 0]]].reshape(-1, 2), axis=1)
     unique_edges, counts = np.unique(edges, axis=0, return_counts=True)
@@ -44,19 +34,14 @@ def verify(report: dict) -> dict:
     component_count, _ = connected_components(graph, directed=False)
     area = (
         np.linalg.norm(
-            np.cross(
-                triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
-            ),
+            np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]),
             axis=1,
         ).sum()
         / 2
     )
     relative = triangles - vertices.mean(axis=0)
     signed_volume = (
-        np.einsum(
-            "ij,ij->i", relative[:, 0], np.cross(relative[:, 1], relative[:, 2])
-        ).sum()
-        / 6
+        np.einsum("ij,ij->i", relative[:, 0], np.cross(relative[:, 1], relative[:, 2])).sum() / 6
     )
     g, t = report["geometry"], report["topology"]
     assert hashlib.sha256(data).hexdigest() == report["file"]["sha256"]
@@ -88,8 +73,7 @@ if __name__ == "__main__":
     directory = Path(sys.argv[1])
     index = json.loads((directory / "index.json").read_text(encoding="utf-8"))
     results = [
-        verify(json.loads((directory / item["json"]).read_text(encoding="utf-8")))
-        for item in index
+        verify(json.loads((directory / item["json"]).read_text(encoding="utf-8"))) for item in index
     ]
     (directory / "verification.json").write_text(
         json.dumps(results, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"

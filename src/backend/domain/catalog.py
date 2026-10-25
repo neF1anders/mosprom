@@ -1,8 +1,3 @@
-"""The issued STE Slicer build as data: settings, printer and extruder overrides, quality
-profiles and materials. Parameter selection and its check read the same catalog and resolve
-values through the same ``ModeValues``.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -13,11 +8,11 @@ from typing import Any
 from .formulas import FormulaError, evaluate
 
 PRINTING_MODES = ("classic", "cylindrical", "cylindrical_full")
-# How people call each printing mode.
+# названия режимов печати
 MODE_NAMES = {"classic": "3D", "cylindrical": "5D Spiral", "cylindrical_full": "5D"}
-# The extruder a parameter set prints with; formulas naming another extruder read it too.
+# экструдер набора параметров
 EXTRUDER = "0"
-# Keys of an override that change a setting's value rather than its limits or conditions.
+# ключи значения переопределения
 _VALUE_KEYS = ("value", "default_value")
 
 
@@ -42,8 +37,7 @@ class QualityProfile:
     values: Mapping[str, str]
 
     def numbers(self) -> dict[str, float]:
-        """The plain numbers the profile sets; a formula such as
-        ``=math.ceil(speed_print * 40 / 60)`` is left to the slicer."""
+        """Числа, заданные профилем."""
         found = {}
         for key, text in self.values.items():
             try:
@@ -64,7 +58,7 @@ class Catalog:
     materials: Mapping[str, MaterialProfile]
 
     def definition(self, key: str) -> dict[str, Any]:
-        """A setting's definition with the printer's limits, options and conditions."""
+        """Определение настройки с ограничениями."""
         merged = dict(self.settings.get(key, {}))
         overrides = self.printer_overrides.get(key, {})
         merged.update({k: v for k, v in overrides.items() if k not in _VALUE_KEYS})
@@ -79,13 +73,7 @@ class Catalog:
 
 @dataclass
 class ModeValues:
-    """The values the slicer uses in one printing mode, resolved on demand and cached.
-
-    ``above`` holds what is set over the printer: a quality profile's values and the chosen
-    ones. A key takes the first of its value in ``above``, the extruder's, the printer's
-    override (its formula, else its default), the ``fdmprinter`` formula and the ``fdmprinter``
-    default, as in the slicer's stack of settings. Formulas read other keys the same way.
-    """
+    """Значения слайсера для режима."""
 
     catalog: Catalog
     mode: str

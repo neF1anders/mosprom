@@ -1,5 +1,3 @@
-"""Every database step of a stage-one run, each in its own short transaction."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -15,7 +13,7 @@ PAGE = 100
 
 
 class RunStore(JobStore):
-    """Stage one's reads and writes on top of the steps every stage shares."""
+    """Чтение и запись первого этапа."""
 
     async def job(self, job_id: str) -> Job:
         async with self.uow() as uow:
@@ -55,11 +53,11 @@ class RunStore(JobStore):
             await uow.commit()
 
     async def begin(self, ctx: RunContext) -> None:
-        """The work starts in this revision, so whatever the previous work made is dropped."""
+        """Начало работы, очистка прежнего."""
         await self.update(ctx.job_id, ctx.revision, restart)
 
     async def finish(self, ctx: RunContext, card: TaskCard, text: str) -> None:
-        """Publishes the card the work made; a ready card goes on to parameter selection."""
+        """Публикация готовой карточки работы."""
         async with self.uow() as uow:
             job = await uow.jobs.get(ctx.job_id, lock=True)
             ensure_current(job.revision, job.status, ctx.revision)
@@ -70,10 +68,7 @@ class RunStore(JobStore):
 
 
 async def _hand_over(uow: UnitOfWork, job: Job) -> None:
-    """A ready card waits in the queue for parameter selection, in the same transaction.
-
-    Files sent during the run go with their message to the assistant, which decides.
-    """
+    """Передача карточки подбору параметров."""
     blocked = job.card is None or job.card.readiness == "blocked"
     job.status = transition(job.status, Status.WAITING if blocked else Status.QUEUED)
     if not blocked:

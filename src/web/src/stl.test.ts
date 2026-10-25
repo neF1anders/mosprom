@@ -21,7 +21,7 @@ describe("STL preview", () => {
     const shades = new Set<number>();
     for (let i = 0; i < raster.data.length; i += 4)
       if (raster.data[i + 3]) shades.add(raster.data[i]);
-    // Top, front and right faces of a box each get their own light.
+    // свет на гранях
     expect(shades.size).toBeGreaterThanOrEqual(3);
   });
   it("reads ASCII STL", () => {

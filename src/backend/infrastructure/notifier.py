@@ -1,5 +1,3 @@
-"""Wakes the open event streams of a job; one process serves the API and the stages."""
-
 from __future__ import annotations
 
 import asyncio

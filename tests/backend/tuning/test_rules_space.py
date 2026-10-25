@@ -77,10 +77,10 @@ def test_axis_value_stays_inside_the_hard_interval():
     axes = build_axes(CONTEXT)
     speed = axes["print_speed"]
     low, high = t_interval_for_limits(speed, None, 33)
-    # The nearest step is 35: a maximum rounds down to the step inside.
+    # ближайший шаг
     assert speed.value_at(low, low, high) == 30
     low, high = t_interval_for_limits(speed, 31, 34)
-    # No step inside: the limit nearest to the raw value is used as it is.
+    # нет шага внутри
     assert speed.value_at(low, low, high) == 34
     lines = axes["wall_line_count"]
     assert t_interval_for_limits(lines, 2.25, 2.75)[0] > t_interval_for_limits(lines, 2.25, 2.75)[1]
@@ -102,7 +102,7 @@ def test_sent_wall_thickness_gives_back_the_intended_line_count(catalog, lines):
 def test_quality_profile_fast_starts_from_its_own_walls_and_infill(catalog):
     mode = load_printer(catalog).modes["classic"]
     fast = mode.qualities["fast"]
-    # 1 mm of wall at 0.4 mm lines: the slicer formula rounds 1.4999... down, so 2 walls.
+    # округление вниз
     assert wall_lines(mode.value("wall_thickness", fast), mode.line_width) == 2
     assert mode.value("infill_sparse_density", fast) == 10
 
@@ -150,7 +150,7 @@ def test_printer_data_comes_from_the_issued_build(catalog):
 
 
 def test_default_quality_is_the_preferred_one_of_the_build(catalog):
-    """The one printer value the catalog does not carry: fdmprinter metadata."""
+    """Качество по умолчанию из сборки."""
     definitions = json.loads((BUILD / "definitions/fdmprinter.def.json").read_text())
     preferred = definitions["metadata"]["preferred_quality_type"]
     assert load_printer(catalog).default_quality == preferred

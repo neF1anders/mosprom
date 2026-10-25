@@ -12,7 +12,7 @@ def container(request: Request) -> Container:
 
 
 def user(request: Request) -> str:
-    """Set by LocalSecurity from the signed session cookie."""
+    """Пользователь из cookie сессии."""
     return request.state.user_id
 
 

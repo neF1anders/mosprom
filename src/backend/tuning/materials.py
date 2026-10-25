@@ -1,10 +1,3 @@
-"""Materials of the catalog that fit the extruder, joined with general-knowledge traits.
-
-The slicer hides materials of another filament diameter (2.85 mm generics on a 1.75 mm
-extruder), so a lookup by name such as "PLA" must not land on them. A material file without
-a print temperature cannot be printed from and is skipped with a warning.
-"""
-
 from __future__ import annotations
 
 import re
@@ -18,14 +11,14 @@ from ..domain.errors import AppError
 from ..domain.models import Value
 
 _DIAMETER_TOLERANCE_MM = 1e-6
-# Latin words and numbers of a material name; Cyrillic words around it are left out.
+# слова названия материала
 _WORD = re.compile(r"[a-z0-9]+")
 Level = Literal["low", "medium", "high"]
 Grade = Literal["good", "fair", "poor"]
 
 
 class MaterialTraits(Value):
-    """General polymer knowledge, not verified against datasheets; absent means unknown."""
+    """Общие свойства полимера без паспорта."""
 
     tg_c: int | float | None = None
     hdt_c: int | float | None = None
@@ -69,7 +62,7 @@ TRAITS = TraitBook.model_validate_json(
 
 @dataclass(frozen=True)
 class Candidate:
-    """A printable material of the catalog."""
+    """Печатаемый материал из каталога."""
 
     id: str
     label: str
@@ -84,7 +77,7 @@ class Candidate:
 @dataclass(frozen=True)
 class Printable:
     candidates: Mapping[str, Candidate]
-    # Materials of the extruder's filament that have no print temperature in their file.
+    # материалы без температуры
     without_temperature: Mapping[str, MaterialProfile]
 
     @property
@@ -95,10 +88,7 @@ class Printable:
         ]
 
     def find(self, name: str, allowed: Mapping[str, Candidate]) -> Candidate | None:
-        """A material of ``allowed`` by file id or label, case-insensitively.
-
-        Naming a material whose file has no print temperature is an error the user must see.
-        """
+        """Материал по файлу или названию."""
         wanted = name.strip().lower()
         found = next(
             (
@@ -123,11 +113,7 @@ class Printable:
 
 
 def mentioned(text: str, allowed: Mapping[str, Candidate]) -> Candidate | None:
-    """A material whose whole label stands in the text as words: «зелёный PLA» is PLA.
-
-    The longest label wins («Enduse PETG» over «PETG»); among labels of one length the one named
-    first, so «PLA+PC» is PLA, the base of a blend the catalog does not have.
-    """
+    """Материал, названный в тексте."""
     words = _WORD.findall(text.lower())
     found: list[tuple[int, int, str, Candidate]] = []
     for material in allowed.values():
@@ -139,7 +125,7 @@ def mentioned(text: str, allowed: Mapping[str, Candidate]) -> Candidate | None:
 
 
 def _position(words: list[str], label: list[str]) -> int | None:
-    """Where the label's words stand one after another in the text, if they do."""
+    """Позиция слов названия в тексте."""
     for start in range(len(words) - len(label) + 1):
         if words[start : start + len(label)] == label:
             return start

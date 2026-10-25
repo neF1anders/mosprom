@@ -30,7 +30,7 @@ describe("the question window", () => {
     "stays closed for a %s job even with open questions",
     (status) => {
       expect(asksQuestions(job(status))).toBe(false);
-      // «Не знаю» keeps a question open, but once answered the window does not come back.
+      // «Не знаю» закрыт
       expect(asksQuestions(job(status, UNKNOWN_ANSWER))).toBe(false);
     },
   );

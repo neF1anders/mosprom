@@ -15,7 +15,7 @@ export interface Action {
   kind: ActionKind;
   state: "done" | "run" | "error";
   text: string;
-  // What a click opens under the row: the command, then its output, as on Figma screen 17.
+  // что открывает клик
   command?: string;
   output?: string[];
   agent?: string;
@@ -24,7 +24,7 @@ export interface Thought {
   at: number;
   text: string;
 }
-// A Russian phrase of the narrator and the reasoning it retells, which a click shows.
+// фраза и рассуждение
 export interface Retold extends Thought {
   original: Thought[];
 }
@@ -36,14 +36,14 @@ export interface AgentRun {
   state: "run" | "done" | "error";
   started: number;
   finished?: number;
-  // The reasoning as the model wrote it, often in English.
+  // рассуждение модели
   thoughts: Thought[];
   said: Retold[];
   actions: Action[];
-  // A step of code shown among the agents, like the STL analysis: no reasoning of its own.
+  // шаг кода
   code?: boolean;
 }
-// A message that did not change the task and the reply to it, shown inside its stage.
+// сообщение внутри этапа
 export interface Note {
   id: string;
   role: string;
@@ -62,7 +62,7 @@ export interface Stage {
   finished?: number;
   result?: "card" | "parameters" | "project";
 }
-// The reasoning of one model call as it arrived and the narrator's phrases; a retry starts both over.
+// рассуждение вызова
 export interface CallThoughts {
   agent: string;
   attempt: number;
@@ -77,17 +77,15 @@ const AGENTS: Record<string, { title: string; icon: string }> = {
   assistant: { title: "Ассистент", icon: "message" },
   analyst: { title: "Разбор работы", icon: "search" },
 };
-// The chat's own agents that reason; their train of thought opens like a stage agent's.
+// агенты чата
 const CHAT_AGENTS = new Set(["assistant", "analyst"]);
-// The gate only talks in the chat, so it gets no card of its own.
-// The chat's own agents answer in the chat, not in a stage.
 const HIDDEN_AGENTS = new Set(["gate", "assistant", "analyst", "report"]);
 export function agentLook(agent: string, title = "") {
   return AGENTS[agent] || { title: title || agent, icon: "file-search" };
 }
 const STAGE_ONE =
   /^(files|stl|interpretation|checking|tool|agent|stage1|steer)\./;
-// Events that are no work of their own: a chat reply of the gate or of the correction agent.
+// не работа этапа
 const TALK = /^(agent|stage1|steer)\./;
 const LATER = [
   { key: "parameters", title: "Подбор параметров", prefix: "parameters." },
@@ -106,7 +104,7 @@ function last(events: ProgressEvent[], test: (e: ProgressEvent) => boolean) {
 export function seconds(ms: number) {
   return `${Math.max(0, Math.round(ms / 1000))} с`;
 }
-// A stopped or failed run ends its open steps; a running one keeps them going.
+// остановка закрывает шаги
 function halted(job?: Job): StageState | undefined {
   if (!job || isRunning(job)) return undefined;
   if (job.status === "failed") return "error";
@@ -138,7 +136,7 @@ function count(message: string) {
   return Number(message.match(/\d+/)?.[0] || 0);
 }
 
-// Rows of the first stage, built from the events the server already sends.
+// строки первого этапа
 function stageOneActions(
   events: ProgressEvent[],
   job: Job | undefined,
@@ -299,7 +297,7 @@ function toolAction(id: string, data: Record<string, unknown>): Action {
   };
 }
 
-// Agents of a stage, one per run of an agent; a call is one model step of it.
+// агенты этапа
 function agentRuns(
   events: ProgressEvent[],
   thoughts: Record<string, CallThoughts>,
@@ -351,14 +349,14 @@ function agentRuns(
   }
   return [...runs.values()];
 }
-// The assistant's turns in the chat, each with what it thought about on the way.
+// ходы ассистента
 export function chatRuns(
   events: ProgressEvent[],
   thoughts: Record<string, CallThoughts>,
 ): AgentRun[] {
   return agentRuns(events, thoughts, [], (agent) => CHAT_AGENTS.has(agent));
 }
-// A finished turn opens above the last reply of that turn, its own words.
+// ход над своим ответом
 export function runsByReply(
   messages: Message[],
   runs: AgentRun[],
@@ -369,7 +367,7 @@ export function runsByReply(
       last.set(message.turn, message.id);
   const found = new Map<string, AgentRun[]>();
   for (const run of runs) {
-    // A run's id is its turn and its agent: the assistant and its analyst share the turn.
+    // идентификатор запуска
     const reply = last.get(run.id.slice(0, run.id.lastIndexOf(":")));
     if (run.finished === undefined || !reply) continue;
     found.set(reply, [...(found.get(reply) || []), run]);
@@ -379,7 +377,7 @@ export function runsByReply(
 function step(call: string) {
   return Number(call.slice(call.lastIndexOf(":") + 1));
 }
-// Reasoning split into paragraphs, each stamped with the time its first piece came.
+// абзацы рассуждения
 export function paragraphs(chunks: Thought[]): Thought[] {
   const result: Thought[] = [];
   let open = false;
@@ -395,7 +393,7 @@ export function paragraphs(chunks: Thought[]): Thought[] {
   }
   return result;
 }
-// Each phrase retells the reasoning since the phrase before; what came after the last one is its too.
+// фразы пересказывают рассуждение
 export function retell(said: Thought[], chunks: Thought[]): Retold[] {
   const groups = said.map(() => [] as Thought[]);
   for (const chunk of chunks) {
@@ -461,7 +459,7 @@ function stageOne(
   let state: StageState = finishedEvent ? "done" : ended || "run";
   if (asking) state = "warn";
   const actions = stageOneActions(own, job, attachments);
-  // A finished stage has no row left running, whatever events were missed.
+  // пропущенные события
   if (finishedEvent)
     actions.filter((a) => a.state === "run").forEach((a) => (a.state = "done"));
   if (ended === "error") {
@@ -481,7 +479,7 @@ function stageOne(
       ? { text: "ждёт ответа", tone: "warn" }
       : meta(state, started, finished, now, connected),
     summary: "",
-    // Rows of an agent at work are in its card until it finishes.
+    // строки в карточке агента
     actions: actions.filter(
       (a) => !running.some((agent) => agent.agent === a.agent),
     ),
@@ -491,7 +489,7 @@ function stageOne(
     finished,
     result: state === "done" && job?.card ? "card" : undefined,
   };
-  // An applied correction says what changed while the stage works on it, Figma screen 10.
+  // применённая правка
   const applied = last(own, (e) => e.type === "steer.applied");
   if (state === "error") stage.summary = job?.error || "";
   else if (finishedEvent) stage.summary = finishedEvent.message;
@@ -571,13 +569,13 @@ function waitingText(prefix: string, job?: Job) {
   if (prefix === "parameters." && job?.stage === "parameters")
     return "Задание передано, ждёт подбора параметров";
   if (job?.stage !== "done") return "";
-  // Without a project there is no G-code to check.
+  // нет проекта
   if (prefix === "gcode." && job.result && !job.result.sliced)
     return "Не проводилась, проект не создан";
-  // An infeasible selection is not checked: nothing in it can be printed as it is.
+  // невыполнимый выбор
   return "Не проводилась, параметры подобрать не удалось";
 }
-// The five stages of the work, Figma screens 03–12 and 16–20.
+// пять этапов работы
 export function buildTimeline({
   events,
   job,
@@ -599,7 +597,7 @@ export function buildTimeline({
     (e) =>
       STAGE_ONE.test(e.type) || LATER.some((s) => e.type.startsWith(s.prefix)),
   );
-  // Talk alone means a chat reply, not work.
+  // разговор не работа
   if (!work.some((e) => !TALK.test(e.type))) return null;
   const stages = [
     stageOne(work, job, attachments, thoughts, now, connected),
@@ -611,7 +609,7 @@ export function buildTimeline({
   return stages;
 }
 const THOUGHT_LIMIT = 20000;
-// A piece of reasoning or a narrator's phrase added to its call; a new attempt starts the call over.
+// часть вызова
 export function addThought(
   store: Record<string, CallThoughts>,
   event: ProgressEvent,
@@ -621,7 +619,7 @@ export function addThought(
   if (!call) return store;
   const attempt = Number(data.attempt || 1);
   const previous = store[call];
-  // A piece of an attempt already replaced, such as a late phrase, is dropped.
+  // поздняя фраза отбрасывается
   if (previous && attempt < previous.attempt) return store;
   const same = previous && previous.attempt === attempt;
   const chunks = same ? [...previous.chunks] : [];
@@ -646,7 +644,7 @@ export function addThought(
     [call]: { agent: String(data.agent || ""), attempt, chunks, said },
   };
 }
-// Texts the timeline already shows as a stage summary are not repeated in the chat.
+// повторы не показываются
 export function summaries(stages: Stage[] | null) {
   return new Set(
     (stages || [])
@@ -657,7 +655,7 @@ export function summaries(stages: Stage[] | null) {
       .filter(Boolean),
   );
 }
-// A reply that left the work going belongs to the stage that was running when it came.
+// ответ в бегущем этапе
 function placeNotes(stages: Stage[], messages: Message[]) {
   for (const message of messages) {
     if (!["offtopic", "steer"].includes(message.kind || "")) continue;

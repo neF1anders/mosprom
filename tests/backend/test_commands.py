@@ -1,5 +1,3 @@
-"""HTTP commands against SQLite: atomic revisions, queueing, ownership, idempotency."""
-
 import asyncio
 import uuid
 from pathlib import Path
@@ -39,7 +37,7 @@ async def queued(pg, job_id: str) -> list[dict]:
 
 
 def active(snapshot: dict) -> list[str]:
-    """The files in use; removed ones stay in the snapshot for the messages that sent them."""
+    """Используемые файлы и снимок."""
     return [a["id"] for a in snapshot["attachments"] if a["active"]]
 
 
@@ -53,7 +51,7 @@ async def upload(http, job_id: str, name: str, request_id: str | None = None):
 
 
 async def test_a_message_reaches_the_assistant_in_one_transaction(pg, http):
-    """A message alone starts no work: the assistant decides, and only its tool does."""
+    """Сообщение доходит до ассистента."""
     job_id = await new_job(http)
     response = await http.post(
         f"/api/v1/jobs/{job_id}/messages", json={"request_id": rid(), "text": "Шестерня привода"}
@@ -117,7 +115,7 @@ async def test_answers_require_current_questions(http):
 
 
 async def test_an_unsent_stl_never_displaces_the_model_in_use(pg, http):
-    """Regression: removing an unsent STL dropped the sent one."""
+    """Неотправленный STL не вытесняет модель."""
     job_id = await new_job(http)
     first = (await upload(http, job_id, "box.stl")).json()
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
@@ -125,7 +123,7 @@ async def test_an_unsent_stl_never_displaces_the_model_in_use(pg, http):
     third = (await upload(http, job_id, "box.stl")).json()
     snapshot = (await http.get(f"/api/v1/jobs/{job_id}")).json()
     assert snapshot["job"]["active_stl"] == first["id"]
-    # A newer unsent STL replaces the unsent one before it.
+    # замена прежнего STL
     assert active(snapshot) == sorted([first["id"], third["id"]])
     assert second["id"] not in active(snapshot)
     detached = await http.post(
@@ -268,14 +266,14 @@ async def test_work_a_stopped_process_left_half_done_runs_again(pg, http):
 
 
 async def test_an_edit_after_a_ready_card_is_not_held_back_by_the_old_work(pg, http):
-    """Work queued for an earlier revision is cancelled, and the edit runs after the stage."""
+    """Правка после карточки не ждёт."""
     job_id = await new_job(http)
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
-    # Stage one finishes the revision and hands the ready card to stage two.
+    # этап отдаёт карточку
     async with pg.uow() as uow:
         await uow.queue.stage2(job_id, 1)
         await uow.commit()
-    # The assistant applies a correction.
+    # ассистент применяет правку
     async with pg.uow() as uow:
         await changed(uow, await uow.jobs.get(job_id, lock=True), "Правка", correction=True)
         await uow.commit()
@@ -284,7 +282,9 @@ async def test_an_edit_after_a_ready_card_is_not_held_back_by_the_old_work(pg, h
         rows = (
             await connection.execute(text("SELECT task, args, status FROM task_queue ORDER BY id"))
         ).all()
-    assert [(task, decoded({"args": args})["args"]["revision"], status) for task, args, status in rows] == [
+    assert [
+        (task, decoded({"args": args})["args"]["revision"], status) for task, args, status in rows
+    ] == [
         ("stage1.run", 1, "cancelled"),
         ("stage2.select_parameters", 1, "cancelled"),
         ("stage1.run", 2, "todo"),
@@ -320,7 +320,9 @@ async def test_one_job_never_runs_two_tasks_at_once(pg, http):
         active -= 1
         handled.append(job_id)
 
-    runner = TaskRunner(pg.uow, pg.wake, {"stage1.run": handler, "stage2.select_parameters": handler}, 4)
+    runner = TaskRunner(
+        pg.uow, pg.wake, {"stage1.run": handler, "stage2.select_parameters": handler}, 4
+    )
     await runner.start()
     for _ in range(100):
         if len(handled) == 2:
@@ -331,13 +333,13 @@ async def test_one_job_never_runs_two_tasks_at_once(pg, http):
 
 
 async def test_a_delivery_runs_beside_the_stage_of_its_job_and_outlives_a_new_revision(pg, http):
-    """The user's own send must not wait for the step to end, and two of them never overlap."""
+    """Доставка идёт рядом с этапом."""
     job_id = await new_job(http)
     async with pg.uow() as uow:
         await uow.queue.stage1(job_id, 1)
         await uow.queue.steer(job_id)
         await uow.queue.steer(job_id)
-        # A new revision cancels the stage work queued before it, never a delivery.
+        # ревизия отменяет этап
         await uow.queue.cancel_pending(job_id)
         await uow.queue.stage1(job_id, 2)
         await uow.commit()
@@ -353,7 +355,7 @@ async def test_a_delivery_runs_beside_the_stage_of_its_job_and_outlives_a_new_re
         nonlocal delivering, peak
         delivering += 1
         peak = max(peak, delivering)
-        # A delivery held behind the job's lock would wait here for a stage that never starts.
+        # ждали бы вечно
         await asyncio.wait_for(stage_running.wait(), 5)
         await asyncio.sleep(0.05)
         delivering -= 1

@@ -31,21 +31,20 @@ export async function send(page: Page, text: string) {
   await page.getByLabel("Сообщение", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Отправить", exact: true }).click();
 }
-// The assistant starts a project only with a model attached, so a task goes with one.
+// модель нужна ассистенту
 export async function task(page: Page, text: string, model = "box.stl") {
   await attach(page, model);
   await send(page, text);
 }
-// The pipeline ended: parameters are selected and checked, with or without remarks.
+// конвейер завершён
 export const PIPELINE_DONE =
   /Проект готов|Проект требует внимания|Проект не создан|Параметры требуют внимания/;
-// Nothing runs: the chat waits for the user, the run failed or the pipeline ended; a chat
-// the assistant only talked in still waits for materials.
+// ничего не выполняется
 const SETTLED = new RegExp(
   `Ожидаю материалы|Нужны уточнения|Параметры подобраны|Ошибка обработки|${PIPELINE_DONE.source}`,
 );
 export async function settled(page: Page) {
-  // The row shows from the click until the assistant's reply is in the chat.
+  // строка до ответа
   await expect(page.getByLabel("Ассистент отвечает")).toHaveCount(0);
   await expect(
     page.getByRole("status").filter({ hasText: SETTLED }),
@@ -67,16 +66,16 @@ export async function upload(page: Page, ...names: string[]) {
 }
 export async function answer(page: Page, option: string) {
   const window = page.getByRole("region", { name: "Уточняющие вопросы" });
-  // Sending without a choice records "Не знаю".
+  // ответ «Не знаю»
   if (option !== "Не знаю")
     await window.getByRole("button", { name: option, exact: true }).click();
-  // The other open questions are left for later: moving on records "Не знаю" for them.
+  // остальные вопросы отложены
   const submit = window.getByRole("button", { name: "Отправить ответы" });
   while (!(await submit.isVisible()))
     await window.getByRole("button", { name: "Далее", exact: true }).click();
   await submit.click();
 }
-// Answers appear in the thread as question and answer pairs.
+// пары вопрос-ответ
 export async function answered(page: Page, question: string, value: string) {
   const pair = page
     .locator("dl > div")

@@ -1,17 +1,3 @@
-"""Run stage one on the organizer examples with the real model and score it against reference facts.
-
-Usage:
-  uv run --locked python scripts/eval_stage1.py "~/Downloads/Примеры деталей" [--only 1 3] [--full]
-
-The stand-in user sends the files, declines to add details if the gate asks, and answers the
-checker with the suggested option or «Не знаю». With --full the job goes on through parameter
-selection, its check, slicing in the stand-in STE Slicer and the G-code check.
-
-Needs QWEN_API_KEY. The database is EVAL_DATABASE_URL, by default artifacts/eval/eval.db; its
-schema and the knowledge are created here.
-Results go to artifacts/eval/<time>/: one job per example and summary.json.
-"""
-
 import argparse
 import asyncio
 import json
@@ -39,12 +25,12 @@ EVAL_FOLDER = Path("artifacts/eval")
 DEFAULT_DATABASE = "sqlite+aiosqlite:///" + (EVAL_FOLDER / "eval.db").as_posix()
 DECLINE = "Подробностей нет, сделайте как считаете нужным"
 SLICER_START_SECONDS = 30
-# A code's unit is written the Latin way; the reference facts look for the Russian one too.
+# латиница и кириллица
 ALIASES = {"mpa": "мпа", "mm": "мм", "g/cm3": "г/см3", "rpm": "об/мин"}
 
 
 def texts(card: dict, codes: RequirementKeys) -> list[str]:
-    """What a fact is looked for in: the requirement, and the code's own name if it has one."""
+    """Где искать факт в тексте."""
     fields = ["key", "label", "value", "unit", "conditions"]
     found = []
     for requirement in card.get("requirements", []):
@@ -57,7 +43,7 @@ def texts(card: dict, codes: RequirementKeys) -> list[str]:
 
 
 def score(number: str, card: dict, codes: RequirementKeys) -> dict:
-    """Facts found, rules kept, and how many requirements use a code parameter selection reads."""
+    """Найденные факты и соблюдённые правила."""
     reference, found = REFERENCE[number], texts(card, codes)
     requirements = card.get("requirements", [])
     coded = sum(codes.get(r.get("key", "")) is not None for r in requirements)
@@ -92,7 +78,7 @@ async def run_example(container: Container, folder: Path, full: bool) -> dict:
     for path in sorted(folder.iterdir()):
         if path.suffix.lower() in {".docx", ".stl", ".jpg", ".png", ".pdf"}:
             await upload(container, user, job["id"], path)
-    # Files wait for an explicit send, as in the chat.
+    # файлы ждут отправки
     await container.control.run(user, job["id"], str(uuid4()), "retry")
     started = time.perf_counter()
     state = await stage(container, job["id"])
@@ -133,7 +119,7 @@ async def asked_for_details(container: Container, job_id: str) -> bool:
 
 
 def pipeline_row(result: dict) -> dict:
-    """What the later stages chose and how the slicing and its check went."""
+    """Итог поздних этапов и нарезки."""
     job, chosen = result["job"], result["parameters"] or {}
     summary, sliced = job.get("parameters") or {}, job.get("result") or {}
     settings = {key: s.get("value") for key, s in chosen.get("settings", {}).items()}
@@ -170,7 +156,7 @@ async def main() -> None:
     folder = Path(tempfile.mkdtemp(prefix="eval-slicer-"))
     slicer = None
     if args.full:
-        # The stand-in serves the same MCP tools as the plugin, so the real adapter runs.
+        # заглушка отдаёт MCP
         slicer = subprocess.Popen(
             [sys.executable, "scripts/fake_ste_slicer.py", "--folder", str(folder)]
         )
@@ -181,7 +167,7 @@ async def main() -> None:
                 raise SystemExit("The slicer stand-in did not start")
             await asyncio.sleep(0.2)
     container = Container(Settings(database_url=database, slicer_folder=folder))
-    # The stages run right here, so the queue's runner stays off.
+    # очередь отключена
     await create_schema(container.engine)
     await import_knowledge(container)
     output = EVAL_FOLDER / datetime.now().strftime("%Y%m%d-%H%M%S")

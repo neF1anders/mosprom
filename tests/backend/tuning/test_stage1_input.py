@@ -191,7 +191,7 @@ def test_canonical_load_code_is_taken_as_stated(select):
 
 
 def test_unconfirmed_load_is_told_but_moves_no_setting(select):
-    # An assumed load added walls and gyroid infill to parts nobody said were loaded.
+    # нагрузка не предполагается
     guessed = card(
         requirements=[
             requirement("load_bearing", "cyclic", provenance="assumption", verified=False),
@@ -224,7 +224,7 @@ def test_supports_forbidden_by_the_wishes_are_an_assumption(select):
 
 
 def test_wish_phrases_match_only_at_the_start_of_a_word(select):
-    # "точн" was found in "достаточно" and "допуск" in "допускаются": priority accuracy.
+    # поиск по подстроке
     wishes = card(preferences=["деталь должна быть достаточно прочной, допускаются поддержки"])
     texts = assumption_texts(select(wishes))
     assert "приоритеты strength выведены из текста пожеланий" in texts
@@ -337,7 +337,7 @@ def test_overhang_share_reaches_the_rules_as_a_fact(catalog, keys):
 
 
 def test_overhangs_with_supports_forbidden_are_unmet_and_stay_in_3d(select):
-    # Not a body of revolution (a figurine): 5D Spiral would not help it.
+    # не тело вращения
     forbidden = card(
         stl_report=report(overhang_fraction=0.2), requirements=[requirement("no_supports", "да")]
     )
@@ -357,7 +357,7 @@ def test_overhangs_of_a_body_of_revolution_with_supports_forbidden_vote_for_5d_s
 
 
 def test_supports_allowed_by_a_mandatory_no_supports_are_used_on_overhangs(select):
-    # The rules read only that no_supports is mandatory, not that its value is "no".
+    # читается только обязательность
     allowed = card(
         stl_report=report(overhang_fraction=0.3), requirements=[requirement("no_supports", "нет")]
     )
@@ -424,7 +424,7 @@ def test_priority_code_without_a_known_value_leaves_the_wishes(keys):
 
 
 def test_codes_no_step_reads_are_told_as_not_taken_into_account(select):
-    # A mandatory code no rule or material check reads was accepted and dropped silently.
+    # код отброшен молча
     parameter_set = select(
         card(
             requirements=[
@@ -451,8 +451,7 @@ def test_part_class_is_read_by_the_mode_rules(select):
 
 
 def test_material_properties_without_catalog_data_are_told_as_unchecked(select):
-    # A short peak temperature has no data: "proposed" with a word about it. The modulus and the
-    # heat deflection are checked against the typical values of the traits table.
+    # нет данных пика
     parameter_set = select(
         card(
             requirements=[
@@ -498,20 +497,20 @@ def test_contract_example_is_selected_with_overhangs_and_priority(select):
     parameter_set = select(TaskCard.model_validate(example))
     settings = parameter_set["settings"]
     assert parameter_set["status"] == "proposed"
-    # Supports follow the overhangs of the upright pose, not of the file as loaded.
+    # поддержки по позе
     (model,) = parameter_set["models"]
     assert model["orientation_candidate"] != "o1"
     assert "support_enable" not in settings
     assert any(setting["source"] == "rule:PRIORITY-STRENGTH" for setting in settings.values())
     not_used = [text for text in assumption_texts(parameter_set) if "не учтено" in text]
-    # The wheel of the example is printed in 5D with its axis upright.
+    # колесо стоит вертикально
     assert parameter_set["printing_mode"]["source"] == "rule:MODE-REVOLUTION-5D"
     assert parameter_set["printing_mode"]["value"] == "cylindrical_full"
     assert not_used == [
         "обязательное требование rotation_speed_max_rpm (Частота вращения) не учтено подбором "
         "параметров",
     ]
-    # «Без микропыли» is read from its words as abrasion resistance and told as an assumption.
+    # допущение об истирании
     assert any(
         "«Без микропыли» понято как abrasion_resistant" in text
         for text in assumption_texts(parameter_set)

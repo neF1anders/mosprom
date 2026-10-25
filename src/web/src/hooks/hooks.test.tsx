@@ -57,7 +57,7 @@ describe("event stream", () => {
       FakeSource.last.emit(5, "stage1.completed");
       vi.advanceTimersByTime(200);
     });
-    // A burst of state events costs one refetch of the job and the chat list.
+    // одна выборка
     expect(refetch).toHaveBeenCalledTimes(2);
   });
 });
@@ -74,7 +74,7 @@ describe("uploads", () => {
         return new Response(JSON.stringify(body), { status: 200 });
       }),
     );
-    // A chat switch during the upload would make a later lookup return another chat.
+    // смена чата при загрузке
     const ensureJob = vi
       .fn()
       .mockResolvedValueOnce("first")

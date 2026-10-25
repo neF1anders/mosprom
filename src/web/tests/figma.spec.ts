@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { designFixture, designStates } from "./figma-fixtures";
 
-// The colour of the side panels in the light and dark Figma pages.
+// цвет боковых панелей
 const surfaces = { light: "rgb(247, 247, 249)", dark: "rgb(23, 24, 31)" };
 for (const scheme of ["light", "dark"] as const)
   for (const state of designStates)

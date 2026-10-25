@@ -1,5 +1,3 @@
-"""What a fresh local process needs before it serves: the schema, the knowledge, the runner."""
-
 from __future__ import annotations
 
 import asyncio
@@ -18,7 +16,9 @@ logger = logging.getLogger(__name__)
 PARENT_CHECK_SECONDS = 3
 
 
-async def import_knowledge(container: Container, path: Path = Path("knowledge/catalog.json")) -> int:
+async def import_knowledge(
+    container: Container, path: Path = Path("knowledge/catalog.json")
+) -> int:
     records = [Knowledge.model_validate(item) for item in json.loads(path.read_text("utf-8"))]
     async with container.uow() as uow:
         for record in records:
@@ -38,7 +38,7 @@ def parent_alive(pid: int) -> bool:
     if sys.platform == "win32":
         import ctypes
 
-        # 0x1000 is PROCESS_QUERY_LIMITED_INFORMATION; 259 is STILL_ACTIVE.
+        # константы WinAPI
         handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
         if not handle:
             return False
@@ -54,7 +54,7 @@ def parent_alive(pid: int) -> bool:
 
 
 async def exit_with_parent(pid: int) -> None:
-    """The plugin starts this process; a slicer that closes must not leave it running."""
+    """Выходит вместе с плагином."""
     while parent_alive(pid):
         await asyncio.sleep(PARENT_CHECK_SECONDS)
     logger.warning("Parent process %s is gone, exiting", pid)

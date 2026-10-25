@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// The current time, ticking once a second only while something is running.
+// текущее время
 export function useNow(active: boolean) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

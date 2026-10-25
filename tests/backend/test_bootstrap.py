@@ -10,7 +10,7 @@ SCRIPT = Path("scripts/bootstrap.py").resolve()
 
 
 def test_the_slicer_folder_is_added_on_a_line_of_its_own(tmp_path):
-    """Regression: a .env without a final line break had its last key swallowed."""
+    """Папка слайсера на отдельной строке."""
     env = tmp_path / ".env"
     env.write_text("SESSION_SECRET=" + "s" * 40)
     subprocess.run(
@@ -28,14 +28,13 @@ def test_the_slicer_folder_is_added_on_a_line_of_its_own(tmp_path):
 
 
 def test_a_home_in_cyrillic_reaches_the_env_and_the_plugin_in_utf8(tmp_path):
-    """Regression: on Windows the default encoding is the code page, while docker compose and
-    the plugin read the files as UTF-8, so a folder such as C:\\Users\\Максим came out garbled."""
+    """Кириллический путь доходит в UTF-8."""
     home = tmp_path / "Максим"
     home.mkdir()
     env = tmp_path / ".env"
     env.write_text("SESSION_SECRET=" + "s" * 40 + "\n", encoding="utf-8")
     subprocess.run(
-        # Any read or write in the default encoding fails the script.
+        # кодировка ломает скрипт
         [
             sys.executable,
             "-X",

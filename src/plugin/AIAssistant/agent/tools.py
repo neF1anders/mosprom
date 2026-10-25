@@ -1,4 +1,3 @@
-"""MCP tools over the STE Slicer API. Handlers run on the Qt main thread unless registered with on_main=False."""
 import json
 import math
 import os
@@ -21,13 +20,13 @@ from UM.Settings.ContainerRegistry import ContainerRegistry
 from . import settings
 from .mainthread import run_on_main
 
-DEFAULT_PRINTER = "hte530v5.2.4"  # Stereotech Hybrid 530 V5.2.4
+DEFAULT_PRINTER = "hte530v5.2.4"  # станок Hybrid 530
 
-# slice_model in all, the settings check before it included; the app waits 330 s for the answer
+# таймаут слайсинга
 SLICE_SECONDS = 300
-# How long a call waits for the one before it; the app gives other calls 60 s
+# ожидание предыдущего вызова
 CALL_WAIT_SECONDS = 50
-# The "What changed" panel keeps this many latest changes
+# лимит панели изменений
 MAX_CHANGES = 200
 LIST_KINDS = {"[int]": int, "[float]": float}
 TEXT_KINDS = ("str", "polygon", "polygons")
@@ -39,12 +38,23 @@ PRINT_MODES = {
 }
 
 KEY_SETTINGS = [
-    "layer_height", "wall_line_count", "top_layers", "bottom_layers", "infill_sparse_density",
-    "infill_pattern", "support_enable", "support_type", "adhesion_type", "material_print_temperature",
-    "material_bed_temperature", "speed_print", "cool_fan_enabled", "retraction_enable",
+    "layer_height",
+    "wall_line_count",
+    "top_layers",
+    "bottom_layers",
+    "infill_sparse_density",
+    "infill_pattern",
+    "support_enable",
+    "support_type",
+    "adhesion_type",
+    "material_print_temperature",
+    "material_bed_temperature",
+    "speed_print",
+    "cool_fan_enabled",
+    "retraction_enable",
 ]
 
-# Where a face has to lie on the plate: name -> (axis, degrees) that brings that face down (scene is Y-up)
+# оси граней
 ORIENTATIONS = {
     "keep": (None, 0),
     "flip": ("x", 180),
@@ -64,7 +74,7 @@ DOWN_VECTORS = {
 
 
 class ToolError(Exception):
-    expected = True  # a normal failure the model can read, not worth a stack trace in the log
+    expected = True  # штатная ошибка
 
 
 class Tool(object):
@@ -80,7 +90,11 @@ class Tool(object):
         return {
             "name": self.name,
             "description": self.description,
-            "inputSchema": {"type": "object", "properties": self.properties, "required": self.required},
+            "inputSchema": {
+                "type": "object",
+                "properties": self.properties,
+                "required": self.required,
+            },
         }
 
 
@@ -89,8 +103,11 @@ TOOLS = {}
 
 def tool(description, properties=None, required=None, on_main=True):
     def decorator(func):
-        TOOLS[func.__name__] = Tool(func.__name__, description, properties or {}, required or [], func, on_main)
+        TOOLS[func.__name__] = Tool(
+            func.__name__, description, properties or {}, required or [], func, on_main
+        )
         return func
+
     return decorator
 
 
@@ -101,7 +118,7 @@ def P(kind, description, **extra):
 
 
 class Session(object):
-    """What happened in this chat: the list of changes shown to the user and the slicing state."""
+    """Что произошло в чате."""
 
     def __init__(self):
         self.changes = []
@@ -117,9 +134,9 @@ class Session(object):
 
 
 SESSION = Session()
-# One call at a time: the chat of the plugin and the app share one scene and one set of settings
+# один вызов сразу
 _CALLS = threading.Lock()
-# The chat page polls the state every 2 s; a poll that finds another one running reuses its answer
+# опрос состояния
 _STATE = threading.Lock()
 _LAST_STATE = {"printer": None, "slicing": None}
 
@@ -136,11 +153,13 @@ def _stack():
 
 
 def _first_extruder(stack):
-    """Extruder 0. The Hybrid 530 has two, and on Python 3.5 a dict keeps no order."""
+    """Номер нулевого экструдера принтера."""
     extruders = stack.extruders
     if "0" in extruders:
         return extruders["0"]
-    ordered = sorted(extruders.values(), key=lambda extruder: int(extruder.getMetaDataEntry("position") or 0))
+    ordered = sorted(
+        extruders.values(), key=lambda extruder: int(extruder.getMetaDataEntry("position") or 0)
+    )
     return ordered[0] if ordered else None
 
 
@@ -157,7 +176,11 @@ def _value(key):
 def _models():
     nodes = []
     for node in DepthFirstIterator(_app().getController().getScene().getRoot()):
-        if node.getMeshData() and node.callDecoration("isSliceable") and not node.callDecoration("isGroup"):
+        if (
+            node.getMeshData()
+            and node.callDecoration("isSliceable")
+            and not node.callDecoration("isGroup")
+        ):
             nodes.append(node)
     return nodes
 
@@ -177,14 +200,21 @@ def _model_row(index, node):
     return {
         "index": index,
         "name": node.getName(),
-        "size_mm": {"x": round(box.width, 2), "y_depth": round(box.depth, 2), "z_height": round(box.height, 2)},
+        "size_mm": {
+            "x": round(box.width, 2),
+            "y_depth": round(box.depth, 2),
+            "z_height": round(box.height, 2),
+        },
         "position_mm": {"x": round(position.x, 2), "z": round(position.z, 2)},
     }
 
 
-# ---------------------------------------------------------------- printer, profiles, materials
+# принтер и материалы
 
-@tool("Printer, print mode, material, quality, build volume, key settings and the models on the build plate. Call this first.")
+
+@tool(
+    "Printer, print mode, material, quality, build volume, key settings and the models on the build plate. Call this first."
+)
 def get_state():
     stack = _stack()
     manager = _app().getMachineManager()
@@ -196,7 +226,10 @@ def get_state():
         "print_mode_name": PRINT_MODES.get(mode, mode),
         "material_id": manager.activeMaterialId,
         "quality": manager.activeQualityType,
-        "build_volume_mm": [stack.getProperty(k, "value") for k in ("machine_width", "machine_depth", "machine_height")],
+        "build_volume_mm": [
+            stack.getProperty(k, "value")
+            for k in ("machine_width", "machine_depth", "machine_height")
+        ],
         "settings": dict((key, _value(key)) for key in KEY_SETTINGS),
         "models": [_model_row(i, node) for i, node in enumerate(_models())],
     }
@@ -207,13 +240,21 @@ def list_printers():
     active = _app().getGlobalContainerStack()
     rows = []
     for stack in ContainerRegistry.getInstance().findContainerStacks(type="machine"):
-        rows.append({"id": stack.getId(), "name": stack.getName(), "definition": stack.definition.getId(),
-                     "active": stack is active})
+        rows.append(
+            {
+                "id": stack.getId(),
+                "name": stack.getName(),
+                "definition": stack.definition.getId(),
+                "active": stack is active,
+            }
+        )
     return rows
 
 
-@tool("Select the active printer by definition id; it is added if missing. The test printer Stereotech Hybrid 530 V5.2.4 is 'hte530v5.2.4'.",
-      {"definition_id": P("string", "Printer definition id", default=DEFAULT_PRINTER)})
+@tool(
+    "Select the active printer by definition id; it is added if missing. The test printer Stereotech Hybrid 530 V5.2.4 is 'hte530v5.2.4'.",
+    {"definition_id": P("string", "Printer definition id", default=DEFAULT_PRINTER)},
+)
 def set_printer(definition_id=DEFAULT_PRINTER):
     registry = ContainerRegistry.getInstance()
     manager = _app().getMachineManager()
@@ -228,14 +269,21 @@ def set_printer(definition_id=DEFAULT_PRINTER):
     return "printer added and selected: %s" % _stack().getName()
 
 
-@tool("Materials available for the active printer: id, brand, type, color. Use it to choose a material and its color.",
-      {"type": P("string", "Filter by material type, e.g. PLA, PETG, ABS, TPU"), "limit": P("integer", "Maximum rows", default=25)})
+@tool(
+    "Materials available for the active printer: id, brand, type, color. Use it to choose a material and its color.",
+    {
+        "type": P("string", "Filter by material type, e.g. PLA, PETG, ABS, TPU"),
+        "limit": P("integer", "Maximum rows", default=25),
+    },
+)
 def list_materials(type=None, limit=25):
     stack = _stack()
     extruder = _first_extruder(stack)
     if extruder is None:
         raise ToolError("The active printer has no extruders")
-    available = _app().getMaterialManager().getAvailableMaterialsForMachineExtruder(stack, extruder) or {}
+    available = (
+        _app().getMaterialManager().getAvailableMaterialsForMachineExtruder(stack, extruder) or {}
+    )
     registry = ContainerRegistry.getInstance()
     rows = []
     for root_id in available:
@@ -244,22 +292,36 @@ def list_materials(type=None, limit=25):
         material_type = meta.get("material", "")
         if type and type.lower() != str(material_type).lower():
             continue
-        rows.append({"id": root_id, "brand": meta.get("brand"), "type": material_type, "color": meta.get("color_name")})
+        rows.append(
+            {
+                "id": root_id,
+                "brand": meta.get("brand"),
+                "type": material_type,
+                "color": meta.get("color_name"),
+            }
+        )
     rows.sort(key=lambda r: (str(r["type"]), str(r["brand"]), str(r["color"])))
-    return rows[:int(limit)]
+    return rows[: int(limit)]
 
 
-@tool("Select the material by id from list_materials.",
-      {"material_id": P("string", "Material id"), "reason": P("string", "Why this material, one sentence")},
-      ["material_id", "reason"])
+@tool(
+    "Select the material by id from list_materials.",
+    {
+        "material_id": P("string", "Material id"),
+        "reason": P("string", "Why this material, one sentence"),
+    },
+    ["material_id", "reason"],
+)
 def set_material(material_id, reason=""):
     stack = _stack()
     manager = _app().getMachineManager()
     if _first_extruder(stack) is None:
         raise ToolError("The active printer has no extruders")
     if _material_node(stack, material_id) is None:
-        # setMaterialById would silently put an empty material in its place
-        raise ToolError("Material %s does not fit the nozzle of extruder 0. Use list_materials." % material_id)
+        # пустой материал опасен
+        raise ToolError(
+            "Material %s does not fit the nozzle of extruder 0. Use list_materials." % material_id
+        )
     old, quality = _material_root(stack), manager.activeQualityType
     manager.setMaterialById("0", material_id)
     new = _material_root(stack)
@@ -268,12 +330,15 @@ def set_material(material_id, reason=""):
     SESSION.record("material", old, new, reason)
     answer = "material: %s -> %s" % (old, new)
     if quality and manager.activeQualityType != quality:
-        # The slicer picks another quality profile when the new material has none of this type
+        # профиль качества меняется
         group = _app().getQualityManager().getQualityGroups(stack).get(quality)
         if group is not None and group.is_available:
             manager.setQualityGroupByQualityType(quality)
         else:
-            answer += "; quality profile %s does not fit it, the slicer chose %s" % (quality, manager.activeQualityType)
+            answer += "; quality profile %s does not fit it, the slicer chose %s" % (
+                quality,
+                manager.activeQualityType,
+            )
     return answer
 
 
@@ -286,12 +351,20 @@ def _material_root(stack):
 
 
 def _material_node(stack, material_id):
-    """The node MachineManager.setMaterialById looks up for extruder 0."""
+    """Узел материала для экструдера 0."""
     extruder = _first_extruder(stack)
     buildplate = stack.variant.getName() if stack.variant.getId() != "empty_variant" else None
-    return _app().getMaterialManager().getMaterialNode(
-        stack.definition.getId(), extruder.variant.getName(), buildplate,
-        extruder.getApproximateMaterialDiameter(), material_id)
+    return (
+        _app()
+        .getMaterialManager()
+        .getMaterialNode(
+            stack.definition.getId(),
+            extruder.variant.getName(),
+            buildplate,
+            extruder.getApproximateMaterialDiameter(),
+            material_id,
+        )
+    )
 
 
 @tool("Quality profiles of the active printer and material.")
@@ -300,20 +373,33 @@ def list_quality_profiles():
     active = _app().getMachineManager().activeQualityType
     rows = []
     for quality_type, group in _app().getQualityManager().getQualityGroups(stack).items():
-        rows.append({"quality_type": quality_type, "name": group.name, "available": group.is_available,
-                     "active": quality_type == active})
+        rows.append(
+            {
+                "quality_type": quality_type,
+                "name": group.name,
+                "available": group.is_available,
+                "active": quality_type == active,
+            }
+        )
     return rows
 
 
-@tool("Select a quality profile by quality_type from list_quality_profiles.",
-      {"quality_type": P("string", "Quality type"), "reason": P("string", "Why this profile, one sentence")},
-      ["quality_type", "reason"])
+@tool(
+    "Select a quality profile by quality_type from list_quality_profiles.",
+    {
+        "quality_type": P("string", "Quality type"),
+        "reason": P("string", "Why this profile, one sentence"),
+    },
+    ["quality_type", "reason"],
+)
 def set_quality_profile(quality_type, reason=""):
     manager = _app().getMachineManager()
     group = _app().getQualityManager().getQualityGroups(_stack()).get(quality_type)
     if group is None or not group.is_available:
-        raise ToolError("Quality profile %s is not available for this printer and material. Use list_quality_profiles."
-                        % quality_type)
+        raise ToolError(
+            "Quality profile %s is not available for this printer and material. Use list_quality_profiles."
+            % quality_type
+        )
     old = manager.activeQualityType
     manager.setQualityGroupByQualityType(quality_type)
     new = manager.activeQualityType
@@ -323,16 +409,24 @@ def set_quality_profile(quality_type, reason=""):
     return "quality: %s -> %s" % (old, new)
 
 
-@tool("Save the current settings changes as a new custom profile.",
-      {"name": P("string", "Profile name")}, ["name"])
+@tool(
+    "Save the current settings changes as a new custom profile.",
+    {"name": P("string", "Profile name")},
+    ["name"],
+)
 def save_profile(name):
     _app().getQualityManager().createQualityChanges(name)
     return "profile saved: %s" % name
 
 
-@tool("Choose 3D planar printing ('classic') or a 5D mode ('cylindrical' is 5D Spiral, 'cylindrical_full' is 5D). Only these three modes are allowed.",
-      {"mode": P("string", "Print mode", enum=list(PRINT_MODES)), "reason": P("string", "Why this mode, one sentence")},
-      ["mode", "reason"])
+@tool(
+    "Choose 3D planar printing ('classic') or a 5D mode ('cylindrical' is 5D Spiral, 'cylindrical_full' is 5D). Only these three modes are allowed.",
+    {
+        "mode": P("string", "Print mode", enum=list(PRINT_MODES)),
+        "reason": P("string", "Why this mode, one sentence"),
+    },
+    ["mode", "reason"],
+)
 def set_print_mode(mode, reason=""):
     if mode not in PRINT_MODES:
         raise ToolError("mode must be one of %s" % sorted(PRINT_MODES))
@@ -343,10 +437,17 @@ def set_print_mode(mode, reason=""):
     return "printing_mode: %s -> %s" % (old, mode)
 
 
-# ---------------------------------------------------------------- settings
+# настройки
 
-@tool("Find slicer settings by key or label (there are about 640). Returns key, label, type and current value.",
-      {"query": P("string", "Part of the key or the label"), "limit": P("integer", "Maximum rows", default=15)}, ["query"])
+
+@tool(
+    "Find slicer settings by key or label (there are about 640). Returns key, label, type and current value.",
+    {
+        "query": P("string", "Part of the key or the label"),
+        "limit": P("integer", "Maximum rows", default=15),
+    },
+    ["query"],
+)
 def search_settings(query, limit=15):
     needle = query.lower()
     rows = []
@@ -354,8 +455,15 @@ def search_settings(query, limit=15):
         if definition.type == "category":
             continue
         if needle in definition.key.lower() or needle in str(definition.label).lower():
-            rows.append({"key": definition.key, "label": str(definition.label), "type": definition.type,
-                         "unit": getattr(definition, "unit", ""), "value": _value(definition.key)})
+            rows.append(
+                {
+                    "key": definition.key,
+                    "label": str(definition.label),
+                    "type": definition.type,
+                    "unit": getattr(definition, "unit", ""),
+                    "value": _value(definition.key),
+                }
+            )
         if len(rows) >= int(limit):
             break
     return rows
@@ -366,7 +474,12 @@ def get_setting(key):
     definition = _stack().getSettingDefinition(key)
     if definition is None:
         raise ToolError("Unknown setting: %s. Use search_settings." % key)
-    return {"key": key, "label": str(definition.label), "type": definition.type, "value": _value(key)}
+    return {
+        "key": key,
+        "label": str(definition.label),
+        "type": definition.type,
+        "value": _value(key),
+    }
 
 
 def _coerce(definition, value):
@@ -403,7 +516,7 @@ def _clamped_number(key, value, kind):
 
 
 def _extruder_number(key, value):
-    """The slicer keeps the extruder as a string, "-1" for "not set" in optional_extruder."""
+    """Номер экструдера из строки слайсера."""
     try:
         return str(int(float(value)))
     except (TypeError, ValueError):
@@ -411,7 +524,7 @@ def _extruder_number(key, value):
 
 
 def _number_list(key, value, cast):
-    """A list setting such as infill_angles is a string in the slicer, as "[0, 90]"."""
+    """Список чисел из строки настройки."""
     try:
         items = json.loads(value) if isinstance(value, str) else value
         if not isinstance(items, list):
@@ -421,8 +534,10 @@ def _number_list(key, value, cast):
         raise ToolError("%s must be a list of numbers, as [0, 90]" % key)
 
 
-@tool("Discard every print setting changed by the user or by earlier tool calls, so the profile and material values apply again. "
-      "The printer, material, quality profile, print mode and printer (machine_*) settings are kept.")
+@tool(
+    "Discard every print setting changed by the user or by earlier tool calls, so the profile and material values apply again. "
+    "The printer, material, quality profile, print mode and printer (machine_*) settings are kept."
+)
 def reset_settings():
     stack = _stack()
     containers = [stack.userChanges] + [e.userChanges for e in stack.extruders.values()]
@@ -434,12 +549,21 @@ def reset_settings():
             container.removeInstance(key)
             removed.add(key)
     SESSION.record("settings", len(removed), 0, "reset to the profile values")
-    return "reset %d setting(s): %s" % (len(removed), ", ".join(sorted(removed)) or "nothing to reset")
+    return "reset %d setting(s): %s" % (
+        len(removed),
+        ", ".join(sorted(removed)) or "nothing to reset",
+    )
 
 
-@tool("Change one print setting (global or extruder level). Values outside the allowed range are clamped. Printer (machine_*) settings and the print mode are not available here.",
-      {"key": P("string", "Setting key from search_settings"), "value": P(["number", "string", "boolean"], "New value"),
-       "reason": P("string", "Why, one sentence in the user's language")}, ["key", "value", "reason"])
+@tool(
+    "Change one print setting (global or extruder level). Values outside the allowed range are clamped. Printer (machine_*) settings and the print mode are not available here.",
+    {
+        "key": P("string", "Setting key from search_settings"),
+        "value": P(["number", "string", "boolean"], "New value"),
+        "reason": P("string", "Why, one sentence in the user's language"),
+    },
+    ["key", "value", "reason"],
+)
 def set_setting(key, value, reason=""):
     if key.startswith("machine_") or key == "printing_mode":
         raise ToolError("%s cannot be changed here" % key)
@@ -458,7 +582,8 @@ def set_setting(key, value, reason=""):
     return "%s: %s -> %s" % (key, old, new)
 
 
-# ---------------------------------------------------------------- models
+# модели
+
 
 def _wait_for_models(count, timeout=30):
     end = time.time() + timeout
@@ -469,8 +594,12 @@ def _wait_for_models(count, timeout=30):
     return False
 
 
-@tool("Load an STL, OBJ or 3MF file from a local path onto the build plate.",
-      {"path": P("string", "Absolute path to the model file")}, ["path"], on_main=False)
+@tool(
+    "Load an STL, OBJ or 3MF file from a local path onto the build plate.",
+    {"path": P("string", "Absolute path to the model file")},
+    ["path"],
+    on_main=False,
+)
 def load_model(path):
     if not os.path.isfile(path):
         raise ToolError("File not found: %s" % path)
@@ -482,13 +611,28 @@ def load_model(path):
     return run_on_main(lambda: [_model_row(i, n) for i, n in enumerate(_models())])
 
 
-SUMMARY_FIELDS = ["machineName", "machineType", "variantType", "qualityName", "qualityType", "numUserSettings",
-                  "numSettingsOverridenByQualityChanges", "materialLabels", "activeMode", "machineConflict",
-                  "qualityChangesConflict", "materialConflict"]
+SUMMARY_FIELDS = [
+    "machineName",
+    "machineType",
+    "variantType",
+    "qualityName",
+    "qualityType",
+    "numUserSettings",
+    "numSettingsOverridenByQualityChanges",
+    "materialLabels",
+    "activeMode",
+    "machineConflict",
+    "qualityChangesConflict",
+    "materialConflict",
+]
 
 
-@tool("Open a .3mf file the way the user does: a slicer project (model plus printer, material and settings) is opened as a project and the data of the slicer's Summary dialog is returned; anything else is loaded as a model only. Reports which way it opened.",
-      {"path": P("string", "Absolute path to the .3mf file")}, ["path"], on_main=False)
+@tool(
+    "Open a .3mf file the way the user does: a slicer project (model plus printer, material and settings) is opened as a project and the data of the slicer's Summary dialog is returned; anything else is loaded as a model only. Reports which way it opened.",
+    {"path": P("string", "Absolute path to the .3mf file")},
+    ["path"],
+    on_main=False,
+)
 def open_project(path):
     if not os.path.isfile(path):
         raise ToolError("File not found: %s" % path)
@@ -498,27 +642,45 @@ def open_project(path):
     summary = None
     if reader is not None:
         run_on_main(lambda: handler._readLocalFile(QUrl.fromLocalFile(path)))
-        dialog = reader._dialog  # the slicer's own "Open Project / Summary" dialog; the reader blocks on it
+        dialog = reader._dialog  # диалог чтения
         end = time.time() + 20
         while time.time() < end and not dialog._visible:
             time.sleep(0.2)
         if dialog._visible:
             summary = dict((name, getattr(dialog, name)) for name in SUMMARY_FIELDS)
-            run_on_main(dialog.onOkButtonClicked)  # the user's "Open" button
+            run_on_main(dialog.onOkButtonClicked)  # кнопка Open
     opened_as = "project" if summary is not None else "model_only"
     if summary is None:
-        run_on_main(lambda: (_app().deleteAll(), _app().readLocalFile(QUrl.fromLocalFile(path), skip_project_file_check=True)))
+        run_on_main(
+            lambda: (
+                _app().deleteAll(),
+                _app().readLocalFile(QUrl.fromLocalFile(path), skip_project_file_check=True),
+            )
+        )
     if not _wait_for_models(1, timeout=60):
-        raise ToolError("Nothing was loaded from %s (opened_as=%s). The slicer could not read it; see stderr.log." % (path, opened_as))
+        raise ToolError(
+            "Nothing was loaded from %s (opened_as=%s). The slicer could not read it; see stderr.log."
+            % (path, opened_as)
+        )
     time.sleep(1)
     state = run_on_main(get_state)
-    return {"opened_as": opened_as, "summary": summary, "printer": state["printer"], "print_mode": state["print_mode"],
-            "material_id": state["material_id"], "quality": state["quality"], "settings": state["settings"],
-            "models": state["models"]}
+    return {
+        "opened_as": opened_as,
+        "summary": summary,
+        "printer": state["printer"],
+        "print_mode": state["print_mode"],
+        "material_id": state["material_id"],
+        "quality": state["quality"],
+        "settings": state["settings"],
+        "models": state["models"],
+    }
 
 
-@tool("Remove a printer from the slicer by its id from list_printers. The active printer cannot be removed.",
-      {"printer_id": P("string", "Printer id")}, ["printer_id"])
+@tool(
+    "Remove a printer from the slicer by its id from list_printers. The active printer cannot be removed.",
+    {"printer_id": P("string", "Printer id")},
+    ["printer_id"],
+)
 def remove_printer(printer_id):
     active = _app().getGlobalContainerStack()
     if active is not None and active.getId() == printer_id:
@@ -532,18 +694,33 @@ def list_models():
     return [_model_row(i, node) for i, node in enumerate(_models())]
 
 
-@tool("Move a model on the plate: x and z are millimetres from the plate center.",
-      {"model_index": P("integer", "Index from list_models", default=0), "x": P("number", "X in mm"), "z": P("number", "Z in mm")},
-      ["x", "z"])
+@tool(
+    "Move a model on the plate: x and z are millimetres from the plate center.",
+    {
+        "model_index": P("integer", "Index from list_models", default=0),
+        "x": P("number", "X in mm"),
+        "z": P("number", "Z in mm"),
+    },
+    ["x", "z"],
+)
 def move_model(x, z, model_index=0):
     node = _model(model_index)
-    TranslateOperation(node, Vector(float(x), node.getWorldPosition().y, float(z)), set_position=True).push()
+    TranslateOperation(
+        node, Vector(float(x), node.getWorldPosition().y, float(z)), set_position=True
+    ).push()
     return "moved to x=%s z=%s" % (x, z)
 
 
-@tool("Rotate a model. The scene is Y-up: rotate about x or z to lay a part on another face, about y to turn it on the plate.",
-      {"model_index": P("integer", "Index from list_models", default=0), "axis": P("string", "Rotation axis", enum=["x", "y", "z"]),
-       "degrees": P("number", "Angle in degrees"), "reason": P("string", "Why, one sentence")}, ["axis", "degrees", "reason"])
+@tool(
+    "Rotate a model. The scene is Y-up: rotate about x or z to lay a part on another face, about y to turn it on the plate.",
+    {
+        "model_index": P("integer", "Index from list_models", default=0),
+        "axis": P("string", "Rotation axis", enum=["x", "y", "z"]),
+        "degrees": P("number", "Angle in degrees"),
+        "reason": P("string", "Why, one sentence"),
+    },
+    ["axis", "degrees", "reason"],
+)
 def rotate_model(axis, degrees, reason="", model_index=0):
     node = _model(model_index)
     unit = {"x": Vector.Unit_X, "y": Vector.Unit_Y, "z": Vector.Unit_Z}[axis]
@@ -552,21 +729,32 @@ def rotate_model(axis, degrees, reason="", model_index=0):
     return "rotated %s by %s degrees" % (node.getName(), degrees)
 
 
-@tool("Scale a model uniformly by a factor (1.0 keeps the size).",
-      {"model_index": P("integer", "Index from list_models", default=0), "factor": P("number", "Scale factor"),
-       "reason": P("string", "Why, one sentence")}, ["factor", "reason"])
+@tool(
+    "Scale a model uniformly by a factor (1.0 keeps the size).",
+    {
+        "model_index": P("integer", "Index from list_models", default=0),
+        "factor": P("number", "Scale factor"),
+        "reason": P("string", "Why, one sentence"),
+    },
+    ["factor", "reason"],
+)
 def scale_model(factor, reason="", model_index=0):
     node = _model(model_index)
     factor = float(factor)
     if factor <= 0.01:
         raise ToolError("factor must be greater than 0.01")
     current = node.getScale()
-    ScaleOperation(node, Vector(current.x * factor, current.y * factor, current.z * factor), set_scale=True).push()
+    ScaleOperation(
+        node, Vector(current.x * factor, current.y * factor, current.z * factor), set_scale=True
+    ).push()
     SESSION.record("scale", "1.0", str(factor), reason)
     return "scaled %s by %s" % (node.getName(), factor)
 
 
-@tool("Remove a model from the build plate.", {"model_index": P("integer", "Index from list_models", default=0)})
+@tool(
+    "Remove a model from the build plate.",
+    {"model_index": P("integer", "Index from list_models", default=0)},
+)
 def delete_model(model_index=0):
     node = _model(model_index)
     name = node.getName()
@@ -590,6 +778,7 @@ def _triangles(node):
 
 def _orientation_rows(node):
     import numpy
+
     triangles = _triangles(node).astype(numpy.float64)
     cross = numpy.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
     areas = numpy.linalg.norm(cross, axis=1) / 2.0
@@ -605,7 +794,9 @@ def _orientation_rows(node):
         face_max = heights.max(axis=1) - base
         facing_down = normals.dot(down)
         contact = float(areas[(facing_down > 0.98) & (face_max < 0.3)].sum())
-        overhang = float(areas[(facing_down > math.cos(math.radians(45))) & (face_min >= 0.3)].sum())
+        overhang = float(
+            areas[(facing_down > math.cos(math.radians(45))) & (face_min >= 0.3)].sum()
+        )
         projected = float(0.5 * (areas * numpy.abs(normals.dot(-down))).sum())
         axes = [a for a in range(3) if abs(down[a]) < 0.5]
         spans = [float(triangles[:, :, a].max() - triangles[:, :, a].min()) for a in axes]
@@ -614,24 +805,45 @@ def _orientation_rows(node):
         r_base = min(1.0, contact / projected) if projected else 0.0
         r_slender = height / max(min(spans), 1e-6)
         r_height = height / extent
-        score = 0.58 * r_support + 0.16 * min(1.0, r_slender / 10.0) + 0.12 * (1.0 - r_base) + 0.14 * r_height
-        rows.append({"orientation": name, "height_mm": round(height, 2), "contact_area_mm2": round(contact, 1),
-                     "overhang_area_mm2": round(overhang, 1), "support_share": round(r_support, 3),
-                     "score": round(score, 3)})
+        score = (
+            0.58 * r_support
+            + 0.16 * min(1.0, r_slender / 10.0)
+            + 0.12 * (1.0 - r_base)
+            + 0.14 * r_height
+        )
+        rows.append(
+            {
+                "orientation": name,
+                "height_mm": round(height, 2),
+                "contact_area_mm2": round(contact, 1),
+                "overhang_area_mm2": round(overhang, 1),
+                "support_share": round(r_support, 3),
+                "score": round(score, 3),
+            }
+        )
     rows.sort(key=lambda r: r["score"])
     return rows
 
 
-@tool("Compare the six face-down orientations of a model by overhang area, plate contact and height (lower score is better, heuristic after Du et al. 2026).",
-      {"model_index": P("integer", "Index from list_models", default=0)})
+@tool(
+    "Compare the six face-down orientations of a model by overhang area, plate contact and height (lower score is better, heuristic after Du et al. 2026).",
+    {"model_index": P("integer", "Index from list_models", default=0)},
+)
 def analyze_orientation(model_index=0):
     return _orientation_rows(_model(model_index))
 
 
-@tool("Rotate a model so that the chosen face lies on the plate. Use 'best' for the lowest score from analyze_orientation.",
-      {"model_index": P("integer", "Index from list_models", default=0),
-       "orientation": P("string", "Orientation name or 'best'", enum=["best"] + sorted(ORIENTATIONS)),
-       "reason": P("string", "Why, one sentence")}, ["orientation", "reason"])
+@tool(
+    "Rotate a model so that the chosen face lies on the plate. Use 'best' for the lowest score from analyze_orientation.",
+    {
+        "model_index": P("integer", "Index from list_models", default=0),
+        "orientation": P(
+            "string", "Orientation name or 'best'", enum=["best"] + sorted(ORIENTATIONS)
+        ),
+        "reason": P("string", "Why, one sentence"),
+    },
+    ["orientation", "reason"],
+)
 def orient_model(orientation, reason="", model_index=0):
     node = _model(model_index)
     if orientation == "best":
@@ -646,10 +858,11 @@ def orient_model(orientation, reason="", model_index=0):
     return "orientation: %s" % orientation
 
 
-# ---------------------------------------------------------------- slicing
+# слайсинг
+
 
 def _stop_slicing():
-    """Clearing the scene while the engine still delivers G-code crashes the slicer (KeyError in CuraEngineBackend), so stop it first."""
+    """Останавливает слайсинг перед очисткой сцены."""
     _app().getBackend().stopSlicing()
     SESSION.slice_state = None
 
@@ -663,7 +876,7 @@ def _on_progress(progress):
 
 
 def _hook_backend():
-    """Follow the state of the active slicing backend; it changes with the print mode."""
+    """Следит за активным бэкендом слайсинга."""
     backend = _app().getBackend()
     if backend is not SESSION.backend:
         if SESSION.backend is not None:
@@ -685,7 +898,7 @@ def _start_slice():
     SESSION.restarts = 0
     SESSION.last_start = time.time()
     if SESSION.slice_state != BackendState.Processing:
-        # restarting the engine while the slicer's own automatic slicing is running crashes the slicer
+        # рестарт движка падает
         SESSION.slice_state = None
         SESSION.slice_progress = 0.0
         backend.forceSlice()
@@ -703,15 +916,12 @@ def _stack_check_pending():
 
 
 def _left(deadline, cap=60):
-    """Seconds a call to the main thread may take before the deadline of the slicing."""
+    """Секунд до дедлайна вызова."""
     return max(1, min(cap, deadline - time.time()))
 
 
 def _wait_for_stack_check(deadline, quiet_polls=3):
-    """Wait until the slicer has finished checking the settings after the last change, at most 60 s.
-    When the check ends the backend clears the G-code of a slicing in progress (needsSlicing ->
-    _clearLayerData), and the next message of the engine fails with KeyError: 0 and takes the slicer down.
-    So it is waited for before every start of the engine, the first one and each restart."""
+    """Ждёт проверки стека настроек."""
     end = min(deadline, time.time() + 60)
     quiet = 0
     while time.time() < end:
@@ -727,12 +937,16 @@ def _gcode():
 
 
 def _poll_slice():
-    """Slicing is aborted whenever the scene changes, so it asks for a restart when it falls back to NotStarted."""
+    """Опрашивает слайсинг и перезапускает его."""
     if SESSION.slice_state == BackendState.Error:
         return "error"
     if SESSION.slice_state == BackendState.Done and _gcode():
         return "done"
-    if SESSION.slice_state == BackendState.NotStarted and time.time() - SESSION.last_start > 4 and SESSION.restarts < 5:
+    if (
+        SESSION.slice_state == BackendState.NotStarted
+        and time.time() - SESSION.last_start > 4
+        and SESSION.restarts < 5
+    ):
         return "restart"
     return "waiting"
 
@@ -740,25 +954,44 @@ def _poll_slice():
 def _print_info():
     info = _app().getPrintInformation()
     duration = info.currentPrintTime
-    seconds = int(duration.days) * 86400 + int(duration.hours) * 3600 + int(duration.minutes) * 60 + int(duration.seconds)
+    seconds = (
+        int(duration.days) * 86400
+        + int(duration.hours) * 3600
+        + int(duration.minutes) * 60
+        + int(duration.seconds)
+    )
     weights = [float(w) for w in info.materialWeights]
     lengths = [float(length) for length in info.materialLengths]
-    return {"print_time_seconds": seconds, "print_time": duration.getDisplayString(),
-            "material_grams": round(sum(weights), 2), "material_meters": round(sum(lengths), 2)}
+    return {
+        "print_time_seconds": seconds,
+        "print_time": duration.getDisplayString(),
+        "material_grams": round(sum(weights), 2),
+        "material_meters": round(sum(lengths), 2),
+    }
 
 
 @tool("Current slicing state, progress (0..1) and, once finished, print time and material use.")
 def get_slicing_status():
-    names = {BackendState.NotStarted: "not_started", BackendState.Processing: "processing",
-             BackendState.Done: "done", BackendState.Error: "error", BackendState.Disabled: "disabled"}
-    status = {"state": names.get(SESSION.slice_state, "not_started"), "progress": round(SESSION.slice_progress, 3)}
+    names = {
+        BackendState.NotStarted: "not_started",
+        BackendState.Processing: "processing",
+        BackendState.Done: "done",
+        BackendState.Error: "error",
+        BackendState.Disabled: "disabled",
+    }
+    status = {
+        "state": names.get(SESSION.slice_state, "not_started"),
+        "progress": round(SESSION.slice_progress, 3),
+    }
     if SESSION.slice_state == BackendState.Done:
         status.update(_print_info())
     return status
 
 
-@tool("Slice the scene with the current settings and wait for the result. Returns print time and material use. Takes up to a few minutes; 5D modes need an activated STE Slicer license.",
-      on_main=False)
+@tool(
+    "Slice the scene with the current settings and wait for the result. Returns print time and material use. Takes up to a few minutes; 5D modes need an activated STE Slicer license.",
+    on_main=False,
+)
 def slice_model():
     deadline = time.time() + SLICE_SECONDS
     _wait_for_stack_check(deadline)
@@ -770,12 +1003,16 @@ def slice_model():
             time.sleep(1.5)
             return run_on_main(get_slicing_status, _left(deadline, 10))
         if state == "error":
-            raise ToolError("Slicing failed. Check the model, the printer profile and the STE Slicer license.")
+            raise ToolError(
+                "Slicing failed. Check the model, the printer profile and the STE Slicer license."
+            )
         if state == "restart":
             _wait_for_stack_check(deadline)
             run_on_main(_restart_slice, _left(deadline))
         if SESSION.slice_state is None and time.time() - begin > 25:
-            raise ToolError("Slicing did not start. In 5D modes check the STE Slicer license window.")
+            raise ToolError(
+                "Slicing did not start. In 5D modes check the STE Slicer license window."
+            )
         time.sleep(1)
     raise ToolError("Slicing timed out")
 
@@ -790,29 +1027,37 @@ def _result_path(name, path):
     return os.path.join(settings.data_dir("results", base), name)
 
 
-@tool("Save the G-code of the last slicing the way the slicer's own export does, with the print mode and the changed "
-      "settings in it. The default path is Documents/STE_AIAssistant/results/<model>/result.gcode.",
-      {"path": P("string", "Output .gcode path (optional)")}, on_main=False)
+@tool(
+    "Save the G-code of the last slicing the way the slicer's own export does, with the print mode and the changed "
+    "settings in it. The default path is Documents/STE_AIAssistant/results/<model>/result.gcode.",
+    {"path": P("string", "Output .gcode path (optional)")},
+    on_main=False,
+)
 def export_gcode(path=None):
     if not run_on_main(_gcode):
         raise ToolError("There is no G-code. Run slice_model first.")
     path = run_on_main(lambda: _result_path("result.gcode", path))
-    # like the 3MF writer below, it hops to the Qt thread for its preview image, so it must not be called from it
+    # не из Qt
     writer = run_on_main(lambda: _app().getMeshFileHandler().getWriter("GCodeWriter"))
     if writer is None:
         raise ToolError("G-code writer not found")
     with open(path, "w", encoding="utf-8") as stream:
         written = writer.write(stream, None)
     if not written:
-        raise ToolError("The G-code was not saved: %s" % (writer.getInformation() or "the writer refused"))
+        raise ToolError(
+            "The G-code was not saved: %s" % (writer.getInformation() or "the writer refused")
+        )
     return {"path": path, "bytes": os.path.getsize(path)}
 
 
-@tool("Save the scene with all settings as a .3mf project. The default path is Documents/STE_AIAssistant/results/<model>/project.3mf.",
-      {"path": P("string", "Output .3mf path (optional)")}, on_main=False)
+@tool(
+    "Save the scene with all settings as a .3mf project. The default path is Documents/STE_AIAssistant/results/<model>/project.3mf.",
+    {"path": P("string", "Output .3mf path (optional)")},
+    on_main=False,
+)
 def save_project(path=None):
     path = run_on_main(lambda: _result_path("project.3mf", path))
-    # the 3MF workspace writer hops to the Qt thread by itself, so it must not be called from it
+    # не из Qt
     writer = run_on_main(lambda: _app().getWorkspaceFileHandler().getWriter("3MFWriter"))
     if writer is None:
         raise ToolError("3MF workspace writer not found")
@@ -820,18 +1065,22 @@ def save_project(path=None):
     with open(path, "wb") as stream:
         written = writer.write(stream, [root])
     if not written:
-        raise ToolError("The project was not saved: %s" % (writer.getInformation() or "the writer refused"))
+        raise ToolError(
+            "The project was not saved: %s" % (writer.getInformation() or "the writer refused")
+        )
     return {"path": path, "bytes": os.path.getsize(path)}
 
 
 def call(name, arguments):
-    """Run a tool and return its JSON-serialisable result; raises ToolError for expected failures."""
+    """Выполняет инструмент и возвращает JSON."""
     if name not in TOOLS:
         raise ToolError("Unknown tool: %s" % name)
     entry = TOOLS[name]
     arguments = arguments or {}
     if not _CALLS.acquire(timeout=CALL_WAIT_SECONDS):
-        raise ToolError("The slicer is busy with another call, for example a slicing. Try again later.")
+        raise ToolError(
+            "The slicer is busy with another call, for example a slicing. Try again later."
+        )
     try:
         if entry.on_main:
             result = run_on_main(lambda: (_hook_backend(), entry.handler(**arguments))[1])
@@ -846,7 +1095,7 @@ def call(name, arguments):
 
 
 def state():
-    """Printer and slicing state for the chat page, without waiting for a tool call that is running."""
+    """Состояние принтера и слайсинга."""
     if not _STATE.acquire(False):
         return dict(_LAST_STATE)
     try:

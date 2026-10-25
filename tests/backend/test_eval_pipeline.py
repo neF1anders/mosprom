@@ -1,6 +1,3 @@
-"""The script that runs cases through the API of a running stand: against its own stand-in of the
-API, and the organizer examples it picks up."""
-
 import pytest
 
 from scripts import eval_pipeline
@@ -9,13 +6,13 @@ pytestmark = pytest.mark.unit
 
 
 def test_the_selftest_runs_a_case_through_the_stand_in_api(monkeypatch):
-    # The stand-in moves on with every poll, so the pauses between polls only cost time.
+    # паузы стоят времени
     monkeypatch.setattr(eval_pipeline.time, "sleep", lambda seconds: None)
     assert eval_pipeline.selftest() == 0
 
 
 def test_organizer_folders_with_reference_facts_become_cases(tmp_path):
-    """Regression: the reference was looked up in pipeline/tests/eval, so no case was found."""
+    """Папки организаторов становятся кейсами."""
     folder = tmp_path / "1. Шестерня"
     folder.mkdir()
     (folder / "gear.stl").write_bytes(b"solid gear\nendsolid gear\n")

@@ -25,7 +25,7 @@ export const designStates = [
 ] as const;
 export type DesignState = (typeof designStates)[number];
 export async function designFixture(page: Page, state: DesignState) {
-  // The start screen of a release without a configured model.
+  // стартовый экран
   const unconfigured = state === "model";
   if (unconfigured) state = "start";
   const card: Card = {
@@ -246,7 +246,7 @@ export async function designFixture(page: Page, state: DesignState) {
         data: { iteration: 1 },
       },
     );
-  // The interpreter at work, as on Figma screens 03 and 12; times count from the first event.
+  // работа интерпретатора
   const call = "run1:interpreter:1";
   if (["analysis", "offline", "revision", "queued"].includes(state))
     events.push(

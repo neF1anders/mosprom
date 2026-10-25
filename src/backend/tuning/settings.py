@@ -1,10 +1,3 @@
-"""Settings that differ from the slicer.
-
-Every axis starts at the value the slicer would use anyway (quality profile, material file,
-definition) and moves only when a rule or a check constraint asks for it; only such differences
-become settings. Keys the selection does not model are sent as a constraint demands them.
-"""
-
 from __future__ import annotations
 
 import math
@@ -50,7 +43,7 @@ def choose_settings(
     for axis_id in sorted(axes):
         axis, baseline = axes[axis_id], axes[axis_id].spec.baseline
         if isinstance(baseline, QualityLayer):
-            continue  # the layer comes with the quality profile
+            continue  # слой с профилем
         found = _axis_setting(plan, axis, baseline, mode, quality, material)
         if found is not None:
             settings[axis.key] = found
@@ -108,7 +101,7 @@ def _baseline(
 def _enough_layers(
     plan: Plan, axis: Axis, value: float, rule_id: str | None, layer_height: float
 ) -> tuple[float, str | None]:
-    """A thickness kept at the minimal number of layers, raised to the next step if needed."""
+    """Толщина с минимумом слоёв."""
     minimum = plan.min_layers.get(axis.id)
     if minimum is None:
         return value, rule_id
@@ -119,7 +112,7 @@ def _enough_layers(
 
 
 def _decisive_rules(entry: AxisPlan, rule_id: str) -> list[str]:
-    """The rule that set the value first, then the other rules that moved the same axis."""
+    """Правила, определившие значение оси."""
     return [rule_id, *(rule for rule in entry.moving_rule_ids if rule != rule_id)]
 
 
@@ -130,7 +123,7 @@ def _discrete_setting(
     quality: QualityChoice,
     chosen: Mapping[str, Any],
 ) -> SettingChoice | Unmet | None:
-    """The slicer value unless a rule or a constraint picks another one."""
+    """Дискретная настройка слайсера или правила."""
     baseline = mode.value(item.key, quality.profile, chosen)
     picked = plan.discrete.get(item.id)
     value, rule_id = (picked.value, picked.rule_id) if picked else (baseline, None)

@@ -1,6 +1,3 @@
-"""Reads the issued STE Slicer build and the shared requirement codes from disk, once per
-process."""
-
 from __future__ import annotations
 
 import configparser
@@ -49,7 +46,7 @@ def _json(path: Path) -> dict[str, Any]:
 
 
 def _digest(root: Path) -> str:
-    """Identifies the build a result was computed from."""
+    """Отпечаток сборки слайсера."""
     digest = hashlib.sha256()
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
         digest.update(path.relative_to(root).as_posix().encode())
@@ -58,7 +55,7 @@ def _digest(root: Path) -> str:
 
 
 def _chain(definitions: Path, printer: str) -> list[dict[str, Any]]:
-    """The printer's definition and its ancestors, most specific first."""
+    """Принтер и его предки."""
     chain: list[dict[str, Any]] = []
     name: str | None = printer
     while name and all(d.get("id") != name for d in chain):
@@ -69,7 +66,7 @@ def _chain(definitions: Path, printer: str) -> list[dict[str, Any]]:
 
 
 def _flatten(node: dict[str, Any], out: dict[str, dict[str, Any]]) -> None:
-    """Settings without their category nesting; children follow their parents."""
+    """Настройки без вложенных категорий."""
     for key, value in node.items():
         if value.get("type") != "category":
             out[key] = {k: v for k, v in value.items() if k != "children"}
@@ -101,7 +98,7 @@ def _trains(definition: dict[str, Any]) -> bool:
 
 
 def _default(value: Any) -> Any:
-    """An extruder's own constant ``value`` wins over its ``default_value``, as in Cura."""
+    """Значение экструдера важнее умолчания."""
     if not isinstance(value, dict):
         return value
     constant = value.get("value")

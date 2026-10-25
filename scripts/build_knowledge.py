@@ -1,5 +1,3 @@
-"""KB-001 from the issued STE Slicer build kept in knowledge/ste_5.2.4. No network access."""
-
 import hashlib
 import json
 from pathlib import Path

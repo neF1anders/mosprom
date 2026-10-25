@@ -1,15 +1,3 @@
-"""Stand-in for STE Slicer with the AI Assistant plugin, for a Mac or a test without the slicer.
-
-It answers the plugin's MCP calls the way ``src/plugin/AIAssistant/agent`` does: the same port
-and token in ``server.json``, the same Host and token checks and the tools slicing uses, with
-``reset_settings`` unless ``--no-reset-tool`` asks for a plugin without it. Nothing is sliced: the
-G-code is a few layers around the model's footprint with the layer height and temperatures that
-were set, headed by the print mode and closed by the changed settings in ``;SETTING_3`` lines as
-the slicer's G-code writer saves them; the project is a 3MF with a note that it is a stand-in.
-
-    uv run python scripts/fake_ste_slicer.py [--folder ~/Documents/STE_AIAssistant]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -24,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-# Layer heights of the quality profiles in the issued build (quality_type -> mm).
+# высоты слоёв профилей
 LAYER_HEIGHTS = {
     "high": 0.06,
     "normal": 0.1,
@@ -34,7 +22,7 @@ LAYER_HEIGHTS = {
     "coarse": 0.4,
     "extra coarse": 0.6,
 }
-# The classic bed of the Hybrid 530 V5.2.4 in machine coordinates, its centre as the plate's.
+# стол Hybrid 530
 BED = (351.0, 300.3, 300.0)
 CENTRE = (175.5, 150.15)
 TOOLS = [
@@ -80,12 +68,12 @@ class FakeSlicer:
         self.sliced = False
         self._server: ThreadingHTTPServer | None = None
 
-    # -------------------------------------------------------------- server
+    # сервер
 
     def start(self) -> int:
         self._server = ThreadingHTTPServer((self.bind, 0), _handler(self))
         threading.Thread(target=self._server.serve_forever, daemon=True).start()
-        # A worker in another container writes the models here under its own user.
+        # запись чужим пользователем
         exchange = self.folder / "mosprom"
         exchange.mkdir(parents=True, exist_ok=True)
         exchange.chmod(0o777)
@@ -128,7 +116,7 @@ class FakeSlicer:
         text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
         return {"content": [{"type": "text", "text": text}], "isError": False}
 
-    # -------------------------------------------------------------- tools
+    # инструменты
 
     def tool_get_state(self) -> dict[str, Any]:
         return {"printer": self.printer, "print_mode": self.mode, "quality": self.quality}
@@ -185,7 +173,7 @@ class FakeSlicer:
         model = self._model(model_index)
         x, depth, height = model["size"]
         if axis in ("x", "z") and round(degrees / 90) % 2:
-            # A quarter turn about a horizontal axis swaps the height with a side.
+            # четверть оборота
             model["size"] = (height, depth, x) if axis == "z" else (x, height, depth)
         return "rotated %s by %s degrees" % (model["name"], degrees)
 
@@ -233,7 +221,7 @@ class FakeSlicer:
             archive.writestr("SteSlicer/stand_in.json", json.dumps(state, ensure_ascii=False))
         return {"path": str(target), "bytes": target.stat().st_size}
 
-    # -------------------------------------------------------------- helpers
+    # помощники
 
     def _model(self, index: int) -> dict[str, Any]:
         if not 0 <= index < len(self.models):
@@ -246,7 +234,7 @@ class FakeSlicer:
     def _layers(self) -> list[float]:
         height = max(m["size"][2] * m["scale"] for m in self.models)
         step = self._layer_height()
-        # A handful of layers is enough for the check; the count follows the height.
+        # слоёв хватает
         count = max(1, min(50, math.ceil(height / step)))
         return [round(step * (i + 1), 3) for i in range(count)]
 
@@ -264,7 +252,12 @@ class FakeSlicer:
         ]
         if self.mode == "classic":
             lines += ["M140 S%d" % bed, "M190 S%d" % bed]
-        lines += ["M104 S%d" % nozzle, "M109 S%d" % nozzle, "G92 E0", ";LAYER_COUNT:%d" % len(layers)]
+        lines += [
+            "M104 S%d" % nozzle,
+            "M109 S%d" % nozzle,
+            "G92 E0",
+            ";LAYER_COUNT:%d" % len(layers),
+        ]
         extrusion = 0.0
         support = self.settings.get("support_enable") is True
         for number, z in enumerate(layers):
@@ -274,13 +267,15 @@ class FakeSlicer:
                     extrusion += 0.05
                     lines.append("G1 X%.3f Y%.3f Z%.3f E%.5f" % (x, y, z, extrusion))
             if support:
-                lines += [";TYPE:SUPPORT", "G1 X%.3f Y%.3f E%.5f" % (CENTRE[0], CENTRE[1], extrusion)]
+                lines += [
+                    ";TYPE:SUPPORT",
+                    "G1 X%.3f Y%.3f E%.5f" % (CENTRE[0], CENTRE[1], extrusion),
+                ]
         lines += ["M104 S0", "M140 S0", ";End of Gcode", *self._settings_lines()]
         return "\n".join(lines) + "\n"
 
     def _settings_lines(self) -> list[str]:
-        """The changed settings as GCodeWriter of the slicer appends them: a profile in JSON with
-        its backslashes escaped, cut into comments of 80 characters."""
+        """Строки изменённых настроек слайсера."""
         if not self.settings:
             return []
         values = "".join(f"{key} = {value}\n" for key, value in self.settings.items())
@@ -296,7 +291,7 @@ class FakeSlicer:
 
 
 def _square(model: dict[str, Any]) -> list[tuple[float, float]]:
-    """The model's footprint in machine coordinates: the scene's z is minus the machine's Y."""
+    """Основание модели в координатах станка."""
     width, depth = model["size"][0] * model["scale"], model["size"][1] * model["scale"]
     x0 = CENTRE[0] + model["offset"][0]
     y0 = CENTRE[1] - model["offset"][1]
@@ -309,7 +304,7 @@ def _square(model: dict[str, Any]) -> list[tuple[float, float]]:
 
 
 def _stl_size(path: Path) -> tuple[float, float, float]:
-    """Size of an STL along x, y and z, binary or ASCII."""
+    """Размер STL по осям."""
     data = path.read_bytes()
     points: list[tuple[float, ...]] = []
     count = struct.unpack_from("<I", data, 80)[0] if len(data) >= 84 else 0
@@ -356,7 +351,7 @@ def _handler(slicer: FakeSlicer) -> type[BaseHTTPRequestHandler]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description="Заглушка STE Slicer с плагином AI Assistant.")
     default = Path.home() / "Documents" / "STE_AIAssistant"
     parser.add_argument("--folder", type=Path, default=default, help="folder of server.json")
     parser.add_argument(

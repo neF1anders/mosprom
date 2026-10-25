@@ -49,7 +49,7 @@ class UploadService:
                     "attachment_limit",
                     413,
                 )
-            # One model per job: a newer unsent STL replaces the unsent one before it.
+            # одна модель
             for draft in existing:
                 if kind == "stl" and draft.kind == "stl" and draft.draft and draft.active:
                     draft.active, draft.draft = False, False
@@ -76,7 +76,7 @@ class UploadService:
                 raise AppError("Вложение не найдено", "not_found", 404)
             if attachment.active:
                 attachment.active = False
-                # An unsent upload simply disappears; removing a sent file waits for the next send.
+                # неотправленное просто исчезает
                 attachment.draft = not attachment.draft
                 await uow.attachments.save(attachment)
             await attached(uow, job, "Файл убран из задания", any(a.draft for a in attachments))

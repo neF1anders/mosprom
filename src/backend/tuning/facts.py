@@ -1,10 +1,3 @@
-"""Flat facts that rule conditions are evaluated against.
-
-A measure the STL report does not give is not a fact, so the rules that read it do not fire:
-without ``overhangs`` in the report that is ``geometry.overhang_area_fraction`` of the support
-and 5D rules.
-"""
-
 from __future__ import annotations
 
 from .intake import TuningInput
@@ -51,7 +44,7 @@ def build_facts(request: TuningInput, material: Candidate) -> dict[str, FactValu
 def with_mode(
     facts: dict[str, FactValue], mode: str, overhang_fraction: float | None
 ) -> dict[str, FactValue]:
-    """The facts once the mode is chosen: the mode, and the overhangs of the pose it prints in."""
+    """Факты после выбора режима."""
     found = {key: value for key, value in facts.items() if key != OVERHANG_FACT}
     found[MODE_FACT] = mode
     if overhang_fraction is not None:

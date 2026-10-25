@@ -19,11 +19,11 @@ class ControlService:
         async def apply(uow: UnitOfWork, job: Job):
             if action == "retry":
                 await name_from_files(uow, job)
-                # Stopped or failed work resumes; files sent without a message go to the gate.
+                # возобновление работы
                 resume = job.status in {Status.STOPPED, Status.FAILED}
                 await changed(uow, job, "Продолжаем обработку", start=resume)
                 return job.model_dump(mode="json")
-            # Running work stops at its next safe point; anything else stops at once.
+            # остановка работы
             target = Status.STOPPING if job.status == Status.RUNNING else Status.STOPPED
             if job.status != Status.STOPPING:
                 job.status = transition(job.status, target)
@@ -43,7 +43,7 @@ class ControlService:
 
 
 async def name_from_files(uow: UnitOfWork, job: Job) -> None:
-    """Files sent without a message still name the chat at once; a document beats the STL."""
+    """Имя чата по файлам."""
     if job.title_source != "auto" or job.title != "Новое задание":
         return
     files = sorted(

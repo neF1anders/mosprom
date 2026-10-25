@@ -1,5 +1,3 @@
-"""One disposable process per untrusted document/mesh. JSON checkpoints survive timeout."""
-
 from __future__ import annotations
 
 import json
@@ -52,7 +50,7 @@ def main() -> None:
         if sys.platform == "linux":
             resource.setrlimit(resource.RLIMIT_AS, (4 * 1024**3, 4 * 1024**3))
     except ImportError:
-        pass  # Windows container limits are enforced at deployment boundary.
+        pass  # лимиты задаёт развёртывание
     mode, raw_path, argument, raw_output = sys.argv[1:5]
     limits = InputLimits.model_validate_json(sys.argv[5]) if len(sys.argv) > 5 else InputLimits()
     path, output = Path(raw_path), Path(raw_output)
@@ -65,7 +63,7 @@ def main() -> None:
     except AppError as exc:
         result = {"error": exc.message, "code": exc.code, "status": exc.status}
     except Exception as exc:
-        # The parent logs stderr: the traceback is how an unexpected failure gets fixed.
+        # stderr для отладки
         traceback.print_exc()
         result = {
             "error": "Обработка не завершена",

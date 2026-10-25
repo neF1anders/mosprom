@@ -67,8 +67,7 @@ class UnitOfWork:
 
     async def commit(self) -> None:
         await self._session.commit()
-        # Delivered after the commit: open event streams fetch at once instead of polling,
-        # and the runner claims the work that was just queued.
+        # будим после коммита
         for job_id in self._session.info["notify"]:
             self._notifier.notify(job_id)
         self._session.info["notify"] = set()
@@ -78,8 +77,7 @@ class UnitOfWork:
 
 
 def _configure(engine: AsyncEngine) -> None:
-    """One local user: WAL lets readers run beside the writer, and every transaction takes the
-    write lock at once, so a read that turns into a write never fails with a busy database."""
+    """Настраивает SQLite для одного пользователя."""
 
     @event.listens_for(engine.sync_engine, "connect")
     def on_connect(connection, record):

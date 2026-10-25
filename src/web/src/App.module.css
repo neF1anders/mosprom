@@ -1,4 +1,3 @@
-/* Layout and type of the Figma file "Mosprom — Chat UI (Stage 1)"; colours come from theme.css. */
 :global(*) {
   box-sizing: border-box;
 }
@@ -91,7 +90,7 @@
   margin-top: 8px;
 }
 
-/* Frame: two full-height panels of 340 px and the 720 px column in the middle of the window. */
+/* каркас окна */
 .app {
   height: 100dvh;
   display: flex;
@@ -162,7 +161,7 @@
   padding: 0 max(var(--right), calc(50% - 360px)) 16px
     max(var(--left), calc(50% - 360px));
 }
-/* A folded panel leaves a thin handle at the window edge, as on Figma screens 13–15. */
+/* свёрнутая панель */
 .handle,
 .handle:hover {
   position: absolute;
@@ -227,8 +226,7 @@
   opacity: 1;
 }
 
-/* Chats panel, Figma node 132:111. */
-/* The title and the theme switch, in one column with the panel icons below. */
+/* панель чатов */
 .brand {
   display: flex;
   align-items: center;
@@ -401,7 +399,7 @@
   font-weight: 500;
 }
 
-/* Common pieces. */
+/* общие элементы */
 .row {
   display: flex;
   align-items: center;
@@ -491,7 +489,7 @@
   margin: 12px 0;
 }
 
-/* Thread. */
+/* лента */
 .threadArea {
   position: relative;
   flex: 1;
@@ -629,7 +627,7 @@
   max-width: 100%;
   margin-bottom: 8px;
 }
-/* On the page, a sent file stands out as the bubble does. */
+/* файл в ленте */
 .userMessage .attachment {
   background: var(--bubble);
 }
@@ -645,11 +643,11 @@
   display: grid;
   gap: 10px;
 }
-/* A turn of the assistant opens above the reply it led to. */
+/* ход ассистента */
 .agentMessage > .agentDone {
   margin-bottom: 10px;
 }
-/* Only the text fades in: the spinner keeps its own rotation. */
+/* плавное появление */
 .replying > .phrase {
   animation: phrase 400ms ease;
 }
@@ -698,7 +696,7 @@
     transform 180ms ease;
 }
 
-/* Lines above the composer: the error and the lost connection, Figma screens 11 and 12. */
+/* строки над вводом */
 .notice {
   display: flex;
   align-items: center;
@@ -749,7 +747,7 @@
   color: var(--text-2);
 }
 
-/* Composer, Figma node 132:334, and the attachment cards inside it, component 78:268. */
+/* поле ввода */
 .composer {
   flex: none;
   background: var(--surface);
@@ -907,7 +905,7 @@
   }
 }
 
-/* Right panel: project files 132:164, agents 132:451 and the task card 197:168. */
+/* правая панель */
 .card > section + section {
   margin-top: 24px;
 }
@@ -934,7 +932,7 @@
 .projectFiles > .row {
   height: 24px;
 }
-/* The copy button follows the path and never sits under the panel's collapse button. */
+/* кнопка копирования */
 .path {
   display: flex;
   align-items: flex-start;
@@ -1217,7 +1215,7 @@ a.treeRow:hover,
   line-height: 13px;
   font-weight: 500;
 }
-/* Timeline under the user's message, Figma nodes 132:395 and 132:408. */
+/* таймлайн */
 .timeline {
   display: flex;
   flex-direction: column;
@@ -1522,7 +1520,7 @@ button.agentDone:hover {
   line-height: 18px;
   overflow-wrap: anywhere;
 }
-/* One selected setting, requirement or assumption per line. */
+/* по строке */
 .cardSummary dd > span,
 .cardSummary dd details > span {
   display: block;
@@ -1535,7 +1533,7 @@ button.agentDone:hover {
   color: var(--text-2);
 }
 
-/* An agent's train of thought in the right panel, Figma screen 18. */
+/* ход мысли */
 .agentDetail {
   display: flex;
   flex-direction: column;
@@ -1658,7 +1656,7 @@ button.agentDone:hover {
   gap: 8px;
 }
 
-/* Question window above the composer, Figma screens 05–07. */
+/* окно вопросов */
 .question {
   display: flex;
   flex-direction: column;
@@ -1799,7 +1797,7 @@ button.agentDone:hover {
   background: transparent;
 }
 
-/* Messages waiting for the end of the stage, Figma screen 04. */
+/* очередь сообщений */
 .queue {
   list-style: none;
   display: grid;
@@ -1902,7 +1900,7 @@ button.agentDone:hover {
   color: var(--text-3);
 }
 
-/* The model connection, in the style of the Figma file preview of screen 19. */
+/* подключение модели */
 .overlay {
   position: fixed;
   inset: 0;
@@ -1967,7 +1965,7 @@ button.agentDone:hover {
   gap: 12px;
 }
 
-/* Soft appearance of new rows; transform and opacity only. */
+/* мягкое появление */
 .userMessage,
 .agentMessage,
 .question {
@@ -2002,7 +2000,7 @@ button.agentDone:hover {
   }
 }
 
-/* A window narrower than both panels and the column keeps the column readable. */
+/* узкое окно */
 @media (max-width: 1280px) {
   .side {
     width: 280px;
@@ -2012,7 +2010,7 @@ button.agentDone:hover {
     --right: 300px;
   }
 }
-/* Narrow window: the panels open over the chat as drawers. */
+/* выдвижные панели */
 @media (max-width: 800px) {
   .header {
     display: flex;

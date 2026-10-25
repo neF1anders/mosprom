@@ -20,7 +20,7 @@ async def save_model(body: ModelEntry, services: Services):
 
 
 def public(settings: ModelSettings) -> dict:
-    """The key never leaves the server: the chat only learns whether one is set."""
+    """Ключ не покидает сервер."""
     return {
         "base_url": settings.base_url or None,
         "model": settings.model or None,

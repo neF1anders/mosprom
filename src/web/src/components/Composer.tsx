@@ -29,15 +29,15 @@ export function Composer({
   files: DraftFile[];
   filesChanged: boolean;
   placeholder?: string;
-  // A queued message being changed: its text is in the field until saved or cancelled.
+  // правка из очереди
   editing?: { id: string; text: string } | null;
   onEdit?: (text: string) => Promise<unknown>;
   onCancelEdit?: () => void;
 }) {
-  // Attached files wait for an explicit send, with or without a message.
+  // файлы ждут отправки
   const sending = useRef(false);
   const [text, setText] = useState("");
-  // A send without connection waits in the field and goes out once the stream is back.
+  // отправка ждёт связи
   const [waiting, setWaiting] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -52,7 +52,7 @@ export function Composer({
     setWaiting(false);
     form.current?.requestSubmit();
   }, [connected, waiting]);
-  // The field grows with Shift+Enter lines up to the CSS max height.
+  // рост поля ввода
   useLayoutEffect(() => {
     const element = field.current;
     if (!element) return;
@@ -92,7 +92,7 @@ export function Composer({
           await onSend(draft.trim());
           setText((current) => (current === draft ? "" : current));
         } catch {
-          // The parent displays the API error; keep the unsent draft for retry.
+          // черновик остаётся
         } finally {
           sending.current = false;
         }
@@ -120,7 +120,7 @@ export function Composer({
             onCancelEdit?.();
             return;
           }
-          // Enter sends, Shift+Enter starts a new line; IME composition keeps its Enter.
+          // Enter отправляет
           if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing)
             return;
           e.preventDefault();

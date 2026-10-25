@@ -1,4 +1,3 @@
-// Software z-buffer, so a 2M-triangle model renders in a worker without WebGL.
 export interface Raster {
   width: number;
   height: number;
@@ -8,7 +7,7 @@ export interface Raster {
 const SQRT2 = Math.SQRT2,
   SQRT3 = Math.sqrt(3),
   SQRT6 = Math.sqrt(6);
-// Isometric camera from +X, -Y, +Z: the top, front and right faces of a Z-up print are visible.
+// изометрическая камера
 const VIEW = [1 / SQRT3, -1 / SQRT3, 1 / SQRT3];
 const RIGHT = [1 / SQRT2, 1 / SQRT2, 0];
 const UP = [-1 / SQRT6, 1 / SQRT6, 2 / SQRT6];
@@ -90,7 +89,7 @@ export function renderStl(
     const nx = ay * bz - az * by,
       ny = az * bx - ax * bz,
       nz = ax * by - ay * bx;
-    // Two-sided lighting keeps meshes with flipped normals readable.
+    // двустороннее освещение
     const light =
       Math.abs(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]) /
       (Math.hypot(nx, ny, nz) || 1);

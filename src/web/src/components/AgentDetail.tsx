@@ -8,12 +8,12 @@ function clock(ms: number) {
   const total = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
-// Older thoughts fade: the last one is in full colour, the one before it is grey.
+// старые мысли бледнеют
 function age(index: number, count: number) {
   if (index === count - 1) return "now";
   return index === count - 2 ? "recent" : "old";
 }
-// The reasoning as the model wrote it, often in English.
+// рассуждение модели
 function Original({ thoughts }: { thoughts: Thought[] }) {
   return (
     <div className={styles.original} lang="en">
@@ -23,7 +23,7 @@ function Original({ thoughts }: { thoughts: Thought[] }) {
     </div>
   );
 }
-// A narrator's phrase; a click opens the reasoning it retells.
+// фраза рассказчика
 function Phrase({ item }: { item: Retold }) {
   const [open, setOpen] = useState(false);
   if (!item.original.length) return <p>{item.text}</p>;
@@ -36,7 +36,7 @@ function Phrase({ item }: { item: Retold }) {
     </>
   );
 }
-// Without the narrator's phrases the reasoning stays behind a button.
+// рассуждение под кнопкой
 function Unretold({ thoughts }: { thoughts: Thought[] }) {
   const [open, setOpen] = useState(false);
   return (
@@ -52,7 +52,7 @@ function Unretold({ thoughts }: { thoughts: Thought[] }) {
     </>
   );
 }
-// An agent's train of thought in the right panel, Figma screen 18.
+// ход мысли агента
 export function AgentDetail({
   agent,
   now,

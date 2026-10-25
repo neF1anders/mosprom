@@ -7,7 +7,7 @@ test("T12 A04 older chats and messages remain accessible through cursors", async
 }) => {
   await open(page);
   const id = new URL(page.url()).searchParams.get("job")!;
-  // A page holds 100 messages; every message is a new revision of the same task.
+  // сто сообщений
   for (let index = 0; index < 101; index++) {
     const response = await page.request.post(`/api/v1/jobs/${id}/messages`, {
       data: {

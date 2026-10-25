@@ -15,7 +15,7 @@ class SessionService:
         self.uow, self.secret = uow, secret
 
     async def exchange(self, token: str) -> str:
-        """A launch link from the plugin works once and binds the browser to its user."""
+        """Одноразовая ссылка входа из плагина."""
         user_id = verify_token(self.secret, token, "launch", int(time.time()))
         digest = hashlib.sha256(token.encode()).hexdigest()
         async with self.uow() as uow:

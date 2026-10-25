@@ -1,12 +1,3 @@
-"""The plugin calls that apply a parameter set, slice it and save the G-code and the project.
-
-Ported from ``tools/slicing/apply_parameter_set.py`` (FedorSolodkin), whose order of calls,
-axes and offsets were checked on STE Slicer 7.10.12 under Windows on 24.10.2026. The plan
-starts from an empty plate; the slicer's own settings left by an earlier run are reset by the
-caller when the plugin can do it. The material is set before the quality profile, since the
-slicer offers the profiles of the material and may switch the profile when the material changes.
-"""
-
 from __future__ import annotations
 
 import json
@@ -16,7 +7,7 @@ from collections.abc import Mapping
 from ..domain.parameters import ParameterSet, PlacedModel
 from ..domain.slicing import SlicerCall, Unsupported
 
-# Below these the angle or the difference of scale factors is rounding, not a request.
+# порог округления
 ANGLE_EPSILON = 1e-6
 SCALE_EPSILON = 1e-9
 
@@ -24,8 +15,7 @@ SCALE_EPSILON = 1e-9
 def build_plan(
     parameter_set: ParameterSet, models: Mapping[str, str], gcode: str, project: str
 ) -> tuple[list[SlicerCall], list[Unsupported]]:
-    """``models`` maps an attachment id to its file as the slicer sees it; ``gcode`` and
-    ``project`` are where the slicer saves the result."""
+    """Строит план вызовов плагина."""
     calls = [
         SlicerCall(
             step="set_printer", tool="set_printer", args={"definition_id": parameter_set.printer}
@@ -54,7 +44,7 @@ def build_plan(
                 args={"material_id": material.id, "reason": material.why},
             )
         )
-    # The slicer offers the quality profiles of the material, so the profile comes after it.
+    # профили после материала
     calls.append(
         SlicerCall(
             step="set_quality_profile",
@@ -72,7 +62,7 @@ def build_plan(
                 Unsupported(step=step, reason=f"{key} не меняется через set_setting")
             )
             continue
-        # List settings are strings in the slicer, as "[0, 90]".
+        # списки как строки
         value = json.dumps(setting.value) if isinstance(setting.value, list) else setting.value
         calls.append(
             SlicerCall(
@@ -124,8 +114,7 @@ def _placement(
     else:
         reason = f"плагин масштабирует только равномерно, запрошено [{x}, {y}, {z}]"
         unsupported.append(Unsupported(step=f"scale_model[{index}]", reason=reason))
-    # The set's Y is the machine's Y, which is minus Z of the slicer's scene; the height
-    # follows from the plate.
+    # ось Y станка
     offset_x, offset_y = model.transform.position[0], model.transform.position[1]
     calls.append(
         SlicerCall(
@@ -138,10 +127,10 @@ def _placement(
 
 
 def euler_steps(rotation: list[list[float]]) -> list[tuple[str, float]]:
-    """``rotation`` as turns about x, then y, then z of the set: R = Rz(c)·Ry(b)·Rx(a)."""
+    """Повороты вокруг осей набора."""
     sin_b = -rotation[2][0]
     if abs(sin_b) >= 1.0 - 1e-9:
-        # Gimbal lock at b = ±90°: only a + c or a - c is defined, so c is taken as zero.
+        # шарнирная блокировка
         b = math.copysign(math.pi / 2, sin_b)
         sign = 1 if sin_b > 0 else -1
         a, c = math.atan2(sign * rotation[0][1], rotation[1][1]), 0.0
@@ -155,11 +144,7 @@ def euler_steps(rotation: list[list[float]]) -> list[tuple[str, float]]:
 
 
 def scene_rotation(axis: str, degrees: float) -> tuple[str, float]:
-    """An axis of the set (Z up, as the STL and the plate) as the axis of the scene (Y up).
-
-    The scene takes a point of the STL as (x, z, -y): x stays x, Z of the set is y of the
-    scene and Y of the set is z of the scene with the opposite sign.
-    """
+    """Ось набора как ось сцены."""
     if axis == "x":
         return "x", degrees
     if axis == "y":

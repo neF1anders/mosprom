@@ -1,5 +1,3 @@
-"""Versioned values shared by application ports; no transport or database types."""
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -42,17 +40,13 @@ class Evidence(Value):
     source_id: str
     quote: str = ""
     page: int | None = None
-    # Set by the server after verification, never trusted from the model.
+    # ставит сервер
     method: Literal["text", "vision", "user", "knowledge"] | None = None
     artifact_id: str | None = None
 
 
 class Source(Value):
-    """Citable input: a chat message, an answer, a document page or a knowledge record.
-
-    ``id`` is the short handle agents cite within one run; ``ref`` is the stable reference
-    stored in the card (message id, ``attachment:page``, ``answer:question`` or ``kb:record``).
-    """
+    """Цитируемый вход: сообщение или документ."""
 
     id: str
     ref: str
@@ -105,7 +99,7 @@ class Question(Value):
 
 
 class Geometry(Value):
-    """Summary of the analyzer report; the full report travels as StlAnalysis."""
+    """Сводка отчёта анализатора STL."""
 
     readable: bool = False
     units: str = "unknown"
@@ -130,7 +124,7 @@ class StlAnalysis(Value):
 
 
 class WaivedQuestion(Value):
-    """A question the checker chose not to ask, and why; the user may still answer otherwise."""
+    """Вопрос, который проверяющий не задал."""
 
     title: str
     reason: str
@@ -172,13 +166,12 @@ class Answer(Value):
 
 
 Stage = Literal["understanding", "parameters", "validation", "slicing", "gcode", "done"]
-# How a finished pipeline ended: a project ready to print, a project or parameters that need
-# the user's attention, or no project at all.
+# итог конвейера
 Outcome = Literal["ready", "attention", "parameters_attention", "not_sliced"]
 
 
 class ParametersSummary(Value):
-    """What the chat shows of the latest parameter set without loading it."""
+    """Сводка последнего набора параметров."""
 
     iteration: int
     printing_mode: str
@@ -187,18 +180,18 @@ class ParametersSummary(Value):
     changed_settings: int
     unsatisfied: int
     status: Literal["proposed", "infeasible"]
-    # "attention" when the last check still found problems or a requirement is not met.
+    # внимание при проблемах
     check: Literal["pending", "ok", "attention"] = "pending"
 
 
 class ResultSummary(Value):
-    """What the chat shows of the slicing and its G-code check without loading them."""
+    """Сводка нарезки и проверки."""
 
     iteration: int
     sliced: bool
     message: str
     gcode_check: Literal["pending", "ok", "attention"] = "pending"
-    # Where the slicer saved the G-code and the project, in its own file system.
+    # пути в слайсере
     folder: str | None = None
     print_time_seconds: int | None = None
     material_grams: float | None = None
@@ -206,11 +199,7 @@ class ResultSummary(Value):
 
 
 class Project(Value):
-    """One part the chat works on; a chat may go on to the next part when one is done.
-
-    Its messages start at ``first_message``; the assistant's notes carry what the user said
-    about the part earlier in the chat. The answers of a finished project hint the next one.
-    """
+    """Одна часть работы чата."""
 
     number: int
     title: str
@@ -225,7 +214,7 @@ class Job(Value):
     id: str = Field(default_factory=identifier)
     user_id: str
     title: str = "Новое задание"
-    # "auto" titles follow the first request and the triage; a rename by the user sticks.
+    # название по запросу
     title_source: Literal["auto", "user"] = "auto"
     deleted: bool = False
     revision: int = 0
@@ -233,20 +222,19 @@ class Job(Value):
     active_stl: str | None = None
     card: TaskCard | None = None
     answers: dict[str, Answer] = Field(default_factory=dict)
-    # Files are attached without starting work; the next send processes them.
+    # файлы без запуска
     files_changed: bool = False
-    # Between stages the job is queued; it is completed only after the last stage.
+    # очередь между этапами
     stage: Stage = "understanding"
-    # The revision whose work the card, the timeline and the results come from. A reply in
-    # the chat that starts no work opens a revision of its own and leaves them as they are.
+    # ревизия текущей работы
     work_revision: int = 0
     parameters: ParametersSummary | None = None
     result: ResultSummary | None = None
     outcome: Outcome | None = None
     error: str | None = None
-    # The parts of the chat in order; files and the card belong to the last one.
+    # части чата
     projects: list[Project] = Field(default_factory=list)
-    # The last user message the assistant has answered; the later ones wait for it.
+    # последнее отвеченное сообщение
     answered: int = 0
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
@@ -267,26 +255,19 @@ class Message(Value):
     job_id: str
     revision: int
     role: Literal["user", "assistant"]
-    # Answers are echoed into the chat but reach the agents through Job.answers, not as text.
-    # "gate" is the assistant's one request for details before the work starts. "offtopic"
-    # marks what the agents never read: a queued message that changed nothing, and messages
-    # of earlier versions; "steer" is the assistant's reply to such a message. "report" is
-    # the assistant's summary of a finished project.
+    # ответы через Job
+    # служебные виды сообщений
     kind: Literal["chat", "answers", "gate", "offtopic", "steer", "report"] = "chat"
     text: str
-    # Files sent with the message, shown in its bubble.
+    # файлы сообщения
     attachment_ids: list[str] = Field(default_factory=list)
-    # The assistant's turn a reply came from, so the chat opens the reasoning behind it.
+    # ход ассистента
     turn: str | None = None
     created_at: datetime = Field(default_factory=now)
 
 
 class QueuedMessage(Value):
-    """A message typed while the job works; it waits for the end of the current step.
-
-    A delivery claims it under the job's lock and either moves it into the chat or answers
-    it; a claim older than its timeout belongs to a delivery that died with its worker.
-    """
+    """Сообщение, набранное во время работы."""
 
     id: str = Field(default_factory=identifier)
     job_id: str
@@ -295,7 +276,7 @@ class QueuedMessage(Value):
     status: Literal["queued", "delivering"] = "queued"
     claim: str | None = None
     claimed_at: datetime | None = None
-    # Failed deliveries; after the last one only the user's own send delivers the message.
+    # сбои доставки
     attempts: int = 0
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
@@ -303,9 +284,9 @@ class QueuedMessage(Value):
 
 class Attachment(Value):
     active: bool = True
-    # Not sent yet: a new upload waiting in the composer, or a removal the next send applies.
+    # ещё не отправлено
     draft: bool = False
-    # The project the file belongs to; None for a file sent but not taken into one yet.
+    # проект файла
     project: int | None = None
     id: str = Field(default_factory=identifier)
     job_id: str
@@ -347,7 +328,7 @@ class Knowledge(Value):
 
 
 class AgentCall(Value):
-    """One provider round trip of an agent, stored verbatim for debugging and prompt tuning."""
+    """Один вызов провайдера агентом."""
 
     job_id: str
     revision: int
@@ -360,5 +341,5 @@ class AgentCall(Value):
     response: dict[str, Any] | None = None
     tools: list[dict[str, Any]] = Field(default_factory=list)
     error: str | None = None
-    # A result reused from the cache: no provider call was made.
+    # результат из кеша
     cached: bool = False

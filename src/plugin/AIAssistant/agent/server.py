@@ -1,4 +1,3 @@
-"""Local HTTP server: serves the chat page, a small JSON API for it and the MCP endpoint."""
 import base64
 import binascii
 import json
@@ -16,8 +15,12 @@ from .runner import Chat
 from .scenarios import SCENARIOS
 
 WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
-CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "application/javascript; charset=utf-8",
-                 ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}
+CONTENT_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+}
 MAX_BODY = 40 * 1024 * 1024
 UPLOAD_KINDS = (".stl", ".obj", ".3mf", ".png", ".jpg", ".jpeg")
 
@@ -33,12 +36,14 @@ class AssistantServer(object):
         self._httpd = None
 
     def start(self):
-        """Bind, write server.json, then serve. A failure leaves nothing running, so the caller may try again."""
+        """Привязывает порт и запускает сервер."""
         httpd = _Server(("127.0.0.1", 0), _make_handler(self))
         self._httpd = httpd
         try:
             info = {"port": self.port(), "token": self.token, "pid": os.getpid()}
-            with open(os.path.join(settings.data_dir(), "server.json"), "w", encoding="utf-8") as stream:
+            with open(
+                os.path.join(settings.data_dir(), "server.json"), "w", encoding="utf-8"
+            ) as stream:
                 json.dump(info, stream)
         except Exception:
             self._httpd = None
@@ -57,18 +62,23 @@ class AssistantServer(object):
 
 def _config_view():
     config = settings.load()
-    return {"base_url": config["base_url"], "model": config["model"], "has_key": bool(config["api_key"])}
+    return {
+        "base_url": config["base_url"],
+        "model": config["model"],
+        "has_key": bool(config["api_key"]),
+    }
 
 
 class _Handler(BaseHTTPRequestHandler):
-    """One request; owner is the AssistantServer, set by _make_handler."""
+    """Один запрос к серверу."""
+
     owner = None
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
         Logger.log("d", "AI Assistant http: " + fmt, *args)
 
-    # ---------- helpers
+    # помощники
     def _send(self, status, body, content_type="application/json; charset=utf-8"):
         if not isinstance(body, bytes):
             body = json.dumps(body, ensure_ascii=False).encode("utf-8")
@@ -97,7 +107,7 @@ class _Handler(BaseHTTPRequestHandler):
             raise ValueError("The request is too large")
         return json.loads(self.rfile.read(length).decode("utf-8") or "{}")
 
-    # ---------- routing
+    # маршрутизация
     def do_GET(self):
         if not self._host_ok():
             return self._send(403, {"error": "bad host"})
@@ -134,14 +144,18 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(404, {"error": "not found"})
         with open(full, "rb") as stream:
             body = stream.read()
-        self._send(200, body, CONTENT_TYPES.get(os.path.splitext(full)[1], "application/octet-stream"))
+        self._send(
+            200, body, CONTENT_TYPES.get(os.path.splitext(full)[1], "application/octet-stream")
+        )
 
-    # ---------- API for the chat page
+    # маршруты страницы
     def _api_get(self, parsed):
         if parsed.path == "/api/config":
             return self._send(200, _config_view())
         if parsed.path == "/api/scenarios":
-            return self._send(200, [{"title": s["title"], "prompt": s["prompt"]} for s in SCENARIOS])
+            return self._send(
+                200, [{"title": s["title"], "prompt": s["prompt"]} for s in SCENARIOS]
+            )
         if parsed.path == "/api/state":
             return self._send(200, self._state())
         if parsed.path == "/api/events":
@@ -169,7 +183,12 @@ class _Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/config":
             if body.get("forget_session"):
                 settings.forget_session()
-            settings.save(body.get("base_url"), body.get("api_key"), body.get("model"), body.get("persist", True))
+            settings.save(
+                body.get("base_url"),
+                body.get("api_key"),
+                body.get("model"),
+                body.get("persist", True),
+            )
             return self._send(200, _config_view())
         if parsed.path == "/api/upload":
             return self._send(200, self._upload(body))
@@ -202,12 +221,15 @@ class _Handler(BaseHTTPRequestHandler):
         kind = self.owner.chat.add_upload(upload_id, name, path)
         return {"id": upload_id, "name": name, "kind": kind, "path": path}
 
-    # ---------- MCP
+    # маршруты инструментов
     def _mcp(self, parsed):
         try:
             request = self._json_body()
         except ValueError:
-            return self._send(200, {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}})
+            return self._send(
+                200,
+                {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}},
+            )
         if isinstance(request, list):
             responses = [r for r in (mcp.handle(item) for item in request) if r is not None]
             return self._send(200, responses) if responses else self._send(202, b"", "text/plain")

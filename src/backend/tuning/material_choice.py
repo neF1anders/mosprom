@@ -1,6 +1,3 @@
-"""Pick the material: the one the card, an answer or a check constraint names, or the best
-catalog candidate by requirements."""
-
 from __future__ import annotations
 
 import itertools
@@ -25,7 +22,7 @@ class Alternative:
 
 @dataclass(frozen=True)
 class MaterialChoice:
-    """The chosen material and everything the user must hear about it."""
+    """Выбранный материал и сообщения пользователю."""
 
     material: Candidate
     source: str
@@ -41,8 +38,7 @@ class MaterialChoice:
 def choose_material(
     request: TuningInput, printable: Printable, choices: Choices, preferred: str
 ) -> MaterialChoice:
-    """A check constraint ``material eq`` overrides the material the card names. ``preferred``
-    is the base name of the slicer's own material: it wins a tie of the ranking."""
+    """Выбирает материал по карточке."""
     forced = choices.forced.get(MATERIAL_KEY)
     named = request.material
     if forced is not None:
@@ -93,7 +89,7 @@ def _summary(evaluation: Evaluation) -> str:
 
 
 def _check_assumptions(evaluation: Evaluation) -> list[str]:
-    """Unverified and partly met requirements are told to the user, never shown as confirmed."""
+    """Непроверенные требования сообщаются пользователю."""
     notes = []
     for check in evaluation.checks:
         if check.status == "unknown":
@@ -173,8 +169,7 @@ def _ranked(
 
 
 def _best(ranked: Sequence[Evaluation], preferred: str) -> tuple[Evaluation, str]:
-    """The top of the ranking; when the requirements do not tell the top materials apart, the
-    slicer's own material among them rather than the first by name."""
+    """Лучший материал из ранжирования."""
     top = ranked[0]
     tied = [
         found
@@ -192,7 +187,7 @@ def _best(ranked: Sequence[Evaluation], preferred: str) -> tuple[Evaluation, str
 
 
 def _is_named(material_id: str, base: str) -> bool:
-    """``generic_pla_175`` is the 1.75 mm file of the slicer's ``generic_pla``."""
+    """Совпадение имени файла материала."""
     return material_id == base or material_id.startswith(f"{base}_")
 
 
@@ -203,7 +198,7 @@ def _failed_ids(evaluation: Evaluation) -> set[str]:
 
 
 def _catalog_conflicts(ranked: Sequence[Evaluation]) -> list[Unmet]:
-    """Hard requirements no material meets alone, and pairs no single material meets together."""
+    """Требования, которые материалы не выполняют."""
     failures = [_failed_ids(evaluation) for evaluation in ranked]
     checkable = {check.requirement_id for item in ranked for check in item.checks if check.hard}
     alone = sorted(key for key in checkable if all(key in failed for failed in failures))

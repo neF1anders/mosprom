@@ -1,12 +1,3 @@
-"""Safe evaluation of STE Slicer setting formulas such as ``machine_height if printing_mode
-== 'classic' else 231.1``.
-
-Formulas come from the slicer definitions. They are parsed with ``ast`` and only a small
-expression language is evaluated: constants, lists, boolean logic, arithmetic, comparisons,
-conditional expressions, setting names and the slicer's own lookup functions. Anything else
-raises ``FormulaError``; nothing from a definition is ever executed.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -54,7 +45,7 @@ _BUILTINS: dict[str, Callable[..., Any]] = {
     "sum": sum,
     "any": any,
     "all": all,
-    # The extruder the slicer gives a setting by default, the only active one.
+    # экструдер по умолчанию
     "defaultExtruderPosition": lambda: "0",
 }
 _MATH: dict[str, Callable[..., Any]] = {
@@ -66,13 +57,12 @@ _MATH: dict[str, Callable[..., Any]] = {
     "radians": math.radians,
 }
 _LITERALS = {"True": True, "False": False, "None": None}
-# The slicer's lookups name the setting in their last argument; the extruder index is ignored
-# because the printer has one active extruder.
+# индекс экструдера игнорируется
 _LOOKUPS = {"resolveOrValue", "extruderValue", "extruderValues"}
 
 
 def evaluate(expression: str, lookup: Lookup) -> Any:
-    """Evaluate a definition formula; ``lookup`` returns the value of another setting."""
+    """Вычисление формулы определения настройки."""
     try:
         tree = ast.parse(expression.strip(), mode="eval")
     except SyntaxError as error:
@@ -151,7 +141,7 @@ def _pick(table: dict[type, Callable[..., Any]], op: object, kind: str) -> Calla
 
 
 def _function(func: ast.expr) -> str:
-    """Name of a call the language allows: a lookup, a builtin or ``math.<name>``."""
+    """Имя допустимого вызова формулы."""
     if isinstance(func, ast.Name) and (func.id in _LOOKUPS or func.id in _BUILTINS):
         return func.id
     if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):

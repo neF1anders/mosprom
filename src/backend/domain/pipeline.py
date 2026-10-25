@@ -1,9 +1,3 @@
-"""Order of the steps after a ready card: selection, its check, slicing and the G-code check.
-
-Selection runs at most twice, so the check of the set and the check of the G-code share the
-one return to it.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,9 +7,7 @@ from .models import Job
 from .parameters import MAX_ITERATIONS
 
 StepName = Literal["parameters", "validation", "slicing", "gcode"]
-# What a finished step decided: a check passes or asks for changes; a selection may find
-# that nothing satisfies the card, for instance a model larger than every working area;
-# slicing fails when the slicer is not there or refuses a call.
+# итог шага
 Verdict = Literal["ok", "needs_changes", "infeasible", "failed"]
 
 
@@ -29,13 +21,7 @@ FIRST_STEP = Step("parameters", 1)
 
 
 def next_step(step: Step, verdict: Verdict | None = None) -> Step | None:
-    """The step after ``step`` given its verdict.
-
-    A selection is checked unless it is infeasible: such a set cannot be printed as it is, and
-    what the check would find is only its consequence. A check that asks for changes sends
-    the work back to selection while a pass is left; the last pass is sliced with what is
-    left, and the chat shows it. The G-code check may send it back the same way.
-    """
+    """Следующий шаг по вердикту."""
     if step.stage == "parameters":
         return None if verdict == "infeasible" else Step("validation", step.iteration)
     if step.stage == "slicing":
@@ -46,6 +32,6 @@ def next_step(step: Step, verdict: Verdict | None = None) -> Step | None:
 
 
 def restart(job: Job) -> None:
-    """New work on the job in its current revision; what the previous work made is gone."""
+    """Новая работа в ревизии."""
     job.stage, job.work_revision = "understanding", job.revision
     job.parameters = job.result = job.outcome = None

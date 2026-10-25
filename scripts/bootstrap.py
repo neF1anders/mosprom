@@ -1,10 +1,3 @@
-"""Standard-library bootstrap: creates .env and prints a one-time launch link for a user.
-
-The STE Slicer plugin builds the same link with the same secret to open the chat; the script
-leaves the origin, secret and user for it in mosprom.json next to the plugin's server.json.
-Usage: python3 scripts/bootstrap.py [user_id]
-"""
-
 import base64
 import hashlib
 import hmac
@@ -27,9 +20,9 @@ if not path.exists() and not os.environ.get("SESSION_SECRET"):
     )
     path.chmod(0o600)
 if path.exists() and "SLICER_HOST_FOLDER=" not in (current := path.read_text(encoding="utf-8")):
-    # The plugin keeps server.json in Documents/STE_AIAssistant of the user's home.
+    # server.json в Documents
     folder = Path.home() / "Documents" / "STE_AIAssistant"
-    # A last line without its line break would otherwise swallow the new key.
+    # перенос строки обязателен
     separator = "\n" if current and not current.endswith("\n") else ""
     with path.open("a", encoding="utf-8") as stream:
         stream.write(f"{separator}SLICER_HOST_FOLDER={folder}\n")

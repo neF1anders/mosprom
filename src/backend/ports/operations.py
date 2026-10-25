@@ -29,7 +29,7 @@ class ModelReply:
     raw: dict[str, Any] = field(repr=False)
 
 
-# Each piece of the reasoning as it arrives and the attempt it belongs to, counted from one.
+# рассуждение и попытка
 Reasoning = Callable[[str, int], Awaitable[None]]
 
 
@@ -47,18 +47,13 @@ class ModelClient(Protocol):
 
 
 class Notifier(Protocol):
-    """Wakes readers of a job's events when a new one commits, in any process."""
+    """Будит читателей событий задачи."""
 
     def watch(self, job_id: str) -> AbstractAsyncContextManager[asyncio.Event]: ...
 
 
 class Slicer(Protocol):
-    """STE Slicer with the AI Assistant plugin, one run at a time.
-
-    ``run`` names the run and its stored files; ``models`` maps an attachment id of the set
-    to its stored file. A slicer that is not running, fails a step or runs out of time is
-    reported, not raised.
-    """
+    """Слайсер STE с плагином."""
 
     async def slice(
         self, run: str, parameter_set: ParameterSet, models: dict[str, str]
@@ -67,14 +62,14 @@ class Slicer(Protocol):
 
 @dataclass(frozen=True)
 class ResultFolder:
-    """A finished project's own folder: ``path`` here, ``shown`` as the slicer's machine sees it."""
+    """Папка одного готового проекта."""
 
     path: Path
     shown: str
 
 
 class ResultFolders(Protocol):
-    """The folders the user keeps, one per finished project and named after its part."""
+    """Папки готовых проектов пользователя."""
 
     async def reserve(self, part: str) -> ResultFolder: ...
     async def write(self, folder: ResultFolder, name: str, data: bytes) -> None: ...

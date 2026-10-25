@@ -8,12 +8,16 @@ from UM.Message import Message
 from .agent import launch, settings, sidecar
 from .agent.server import AssistantServer
 
-NO_CONFIG = ("Приложение StereotechAI ещё не настроено. В папке проекта запустите "
-             "python scripts\\bootstrap.py и сервер приложения по инструкции из README, "
-             "затем откройте пункт меню снова")
-NO_BACKEND = ("Приложение StereotechAI не запустилось ({}). Откройте пункт меню снова, чтобы попробовать ещё раз")
-NO_SERVER = ("Сервер плагина не запустился, поэтому слайсер не сможет нарезать модели из приложения. "
-             "Подробности в журнале STE Slicer. Откройте пункт меню снова, чтобы попробовать ещё раз")
+NO_CONFIG = (
+    "Приложение StereotechAI ещё не настроено. В папке проекта запустите "
+    "python scripts\\bootstrap.py и сервер приложения по инструкции из README, "
+    "затем откройте пункт меню снова"
+)
+NO_BACKEND = "Приложение StereotechAI не запустилось ({}). Откройте пункт меню снова, чтобы попробовать ещё раз"
+NO_SERVER = (
+    "Сервер плагина не запустился, поэтому слайсер не сможет нарезать модели из приложения. "
+    "Подробности в журнале STE Slicer. Откройте пункт меню снова, чтобы попробовать ещё раз"
+)
 
 
 class AIAssistant(Extension):
@@ -29,11 +33,11 @@ class AIAssistant(Extension):
         self.setMenuName("AI Assistant")
         self.addMenuItem("Открыть StereotechAI", self.showApp)
         self.addMenuItem("Чат плагина", self.showChat)
-        # The app slices through the MCP server, so it runs whenever the slicer is open.
+        # сервер нужен всегда
         app.engineCreatedSignal.connect(self._ensureServer)
 
     def _ensureServer(self):
-        """The running server, or None when it could not start; the next call tries again."""
+        """Запущенный сервер или None."""
         if self._server is None:
             server = AssistantServer()
             try:
@@ -46,7 +50,7 @@ class AIAssistant(Extension):
         return self._server
 
     def _ensureBackend(self):
-        """Start the bundled backend of the portable build; True when there is none to start."""
+        """Запускает встроенный бэкенд переносной сборки."""
         if self._sidecar is None:
             return True
         try:
@@ -64,7 +68,9 @@ class AIAssistant(Extension):
             return
         url = launch.app_url(self._sidecar)
         if url is None:
-            Logger.log("w", "AI Assistant has no %s, the app link cannot be built", launch.CONFIG_NAME)
+            Logger.log(
+                "w", "AI Assistant has no %s, the app link cannot be built", launch.CONFIG_NAME
+            )
             Message(text=NO_CONFIG, title="AI Assistant").show()
             return
         webbrowser.open(url)

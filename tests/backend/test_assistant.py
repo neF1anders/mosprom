@@ -1,5 +1,3 @@
-"""The assistant's turn, its refusals, the state it sees and the report template."""
-
 from datetime import timedelta
 
 import pytest
@@ -86,7 +84,7 @@ said.texts = []
 
 
 async def test_the_assistant_reasons_and_may_reply_by_its_tool():
-    """It reasons, so the chat can show how it thought, and acts by its tools."""
+    """Рассуждает и отвечает инструментом."""
     answer = reply("", tool_calls=[call(REPLY, {"text": "Привет — чем помочь?"})])
     agent, model = assistant(assistant=[answer])
     decision = await agent.decide(situation(), said)
@@ -283,7 +281,7 @@ def test_the_template_says_when_no_parameters_fit():
 
 
 async def test_details_are_asked_once_and_the_next_turn_starts():
-    """Regression: only the prompt kept the assistant from asking a second time."""
+    """Детали спрашиваются один раз."""
     files = [file("Колесо.STL", "stl")]
     ask = reply("", tool_calls=[call(ASK, {"text": "Расскажите — для чего деталь?"})])
     agent, _ = assistant(assistant=[ask])
@@ -303,7 +301,7 @@ async def test_details_are_asked_once_and_the_next_turn_starts():
 
 
 async def test_a_text_reply_while_questions_wait_is_checked_once():
-    """Regression: «принято» to a typed answer left the work waiting."""
+    """Текстовый ответ проверяется один раз."""
     job = Job(
         user_id="u", revision=1, status=Status.WAITING, projects=[Project(number=1, title="Вал")]
     )
@@ -317,7 +315,7 @@ async def test_a_text_reply_while_questions_wait_is_checked_once():
     assert model.requests["assistant"][1]["messages"][-1]["content"].startswith(
         "Ты ответил текстом"
     )
-    # A plain question is answered after the one check.
+    # ответ на вопрос
     agent, model = assistant(assistant=[reply("Стоит дорого"), reply("Стоит дорого")])
     decision = await agent.decide(situation(job, text="Сколько стоит принтер?"), said)
     assert (decision.action, len(model.requests["assistant"])) == ("reply", 2)
@@ -330,8 +328,7 @@ async def test_a_decision_keeps_its_turn():
 
 
 async def test_a_model_and_a_task_start_and_the_checker_asks_later():
-    """Regression: with reasoning the assistant read the task itself and asked its own
-    questions instead of starting."""
+    """Модель и задача запускают работу."""
     files = [file("Шестерня.stl", "stl"), file("ТЗ.txt", "txt")]
     ask = reply("", tool_calls=[call(ASK, {"text": "Какая температура верна?"})])
     start = reply("", tool_calls=[call(START, {"title": "Шестерня"})])
@@ -340,7 +337,7 @@ async def test_a_model_and_a_task_start_and_the_checker_asks_later():
     assert "найдёт проверяющий" in model.requests["assistant"][1]["messages"][-1]["content"]
     agent, model = assistant(assistant=[reply("Какая температура верна?"), start])
     assert (await agent.decide(situation(files=files), said)).action == "start"
-    # Asked not to start, it keeps its word after the one reminder.
+    # держит слово
     wait = reply("Хорошо, жду")
     agent, model = assistant(assistant=[wait, wait])
     decision = await agent.decide(situation(files=files, text="Пока не запускай"), said)
@@ -348,7 +345,7 @@ async def test_a_model_and_a_task_start_and_the_checker_asks_later():
 
 
 def test_the_report_names_the_profile_as_the_slicer_menu_does():
-    """By its code "normal" reads as Normal, while the slicer calls it Fine."""
+    """Отчёт называет профиль как слайсер."""
     summary = ParametersSummary(
         iteration=1,
         printing_mode="3D",

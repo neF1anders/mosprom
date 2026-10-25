@@ -1,9 +1,3 @@
-"""What agents think and do, sent to the chat as events while they work.
-
-Observability only: prompts, decisions and the order of steps never depend on it, and an event
-that fails to be written is logged and skipped, the run goes on without it.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -20,14 +14,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 Emit = Callable[..., Awaitable[None]]
 Clock = Callable[[], float]
-# The agent's title, the fresh part of its reasoning and the phrase said before.
+# пакет рассуждения агента
 Narrate = Callable[[str, str, str], Awaitable[str]]
-# Reasoning goes out after a pause, at a paragraph after half of it, or once the buffer is full.
+# порог отправки рассуждения
 PAUSE, PARAGRAPH, BUFFER = 1.0, 0.5, 2000
 PREVIEW = 200
-# The narrator speaks a little after a call starts, then whenever the reasoning has moved on.
+# когда говорит рассказчик
 NARRATION_FIRST, NARRATION_EVERY, NARRATION_WINDOW, NARRATION_SECONDS = 3.0, 7.0, 1000, 15
-# Phrases are written by tasks of their own; the set keeps them alive until they stop.
+# задачи фраз держим
 _background: set[asyncio.Task] = set()
 NARRATION = (
     "Ты показываешь пользователю, чем сейчас занят агент «{title}», который готовит задание "
@@ -41,7 +35,7 @@ NARRATION = (
 
 
 async def notify(event: Emit, type: str, message: str, status: str = "running", **data) -> None:
-    """Writes an event; a failure is logged, never raised."""
+    """Запись события без исключений."""
     try:
         await event(type, message, status, **data)
     except Exception:
@@ -49,11 +43,7 @@ async def notify(event: Emit, type: str, message: str, status: str = "running", 
 
 
 class Narrator:
-    """Says in Russian what an agent is doing, from the fresh part of its reasoning.
-
-    The model reasons in English whatever its prompt asks, so the chat shows a short phrase
-    and keeps the reasoning itself a click away. The agent never sees the phrase.
-    """
+    """Пересказывает рассуждение агента по-русски."""
 
     def __init__(self, model: ModelClient):
         self.model = model
@@ -70,11 +60,7 @@ class Narrator:
 
 
 class Narration:
-    """The narrator's phrases for one model call, written while the call goes on.
-
-    It never holds the call up: the phrases come from a task of their own, a failed one is
-    skipped, and the task stops with the call.
-    """
+    """Фразы рассказчика для вызова."""
 
     def __init__(
         self,
@@ -136,17 +122,13 @@ class Narration:
 
 
 def preview(result: dict[str, Any]) -> str:
-    """A tool's answer without its images, cut short for the chat."""
+    """Ответ инструмента для чата."""
     shown = {key: value for key, value in result.items() if key != "images"}
     return json.dumps(shown, ensure_ascii=False, default=str)[:PREVIEW]
 
 
 class ThoughtStream:
-    """One model call's reasoning in pieces, instead of a write for every token.
-
-    A retry starts the reasoning over: the unsent text of the failed attempt is dropped, and
-    the chat resets the call's text when ``attempt`` changes.
-    """
+    """Рассуждение вызова по частям."""
 
     def __init__(
         self,
@@ -173,11 +155,11 @@ class ThoughtStream:
             logger.warning("Reasoning of %s was not sent", self.call, exc_info=True)
 
     async def close(self) -> None:
-        """What is left goes out once the call has ended."""
+        """Отправка остатка после вызова."""
         await self._send(len(self.buffer))
 
     def _ready(self) -> int:
-        """How much of the buffer goes out now: all of it, up to a paragraph, or nothing."""
+        """Сколько буфера отправлять сейчас."""
         elapsed = self.clock() - self.sent
         if elapsed >= PAUSE or len(self.buffer) >= BUFFER:
             return len(self.buffer)
@@ -201,11 +183,7 @@ class ThoughtStream:
 
 
 class CallEvents:
-    """Started and finished around one call of an agent, with its reasoning in between.
-
-    The call id names the run, the agent and the step, like the call's row in the journal; a
-    reused result is step 0. A cancelled call sends nothing more, the stop has its own event.
-    """
+    """События начала и конца вызова."""
 
     def __init__(
         self,
@@ -245,7 +223,7 @@ class CallEvents:
         error: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        # The narrator stops with the call, a cancelled one included.
+        # стоп с вызовом
         if self.narration is not None:
             self.narration.stop()
         if kind is not None and not issubclass(kind, Exception):

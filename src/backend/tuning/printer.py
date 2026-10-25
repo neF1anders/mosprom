@@ -1,10 +1,3 @@
-"""The printer as parameter selection sees it, read from the catalog of the issued build.
-
-Values follow the slicer through the catalog's ``ModeValues``, with the quality profile and the
-chosen values over the printer. Only the preferred quality profile is not in the catalog; it
-comes from ``printer.json``.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -35,7 +28,7 @@ _DATA = _PrinterData.model_validate_json(
 
 @dataclass(frozen=True)
 class QualityOption:
-    """A quality profile: its layer and the plain numbers it sets."""
+    """Профиль качества и его числа."""
 
     name: str
     label: str
@@ -45,7 +38,7 @@ class QualityOption:
 
 @dataclass(frozen=True)
 class Mode:
-    """A printing mode of the printer: its print area and the values the slicer uses in it."""
+    """Режим печати и его значения."""
 
     name: str
     label: str
@@ -53,14 +46,14 @@ class Mode:
     depth: float
     height: float
     elliptic: bool
-    # X range of the table outside the disallowed strips.
+    # диапазон по X
     usable_x: tuple[float, float]
     heated_bed: bool
     line_width: float
     temperature_max: float
-    # Diameter of the cylinder the slicer prints around in 5D; None where it does not apply.
+    # диаметр цилиндра 5D
     base_diameter: float | None
-    # The narrowest such cylinder the build accepts (its ``minimum_value``).
+    # минимальный такой цилиндр
     base_diameter_min: float
     qualities: Mapping[str, QualityOption]
     catalog: Catalog = field(repr=False, compare=False)
@@ -68,7 +61,7 @@ class Mode:
     def value(
         self, key: str, quality: QualityOption | None = None, chosen: Mapping[str, Any] = _NOTHING
     ) -> Any:
-        """The value the slicer uses for ``key`` with ``chosen`` and the quality profile."""
+        """Значение ключа для слайсера."""
         above = {**(quality.values if quality else {}), **chosen}
         return self.catalog.values(self.name, above).get(key)
 
@@ -79,7 +72,7 @@ class Printer:
     nozzle: float
     filament: float
     default_quality: str
-    # Base name of the slicer's own material (``generic_pla``), whatever the filament diameter.
+    # базовое имя материала
     preferred_material: str
     modes: Mapping[str, Mode]
 
@@ -125,7 +118,7 @@ def _mode(catalog: Catalog, name: str) -> Mode:
 
 
 def _usable_x(width: float, disallowed: list[list[list[float]]]) -> tuple[float, float]:
-    """A strip left of the centre raises the left edge, one right of it lowers the right edge."""
+    """Полоса стола без запретных зон."""
     low, high = -width / 2.0, width / 2.0
     for area in disallowed:
         xs = [point[0] for point in area]
@@ -145,7 +138,7 @@ def _base_diameter(catalog: Catalog, mode: str) -> float | None:
 
 
 def _qualities(catalog: Catalog, mode: str) -> dict[str, QualityOption]:
-    """Profiles without a layer print with the printer's layer height."""
+    """Профили без слоя берут высоту."""
     default_layer = float(catalog.values(mode).get("layer_height"))
     options = {}
     for name, profile in catalog.qualities.items():

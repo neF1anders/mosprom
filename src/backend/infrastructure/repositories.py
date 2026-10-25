@@ -1,5 +1,3 @@
-"""One repository per table; the unit of work shares a session between them."""
-
 from __future__ import annotations
 
 import builtins
@@ -49,7 +47,7 @@ class JobRepository(Repository):
         return JobHead.model_validate(dict(row))
 
     async def get(self, job_id: str, *, user_id: str | None = None, lock: bool = False) -> Job:
-        """Without user_id the caller is the system worker; requests always pass their user."""
+        """Возвращает задачу по идентификатору."""
         query = select(t.jobs.c.payload).where(t.jobs.c.id == job_id)
         if user_id is not None:
             query = query.where(t.jobs.c.user_id == user_id)
@@ -57,7 +55,7 @@ class JobRepository(Repository):
         if value is None:
             raise NotFound()
         job = Job.model_validate(value)
-        # A deleted chat is gone for its user; the worker still sees it to stop the run.
+        # удалённый чат скрыт
         if user_id is not None and job.deleted:
             raise NotFound()
         return job
@@ -89,7 +87,7 @@ class JobRepository(Repository):
             query = query.where(
                 or_(updated < cursor, and_(updated == cursor, t.jobs.c.id < before))
             )
-        # The list shows no cards; they are large and only one job at a time needs its own.
+        # карточки не нужны
         return [
             Job.model_validate({k: v for k, v in value.items() if k != "card"})
             for value in await self._session.scalars(query)
@@ -98,7 +96,7 @@ class JobRepository(Repository):
 
 class MessageRepository(Repository):
     async def add(self, message: Message) -> int:
-        """The message's place in the chat, which a project counts its messages from."""
+        """Место сообщения в чате."""
         return (
             await self._session.execute(
                 insert(t.messages)
@@ -123,7 +121,7 @@ class MessageRepository(Repository):
 
 
 class QueuedRepository(Repository):
-    """Messages typed while the job works, in the order they were sent."""
+    """Сообщения очереди в порядке отправки."""
 
     async def save(self, item: QueuedMessage) -> None:
         query = insert(t.queued_messages).values(
@@ -171,8 +169,7 @@ class AttachmentRepository(Repository):
 
 class ReceiptRepository(Repository):
     async def find(self, key: str, payload_hash: str) -> dict[str, Any] | None:
-        # Every transaction holds the write lock from its first statement, so create commands
-        # are serialized before a job exists.
+        # блокировка записи сразу
         row = (
             (await self._session.execute(select(t.receipts).where(t.receipts.c.key == key)))
             .mappings()
@@ -204,11 +201,11 @@ class CacheRepository(Repository):
 
 class EventRepository(Repository):
     async def append(self, event: Event) -> None:
-        # One writer at a time keeps SSE cursors in commit order.
+        # порядок коммита
         await self._session.execute(
             insert(t.events).values(job_id=event.job_id, payload=event.model_dump(mode="json"))
         )
-        # Delivered on commit: open event streams of the job fetch at once instead of polling.
+        # будим после коммита
         self._session.info["notify"].add(event.job_id)
 
     async def list(self, job_id: str, after: int = 0, limit: int = 100) -> builtins.list[Event]:
@@ -222,7 +219,7 @@ class EventRepository(Repository):
         return [Event.model_validate(dict(row["payload"], event_id=row["seq"])) for row in rows]
 
     async def start(self, job_id: str, revision: int) -> int:
-        """The cursor just before the first event of a revision; older history is not replayed."""
+        """Курсор перед первым событием ревизии."""
         first = await self._session.scalar(
             select(func.min(t.events.c.seq)).where(
                 t.events.c.job_id == job_id,
@@ -250,8 +247,7 @@ class KnowledgeRepository(Repository):
             query.on_conflict_do_update(
                 index_elements=["id"],
                 set_={
-                    c: query.excluded[c]
-                    for c in ["material_id", "property", "aliases", "payload"]
+                    c: query.excluded[c] for c in ["material_id", "property", "aliases", "payload"]
                 },
             )
         )
@@ -266,7 +262,7 @@ class TraceRepository(Repository):
         await self._session.execute(insert(t.agent_calls).values(**call.model_dump()))
 
     async def calls(self, job_id: str, revision: int) -> builtins.list[AgentCall]:
-        """The calls of one revision's work in order, for questions about how it went."""
+        """Вызовы одной ревизии по порядку."""
         rows = await self._session.execute(
             select(t.agent_calls)
             .where(t.agent_calls.c.job_id == job_id, t.agent_calls.c.revision == revision)
@@ -278,7 +274,7 @@ class TraceRepository(Repository):
         ]
 
     async def usage(self, job_id: str) -> tuple[int, int]:
-        """Provider calls a job made and the tokens they spent; cached results cost nothing."""
+        """Вызовы модели и израсходованные токены."""
         tokens = t.agent_calls.c.response["usage"]["total_tokens"].as_integer()
         row = (
             await self._session.execute(
@@ -291,10 +287,10 @@ class TraceRepository(Repository):
 
 
 class StageResultRepository(Repository):
-    """Results of the deterministic steps, one per job revision, step and pass."""
+    """Результаты шагов по ревизиям."""
 
     async def add(self, job_id: str, revision: int, step: Step, payload: dict[str, Any]) -> None:
-        # A redelivered task writes the same result again; the first one stays.
+        # повторная доставка идемпотентна
         await self._session.execute(
             insert(t.stage_results)
             .values(
@@ -318,7 +314,7 @@ class StageResultRepository(Repository):
         )
 
     async def latest(self, job_id: str, revision: int, stage: str) -> dict[str, Any] | None:
-        """The last pass of a step in this revision."""
+        """Последний проход шага ревизии."""
         return await self._session.scalar(
             select(t.stage_results.c.payload)
             .where(

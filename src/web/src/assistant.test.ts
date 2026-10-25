@@ -37,7 +37,7 @@ describe("the assistant in the chat", () => {
     const asked = message("user", "2026-10-25T10:00:00Z");
     const replied = message("assistant", "2026-10-25T10:00:05Z");
     expect(answering([], [asked], false)).toBe(true);
-    // The work took the message, the timeline shows it.
+    // сообщение в таймлайне
     expect(answering([], [asked], true)).toBe(false);
     expect(answering([], [asked, replied], false)).toBe(false);
     const thinking = event("agent.started", "analyst", "r:analyst:1");
@@ -94,7 +94,7 @@ describe("the assistant's reasoning", () => {
       ["t2:assistant", "Ассистент", "run"],
     ]);
     expect(turns[0].said[0].text).toBe("Отвечаю на приветствие");
-    // The turn opens above its last reply; another turn's reply gets nothing of it.
+    // ответ своего хода
     const said = { ...message("assistant", at(2)), id: "s1", turn: "t1" };
     const reply = { ...message("assistant", at(5)), id: "r1", turn: "t1" };
     const other = { ...message("assistant", at(5)), id: "r0", turn: "t0" };

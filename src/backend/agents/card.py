@@ -1,5 +1,3 @@
-"""Pure assembly of the task card from agent outputs; no I/O, no model calls."""
-
 from __future__ import annotations
 
 import re
@@ -36,11 +34,11 @@ from .schemas import (
 
 _DASHES = str.maketrans({"–": "-", "—": "-", "−": "-", "ё": "е", "«": '"', "»": '"'})
 _NOT_KEY = re.compile(r"[^a-z0-9_]+")
-# Discrepancies the checker finds become questions of their own kind.
+# расхождения становятся вопросами
 DISCREPANCIES = {"tz_vs_stl", "capability", "defect_vs_purpose", "sources", "discrepancy"}
-# Who stated a value, by the kind of source it cites.
+# кто назвал значение
 ORIGIN = {"message": "user", "answer": "user", "document": "document", "knowledge": "knowledge"}
-# Stands in for a source when a value is inferred, since every requirement cites something.
+# подмена источника
 ASSUMED = "assumption"
 ANSWER = "a:"
 SETTLED = "Источники расходились, значение выбрано при проверке"
@@ -51,17 +49,13 @@ def normalize_text(text: str) -> str:
 
 
 def clean_key(key: str) -> str:
-    """A free key in the form the contract allows: lower snake case starting with a letter."""
+    """Допустимый свободный ключ требования."""
     text = _NOT_KEY.sub("_", key.strip().casefold()).strip("_")
     return text if text[:1].isalpha() else "req_" + text
 
 
 class WorkingCard(BaseModel):
-    """The interpreter's draft with stable requirement ids, which the checker edits.
-
-    Codes and free requirements stay apart until the end: a code replaces a free key, and
-    a code appears in the card only once.
-    """
+    """Рабочий черновик карточки с идентификаторами."""
 
     purpose: str = ""
     requirements: dict[str, DraftRequirement] = Field(default_factory=dict)
@@ -71,7 +65,7 @@ class WorkingCard(BaseModel):
     assumptions: list[DraftAssumption] = Field(default_factory=list)
     unknowns: list[str] = Field(default_factory=list)
     questions: list[DraftQuestion] = Field(default_factory=list)
-    # Values of a code the sources disagreed on, kept once the checker settles the code.
+    # значения спорного кода
     superseded: dict[str, list[DraftRequirement]] = Field(default_factory=dict)
     next_id: int = 1
 
@@ -92,13 +86,7 @@ class WorkingCard(BaseModel):
         return card
 
     def add(self, requirement: DraftRequirement, keys: RequirementKeys, at: str = "") -> None:
-        """A requirement under a dictionary key fills that code, unless sources disagree on it.
-
-        A repeat from the same source, or of the same value, adds nothing, and a stated value
-        replaces an inferred one. When sources give different values, each value stays a
-        requirement and the code stays empty, so the checker sees the conflict and asks.
-        A changed requirement keeps its id, so the checker's ids stay valid in its next turn.
-        """
+        """Добавление требования в рабочую карточку."""
         requirement = requirement.model_copy(update={"key": clean_key(requirement.key)})
         key = requirement.key
         if keys.get(key) is not None:
@@ -122,13 +110,13 @@ class WorkingCard(BaseModel):
         return any(r.key == code for r in self.requirements.values())
 
     def _settle(self, code: str) -> None:
-        """A code the checker filled ends the dispute over it; the other values are kept."""
+        """Закрытие спора по коду."""
         for at, requirement in list(self.requirements.items()):
             if requirement.key == code:
                 self.superseded.setdefault(code, []).append(self.requirements.pop(at))
 
     def normalise(self, keys: RequirementKeys) -> None:
-        """A code value selection cannot read is not passed on as one; the user sees it."""
+        """Приведение значения кода к виду."""
         for code, value in list(self.codes.items()):
             entry = keys.get(code)
             read = keys.normalise(code, value.value, value.unit)
@@ -154,7 +142,7 @@ class WorkingCard(BaseModel):
         }
 
     def apply(self, review: Review, keys: RequirementKeys) -> None:
-        """Edits by id and by code; ids and codes it does not know are ignored."""
+        """Применение правок проверяющего к карточке."""
         for item in review.change:
             if self.requirements.pop(item.id, None) is not None:
                 self.add(DraftRequirement(**item.model_dump(exclude={"id"})), keys, item.id)
@@ -178,7 +166,7 @@ class WorkingCard(BaseModel):
         self.normalise(keys)
 
     def requirements_for(self, keys: RequirementKeys, ctx: RunContext) -> list[Requirement]:
-        """Codes in dictionary order, then the free requirements the checker kept."""
+        """Требования в порядке словаря кодов."""
         coded = [
             coded_requirement(code, self.codes[code], keys, ctx, self.superseded.get(code, []))
             for code in (entry.key for entry in keys.keys)
@@ -188,11 +176,7 @@ class WorkingCard(BaseModel):
 
 
 def _fixed(held: CodeValue | None, fix: CodeFix) -> CodeValue:
-    """The checker's value on top of the code it corrects.
-
-    The label stays. Conditions, mandatory and page describe the cited source, so they stay
-    only while the fix cites the same one. A value the user gave in an answer is stated.
-    """
+    """Значение проверяющего поверх кода."""
     changes = fix.model_dump(include={"value", "unit", "source_id", "quote", "basis"})
     changes["inferred"] = fix.inferred and not (fix.source_id or "").startswith(ANSWER)
     if held is None:
@@ -203,7 +187,7 @@ def _fixed(held: CodeValue | None, fix: CodeFix) -> CodeValue:
 
 
 def _agrees(held: CodeValue, requirement: DraftRequirement, keys: RequirementKeys) -> bool:
-    """The same source, or the same value once read the way selection reads it."""
+    """Согласие источников и значений."""
     citation = requirement.sources[0] if requirement.sources else None
     if citation is None or citation.source_id == held.source_id:
         return True
@@ -246,7 +230,7 @@ def _code(requirement: DraftRequirement) -> CodeValue:
 
 
 def provenance(source_id: str | None, ctx: RunContext) -> str:
-    """Where a value comes from follows from the source it cites, not from the model's word."""
+    """Происхождение значения по источнику."""
     source = ctx.sources.get(source_id or "")
     return ASSUMED if source is None else ORIGIN[source.kind]
 
@@ -258,7 +242,7 @@ def coded_requirement(
     ctx: RunContext,
     superseded: Sequence[DraftRequirement] = (),
 ) -> Requirement:
-    """An inferred value is an assumption: it never blocks and the user is told about it."""
+    """Требование с кодом из значения."""
     origin = ASSUMED if value.inferred else provenance(value.source_id, ctx)
     entry = keys.get(code)
     citation = Evidence(source_id=value.source_id or ASSUMED, quote=value.quote, page=value.page)
@@ -297,7 +281,7 @@ def free_requirement(draft: DraftRequirement, ctx: RunContext) -> Requirement:
 
 
 def to_question(question: ReviewQuestion) -> Question:
-    """A discrepancy keeps its kind; the id follows the subject, so its answer is not lost."""
+    """Расхождение превращается в вопрос."""
     anchor = question.requirement_key or normalize_text(question.title)
     discrepancy = question.kind in DISCREPANCIES
     return Question(
@@ -316,11 +300,7 @@ def to_question(question: ReviewQuestion) -> Question:
 def settle_questions(
     proposed: list[DraftQuestion], review: Review
 ) -> tuple[list[ReviewQuestion], list[WaivedQuestion]]:
-    """Each proposed question is kept, waived with a reason, or asked as it was proposed.
-
-    The checker may drop a question only by saying why; one it passes over in silence is
-    not lost, the user gets it as the interpreter put it.
-    """
+    """Решение судьбы предложенных вопросов."""
     ids = {f"q{number}": q for number, q in enumerate(proposed, 1)}
     kept = {q.source for q in review.questions if q.source}
     reasons = {w.id: w.reason.strip() for w in review.waived if w.id in ids and w.id not in kept}
@@ -335,7 +315,7 @@ def settle_questions(
 
 
 def merged(questions: list[Question], answers: dict[str, str]) -> list[Question]:
-    """The first question with an id wins; each one carries the user's answer, if any."""
+    """Объединение вопросов по идентификатору."""
     unique: dict[str, Question] = {}
     for question in questions:
         unique.setdefault(question.id, question)
@@ -355,21 +335,21 @@ def fill(card: TaskCard, working: WorkingCard, requirements: list[Requirement]) 
 
 
 def stable_references(card: TaskCard, ctx: RunContext) -> None:
-    """Agents cite short run-local ids; the card keeps references that outlive the run."""
+    """Устойчивые ссылки вместо коротких идентификаторов."""
     evidences = [e for r in card.requirements for e in r.sources]
     evidences += [e for r in card.requirements for old in r.superseded for e in old.sources]
     evidences += [e for q in card.questions for e in q.sources]
     for evidence in evidences:
         source = ctx.sources.get(evidence.source_id)
         if source is not None:
-            # A document page keeps its image, so the card can show the page it cites.
+            # страница хранит изображение
             evidence.page, evidence.artifact_id = source.page, source.image
             evidence.method = _method(source)  # type: ignore[assignment]
             evidence.source_id = source.ref
 
 
 def _method(source: Source) -> str:
-    """How a quote was checked: against a page's text or image, the chat or the base."""
+    """Способ проверки цитаты источника."""
     if source.kind != "document":
         return ORIGIN[source.kind]
     return "vision" if not source.text.strip() and source.image else "text"

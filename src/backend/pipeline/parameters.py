@@ -1,11 +1,3 @@
-"""Parameter selection, its check, slicing and the check of the G-code for a ready card.
-
-Selection and both checks are deterministic and quick, so the steps run back to back in one
-task instead of handing over through the queue. Slicing takes minutes in STE Slicer and is
-watched meanwhile, so a stop or an edit ends it at once. Each step commits its result, event
-and summary under the revision guard, so the chat follows step by step.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -34,28 +26,27 @@ from ..ports.operations import Slicer
 from ..ports.persistence import UnitOfWork, UowFactory
 from .store import JobStore, SafePoint, ensure_current, no_safe_point
 
-# The summary of a finished revision, written after the pipeline's last transaction.
+# сводка после транзакции
 Report = Callable[[str, int], Awaitable[None]]
 
 Select = Callable[[TaskCard, Feedback | None], ParameterSet]
 Check = Callable[[ParameterSet], CheckResult]
-# The stored G-code by its key, the set it was sliced from and the pass.
+# ключ G-code
 CheckGcode = Callable[[str, ParameterSet, int], GcodeCheck]
-# How often a running slicing looks whether the job was stopped or edited.
+# частота проверки остановки
 WATCH_SECONDS = 1.0
 T = TypeVar("T")
 
 
 @dataclass(frozen=True)
 class PipelineSettings:
-    # Selection and the checks take well under a second. Slicing is bounded by the slicer
-    # itself, which knows how long a run waits for another job's.
+    # шаги быстрые
     timeout_seconds: float
 
 
 @dataclass
 class Run:
-    """What the passes found so far; a new selection starts its pass afresh."""
+    """Что нашли проходы выбора."""
 
     parameter_set: ParameterSet
     check: CheckResult | None = None
@@ -77,7 +68,7 @@ class ParameterPipeline:
         safe_point: SafePoint = no_safe_point,
         report: Report | None = None,
     ):
-        # Without a report of its own the finished pipeline says its outcome in one line.
+        # итог одной строкой
         self.store = ParameterStore(uow, say=report is None)
         self.catalog, self.select, self.check = catalog, select, check
         self.slicer, self.check_gcode = slicer, check_gcode
@@ -114,8 +105,7 @@ class ParameterPipeline:
                 step = await self._steps[step.stage](job, step, run)
             if step is None and self.report is not None:
                 await self.report(job_id, revision)
-            # Messages queued meanwhile are read before the next step spends its time, and
-            # after the last one, when the job is done.
+            # сообщения между шагами
             if await self.safe_point(job_id, revision):
                 return
 
@@ -179,7 +169,7 @@ class ParameterPipeline:
         stored = await self.store.result(job.id, job.revision, step)
         if stored is not None:
             return SliceReport.model_validate(stored)
-        # A stored upload's key is its attachment id.
+        # ключ равен вложению
         models = {model.attachment_id: model.attachment_id for model in parameter_set.models}
         run = f"{job.id}-r{job.revision}-i{step.iteration}"
         return await self._watched(job, self.slicer.slice(run, parameter_set, models))
@@ -202,11 +192,11 @@ class ParameterPipeline:
             raise AppError(message, "gcode_timeout") from None
 
     async def _quick(self, work: Callable[..., T], *args: Any) -> T:
-        """A pure step off the event loop of the worker, bounded by the step timeout."""
+        """Быстрый шаг вне цикла событий."""
         return await asyncio.wait_for(asyncio.to_thread(work, *args), self.settings.timeout_seconds)
 
     async def _watched(self, job: Job, work: Awaitable[T]) -> T:
-        """A long step ends as soon as the job is stopped or edited, not when it is done."""
+        """Долгий шаг с проверкой остановки."""
         task = asyncio.ensure_future(work)
         try:
             while True:
@@ -241,7 +231,7 @@ class ParameterStore(JobStore):
         async with self.uow() as uow:
             current = await _locked(uow, job)
             await uow.stage_results.add(job.id, job.revision, step, run.parameter_set.published())
-            # A new pass makes the slicing of the one before stale.
+            # новый проход
             current.parameters, current.result = summary, None
             await _event(uow, current, "parameters.completed", _selection_text(summary), step)
             await _advance(uow, current, following, run, self.say)
@@ -334,7 +324,7 @@ async def _locked(uow: UnitOfWork, job: Job) -> Job:
 async def _advance(
     uow: UnitOfWork, job: Job, following: Step | None, run: Run, say: bool = True
 ) -> None:
-    """The job waits at its next stage; after the last step the pipeline is done."""
+    """Переводит задачу на следующий этап."""
     if following is not None:
         job.stage = following.stage
     else:
@@ -343,10 +333,7 @@ async def _advance(
 
 
 async def _complete(uow: UnitOfWork, job: Job, run: Run, say: bool = True) -> None:
-    """The last step finishes the job; anything left unmet asks for the user's attention.
-
-    ``say`` puts the outcome into the chat; a report written afterwards says it instead.
-    """
+    """Завершает задачу последним шагом."""
     parameter_set, summary = run.parameter_set, job.parameters
     assert summary is not None
     check_ok = run.check is not None and run.check.feedback.result == "ok"
@@ -365,7 +352,7 @@ async def _complete(uow: UnitOfWork, job: Job, run: Run, say: bool = True) -> No
 
 
 def _outcome(clean: bool, result: ResultSummary | None) -> Outcome:
-    """Parameters that need attention come first, then whether the project was made."""
+    """Итог по параметрам и проекту."""
     if not clean:
         return "parameters_attention"
     if result is None or not result.sliced:
@@ -441,7 +428,7 @@ _VALUES = ("значение", "значения", "значений")
 
 
 def _estimate(seconds: int | None, meters: float | None) -> str:
-    """The slicer's estimate of the print, as the chat shows it."""
+    """Оценка печати для чата."""
     parts = []
     if seconds:
         hours, minutes = divmod(round(seconds / 60), 60)
@@ -457,7 +444,7 @@ def _outcome_text(
     check_ok: bool,
     result: ResultSummary | None,
 ) -> str:
-    """What the chat says at the end; details stay in the timeline rows."""
+    """Итоговый текст для чата."""
     details = _selection_text(summary)
     if parameter_set.status == "infeasible":
         return f"Подобрать параметры под все требования не получилось. {details}"
@@ -475,7 +462,7 @@ def _outcome_text(
 
 
 def _problem(parameter_set: ParameterSet, check_ok: bool, result: ResultSummary) -> str | None:
-    """The first thing the user should look at in a project that was made."""
+    """Первое, на что смотреть."""
     if parameter_set.unsatisfied:
         return "выполнены не все требования"
     if not check_ok:
@@ -486,7 +473,7 @@ def _problem(parameter_set: ParameterSet, check_ok: bool, result: ResultSummary)
 
 
 def _count(number: int, forms: tuple[str, str, str]) -> str:
-    """A Russian count: 1 настройка, 2 настройки, 5 настроек."""
+    """Русское числительное с существительным."""
     if 11 <= number % 100 <= 14 or number % 10 == 0 or number % 10 >= 5:
         return f"{number} {forms[2]}"
     return f"{number} {forms[0] if number % 10 == 1 else forms[1]}"

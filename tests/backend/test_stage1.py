@@ -1,5 +1,3 @@
-"""Stage one end to end on SQLite and real file processes; only the provider is scripted."""
-
 import asyncio
 import json
 import uuid
@@ -34,7 +32,7 @@ REQUIREMENTS = [
         "conditions": "пик",
         "sources": [{"source_id": TEXT, "quote": "Пиковый момент 75 Нм"}],
     },
-    # The same property as a filled code; the code wins and this one is dropped.
+    # код важнее свойства
     {
         "key": "service_temp_max_c",
         "value": "70",
@@ -100,7 +98,7 @@ async def send(http, job_id: str, message: str):
 
 
 async def run(pg, job_id: str, model: ScriptedModel):
-    """Stage one as the queue would run it: with the flags of the task waiting for it."""
+    """Этап один как в очереди."""
     pg.stage1.runner.model = model
     async with pg.uow() as uow:
         job = await uow.jobs.get(job_id)
@@ -118,14 +116,14 @@ async def run(pg, job_id: str, model: ScriptedModel):
 
 
 async def revise(pg, job_id: str) -> None:
-    """A correction the assistant applied: a new revision with its stage-one task."""
+    """Правка ассистента с новой ревизией."""
     async with pg.uow() as uow:
         await changed(uow, await uow.jobs.get(job_id, lock=True), "Правка", correction=True)
         await uow.commit()
 
 
 async def turn(pg, job_id: str, model: ScriptedModel):
-    """The assistant's answer to what the user sent, as the queue would run it."""
+    """Ответ ассистента на сообщение."""
     pg.stage1.runner.model = model
     await pg.steering.deliver(job_id, force=True)
     async with pg.uow() as uow:
@@ -160,7 +158,7 @@ async def chat(http, job_id: str) -> list[dict]:
 
 
 def sent(model: ScriptedModel, agent: str, index: int = 0) -> str:
-    """The data part of the agent's first user turn."""
+    """Данные первого хода агента."""
     return model.requests[agent][index]["messages"][1]["content"][0]["text"]
 
 
@@ -168,7 +166,7 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     model = script()
     job = await run(pg, await job_with(http, "box.stl", "task.txt"), model)
     card = job.card
-    # The ready card waits in the queue for parameter selection.
+    # карточка ждёт подбора
     assert job.status == Status.QUEUED and job.stage == "parameters"
     assert card.readiness == "ready" and card.questions == []
     assert [r.key for r in card.requirements] == [
@@ -183,7 +181,7 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
         "document",
         True,
     )
-    # An inferred code is an assumption: selection reads it, nobody is asked to confirm it.
+    # выведенный код: допущение
     assert (load.provenance, load.mandatory, load.verified) == ("assumption", False, False)
     assert load.conditions == "пиковый момент при работе"
     attachment = next(f for f in card.files if f.kind == "txt")
@@ -199,7 +197,7 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     assert "<stl>" not in reading and "<stl_report>" not in reading
     checking = model.requests["checker"][0]["messages"][1]["content"]
     assert "<stl_report>" in checking[0]["text"] and '"codes"' in checking[0]["text"]
-    # The report replaces the summary; the projections still show the shape.
+    # отчёт заменяет сводку
     assert "<stl>" not in checking[0]["text"] and checking[-1]["type"] == "image_url"
     queued = await rows(
         pg, "SELECT task AS task_name, args FROM task_queue WHERE task = 'stage2.select_parameters'"
@@ -218,7 +216,7 @@ async def test_full_run_hands_the_card_to_parameter_selection(pg, http):
     async with pg.uow() as uow:
         assert (await uow.traces.usage(job.id))[0] == 2
     events = await rows(pg, "SELECT payload FROM events WHERE job_id = :j ORDER BY seq", j=job.id)
-    # Each agent's call reaches the chat as it runs, its reasoning in between.
+    # вызовы в чат
     assert [
         (e["payload"]["type"], e["payload"]["data"]["agent"])
         for e in events
@@ -241,7 +239,7 @@ async def todo(pg, queue: str) -> list[dict]:
 
 
 async def finished(pg, http):
-    """A job whose pipeline ran to the end; without a slicer here, no project is made."""
+    """Задача с завершённым пайплайном."""
     job = await run(pg, await job_with(http, "box.stl", "task.txt"), script())
     await pg.pipeline.run(job.id, job.revision)
     async with pg.uow() as uow:
@@ -307,7 +305,7 @@ async def test_a_start_without_a_model_is_refused_and_the_assistant_asks_for_it(
 
 
 async def test_a_chat_reply_after_the_project_keeps_it(pg, http):
-    """Regression: «Спасибо» after the project queued selection and slicing all over again."""
+    """Ответ в чате сохраняет проект."""
     done = await finished(pg, http)
     assert (done.status, done.stage, done.outcome) == (Status.COMPLETED, "done", "not_sliced")
     parameters = (await http.get(f"/api/v1/jobs/{done.id}/parameters")).json()
@@ -321,7 +319,7 @@ async def test_a_chat_reply_after_the_project_keeps_it(pg, http):
 
 
 async def test_a_new_part_after_the_project_starts_a_project_of_its_own(pg, http):
-    """Regression: a second part redid the first project with the files of both."""
+    """Новая деталь начинает свой проект."""
     done = await finished(pg, http)
     await upload(http, done.id, "other.stl", Path("tests/fixtures/box.stl").read_bytes())
     await send(http, done.id, "Ещё один проект, вот другая деталь")
@@ -390,7 +388,7 @@ async def test_checker_questions_wait_for_answers_in_the_same_dialog(pg, http):
     }
     model = script(checker=[reply(fix)])
     job = await run(pg, job.id, model)
-    # Only the checker runs again, continuing its own dialog.
+    # снова только проверяющий
     assert set(model.requests) == {"checker"}
     dialog = model.requests["checker"][0]["messages"]
     assert [m["role"] for m in dialog] == ["system", "user", "assistant", "user"]
@@ -418,7 +416,7 @@ async def test_dont_know_lets_the_checker_assume_and_the_card_goes_on(pg, http):
 
 
 async def test_earlier_answers_reach_the_agents_when_the_work_runs_again(pg, http):
-    """Regression: the interpreter and the checker never saw answers given before."""
+    """Прежние ответы доходят до агентов."""
     job, _ = await asked(pg, http)
     question = job.card.questions[0]
     await answer(http, job, {question.id: "морская вода"})
@@ -508,7 +506,7 @@ async def test_unexpected_error_marks_the_job_failed(pg, http):
 
 
 async def test_files_attached_during_a_run_leave_the_card_going_on(pg, http):
-    """The files go with the next message to the assistant; the card is not held back."""
+    """Файлы идут со следующим сообщением."""
     job_id = await job_with(http, "box.stl", "task.txt")
 
     async def attach_meanwhile(messages):
@@ -526,7 +524,7 @@ async def test_files_attached_during_a_run_leave_the_card_going_on(pg, http):
 
 
 async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):
-    """Regression: a report cut by the time limit was cached and reused by every retry."""
+    """Частичный отчёт STL не кэшируется."""
     analyze = pg.stage1.files.analyze
     calls = []
 
@@ -540,7 +538,7 @@ async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):
     await http.post(f"/api/v1/jobs/{job_id}/control/retry", json={"request_id": rid()})
     await run(pg, job_id, script())
     assert calls == ["mm", "mm"]
-    # Agent results and the checker's dialogs are cached, the cut report is not.
+    # отчёт не кэшируется
     cached = (
         "SELECT key FROM operation_cache WHERE key NOT LIKE 'agent:%' AND key NOT LIKE 'stage1:%'"
     )
@@ -548,7 +546,7 @@ async def test_a_partial_stl_report_is_not_cached(pg, http, monkeypatch):
 
 
 async def test_a_failed_document_is_read_again_on_retry(pg, http, monkeypatch):
-    """Regression: a temporary parse failure stayed until the file was uploaded again."""
+    """Сбойный документ читается заново."""
     inspect = pg.stage1.files.inspect
     failures = [AppError("Страница PDF не обработана за 30 секунд", "page_timeout", 503)]
 
@@ -581,7 +579,7 @@ async def test_stop_interrupts_a_model_call_in_flight(pg, http, monkeypatch):
 
     job = await asyncio.wait_for(run(pg, job_id, script(interpreter=[endless])), 10)
     assert job.status == Status.STOPPED and cancelled.is_set()
-    # Regression: without an event the open chat stayed on "Останавливаем" forever.
+    # чат зависал
     events = await rows(
         pg, "SELECT payload FROM events WHERE job_id = :j ORDER BY seq DESC LIMIT 1", j=job_id
     )
@@ -617,7 +615,7 @@ async def test_events_start_at_the_current_revision_and_wake_on_commit(pg, http)
 
 
 async def test_a_question_the_checker_drops_in_silence_is_asked_anyway(pg, http):
-    """Regression: the checker turned questions into assumptions and nobody could see why."""
+    """Снятый вопрос всё равно задаётся."""
     balance = {"title": "Нужна ли балансировка", "options": ["да", "нет"]}
     finish = {"title": "Можно ли дорабатывать отверстие", "options": ["да", "нет"]}
     draft = {**DRAFT, "questions": [finish, balance]}
@@ -677,7 +675,7 @@ async def test_files_alone_go_to_the_assistant_and_an_empty_message_is_refused(p
 
 
 async def test_the_details_asked_reach_the_interpreter_with_the_answer(pg, http):
-    """The one request for details is marked, so the interpreter sees what was asked."""
+    """Запрошенные детали доходят с ответом."""
     job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
     await upload(http, job_id, "box.stl")
     await send(http, job_id, "Деталь")

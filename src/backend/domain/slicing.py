@@ -1,11 +1,3 @@
-"""Contracts of slicing (stage four) and the check of its G-code (stage five).
-
-STE Slicer with the AI Assistant plugin applies a parameter set through the plugin's MCP
-tools, slices and saves the G-code and the project. ``SliceReport`` is what that run did;
-``GcodeCheck`` is what the G-code shows and what goes back to parameter selection when the
-cause lies in the set rather than in how the slicer applied it.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -17,7 +9,7 @@ from .parameters import Feedback
 
 
 class SlicerCall(Value):
-    """One MCP tool call of the plan; ``step`` names it in the report."""
+    """Один вызов инструмента MCP."""
 
     step: str
     tool: str
@@ -30,7 +22,7 @@ class Unsupported(Value):
 
 
 class Clamped(Value):
-    """A value the slicer wrote differently from the one asked for."""
+    """Значение, записанное слайсером иначе."""
 
     key: str
     requested: Any
@@ -45,7 +37,7 @@ class CallOutcome(Value):
 
 
 class SliceReport(Value):
-    """``unavailable``: no slicer answered; ``failed``: a call of the plan failed."""
+    """Отчёт о нарезке слайсером."""
 
     status: Literal["sliced", "failed", "unavailable"]
     message: str
@@ -53,7 +45,7 @@ class SliceReport(Value):
     clamped: list[Clamped] = Field(default_factory=list)
     unsupported: list[Unsupported] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
-    # Keys of the stored copies and the folder where the slicer saved the originals.
+    # копии и папка
     gcode: str | None = None
     project: str | None = None
     folder: str | None = None
@@ -63,9 +55,7 @@ class SliceReport(Value):
 
 
 class GcodeFinding(Value):
-    """``file``: the G-code is broken; ``apply``: the slicer wrote something else than the
-    set asked for; ``content``: the set itself needs a change, for instance a model off the
-    bed."""
+    """Находка проверки файла G-code."""
 
     id: str
     kind: Literal["file", "apply", "content"]

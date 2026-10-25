@@ -11,7 +11,7 @@ function stored(): Theme | null {
     return null;
   }
 }
-// The theme the switch chose, or the system one until it is used; the choice is remembered.
+// выбранная тема
 export function useTheme() {
   const [chosen, setChosen] = useState<Theme | null>(stored);
   const [system, setSystem] = useState<Theme>(() =>
@@ -34,7 +34,7 @@ export function useTheme() {
     try {
       localStorage.setItem(KEY, next);
     } catch {
-      // Without storage the choice lasts until the page is closed.
+      // без хранилища
     }
   }
   return { theme, toggle };

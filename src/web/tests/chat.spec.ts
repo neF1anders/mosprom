@@ -80,7 +80,7 @@ for (const name of [
   "photo.png",
 ]) {
   test(`T02 T03 document ${name}`, async ({ page }) => {
-    // The model goes with the document, or the assistant only talks about it.
+    // модель вместе с документом
     await upload(page, name, "box.stl");
     await settled(page);
     const panel = page.getByRole("complementary", {
@@ -89,11 +89,11 @@ for (const name of [
     await panel
       .getByRole("button", { name: /Обязательные требования/ })
       .click();
-    // The items of a section are listed inside its step.
+    // пункты внутри шага
     const items = panel.locator("li li");
     await expect(items.filter({ hasText: /25/ }).first()).toBeVisible();
     await expect(items.filter({ hasText: /75/ }).first()).toBeVisible();
-    // A value named by a requirement code reaches the card under that code.
+    // значение под кодом
     if (name === "task.txt")
       await expect(
         items
@@ -127,7 +127,7 @@ for (const [name, expected] of [
 ]) {
   test(`T04 mesh ${name}`, async ({ page }) => {
     await upload(page, name);
-    // A defect the card settled is listed in the opened geometry section.
+    // дефект в геометрии
     if (/поверхность|грани|оболочек/.test(expected)) {
       await settled(page);
       const panel = page.getByRole("complementary", {
@@ -159,7 +159,7 @@ for (const choice of ["80 мм", "100 мм", "90 мм", "Не знаю"]) {
       await window.getByRole("button", { name: "Отправить ответы" }).click();
     } else await answer(page, choice);
     await answered(page, "Источники расходятся, Длина детали", choice);
-    // The checker takes the answers in its own dialog and asks nothing more.
+    // ответы в окне
     await pipelineDone(page);
     await expect(window).toHaveCount(0);
     if (choice === "Не знаю") {
@@ -208,8 +208,7 @@ test("T09 tool call is visible in the timeline", async ({ page }) => {
 for (const message of ["TEST_PROVIDER_401", "TEST_PROVIDER_INVALID_JSON"]) {
   test(`T10 ${message}`, async ({ page }) => {
     await task(page, message);
-    // A refused call leaves the assistant without an answer, which it says; a broken
-    // answer fails the work at the interpreter.
+    // отказ и сбой
     if (message === "TEST_PROVIDER_401")
       await expect(page.getByText(/модель не отвечает/)).toBeVisible();
     else
@@ -239,7 +238,7 @@ test("T15 off-topic message gets a reply from the assistant without a run", asyn
   page,
 }) => {
   await send(page, "TEST_OFFTOPIC Какая погода");
-  // The reply is in the thread; the card journal repeats it as an event.
+  // ответ и журнал
   await expect(
     page
       .getByRole("main")
@@ -248,7 +247,7 @@ test("T15 off-topic message gets a reply from the assistant without a run", asyn
   await settled(page);
   const card = page.getByRole("complementary", { name: "Карточка задания" });
   await expect(card.getByText("Нет данных").first()).toBeVisible();
-  // A task with a model starts the work; the small talk does not describe the part.
+  // работа с моделью
   await task(page, "Шестерня привода");
   await pipelineDone(page);
   await expect(
@@ -267,7 +266,7 @@ test("T15 a reply in the chat after the project keeps the project", async ({
       .getByText("Я помогаю только с подготовкой задания на печать"),
   ).toBeVisible();
   await pipelineDone(page);
-  // Nothing ran again: the timeline and the files are those of the work before.
+  // прежний результат
   const job = new URL(page.url()).searchParams.get("job");
   const snapshot = await (await page.request.get(`/api/v1/jobs/${job}`)).json();
   expect(snapshot.job.work_revision).toBe(snapshot.job.revision);
@@ -292,7 +291,7 @@ test("T15 the assistant asks for details, the next message starts the work", asy
   await settled(page);
   const card = page.getByRole("complementary", { name: "Карточка задания" });
   await expect(card.getByText("Нет данных").first()).toBeVisible();
-  // The marker would make it ask again, but a second request is not taken: the work starts.
+  // второй запрос не принят
   await send(page, "TEST_GATE_ASK Шестерня привода");
   await pipelineDone(page);
   await expect(
@@ -344,7 +343,7 @@ test("T13 a ready card goes through every stage to a project", async ({
       }),
     ).toHaveAttribute("data-state", /done|warn/);
   await expect(timeline.getByText("Что подобрано")).toBeVisible();
-  // The test stack slices with the stand-in of the plugin.
+  // заглушка плагина
   await expect(timeline.getByText("Что получилось")).toBeVisible();
   const job = new URL(page.url()).searchParams.get("job");
   const project = await page.request.get(`/api/v1/jobs/${job}/result/project`);
@@ -356,7 +355,7 @@ test("T13 a ready card goes through every stage to a project", async ({
 test("T18 a model larger than the printer asks for attention", async ({
   page,
 }) => {
-  // The model is 10 by 20 by 30 m, larger than every working area.
+  // больше рабочей области
   await task(page, "Шестерня привода", "large.stl");
   await expect(
     page.getByRole("status").filter({ hasText: "Параметры требуют внимания" }),
@@ -403,7 +402,7 @@ test("T17 an edit after a ready card is processed", async ({ page }) => {
     (await (await page.request.get(`/api/v1/jobs/${job}`)).json()).job;
   const before = (await snapshot()).revision;
   await send(page, "Допуск на посадочное отверстие 0,1 мм");
-  // Work queued for the ready card must not hold the edit back.
+  // очередь не мешает правке
   await expect
     .poll(async () => {
       const current = await snapshot();
@@ -411,7 +410,7 @@ test("T17 an edit after a ready card is processed", async ({ page }) => {
     })
     .toEqual([before + 1, "completed"]);
   await expect(done).toBeVisible();
-  // The edit names a requirement code, so the new card carries it.
+  // код требования
   const card = (await snapshot()).card;
   expect(
     card.requirements.find(

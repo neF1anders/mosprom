@@ -1,8 +1,3 @@
-"""One tool of the AI Assistant plugin, called by hand through the pipeline's MCP adapter.
-
-uv run python tools/slicing/mcp_call.py get_state ['{"арг": 1}'] [--folder папка]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -27,7 +22,7 @@ from src.backend.infrastructure.slicer import (  # noqa: E402
 
 def main(argv: list[str]) -> int:
     settings = Settings()
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(description="Вызов инструмента плагина через MCP адаптер.")
     parser.add_argument("tool")
     parser.add_argument("arguments", nargs="?", default="{}", help="аргументы JSON")
     parser.add_argument("--folder", type=Path, default=settings.slicer_folder)

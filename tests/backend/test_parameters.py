@@ -86,7 +86,7 @@ def test_feedback_constraints_are_well_formed():
         (Step("validation", 1), "ok", Step("slicing", 1)),
         (Step("validation", 1), "needs_changes", Step("parameters", 2)),
         (Step("parameters", 2), None, Step("validation", 2)),
-        # The last pass is sliced with what the check left.
+        # последний проход режется
         (Step("validation", 2), "needs_changes", Step("slicing", 2)),
         (Step("validation", 2), "ok", Step("slicing", 2)),
         (Step("slicing", 1), "ok", Step("gcode", 1)),

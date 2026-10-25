@@ -3,15 +3,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { addThought, type CallThoughts } from "../timeline";
 import type { ProgressEvent } from "../types";
 
-// Events that change the snapshot or the chat list; progress and tool calls do not.
+// события снимка
 const STATE_EVENTS =
   /^(job\.|answers\.|stage1\.|operation\.|files\.(completed|failed)|stl\.(completed|failed)|parameters\.|validation\.|slicing\.|gcode\.|pipeline\.|queue\.|steer\.|message\.|assistant\.)/;
 
-// The server starts the stream at the revision of the job's work and resumes it by Last-Event-ID.
+// поток с Last-Event-ID
 export function useJobEvents(selected: string, enabled: boolean) {
   const client = useQueryClient();
   const [events, setEvents] = useState<ProgressEvent[]>([]);
-  // Reasoning and the narrator's phrases are kept per model call, apart from the timeline events.
+  // рассуждения по вызовам
   const [thoughts, setThoughts] = useState<Record<string, CallThoughts>>({});
   const [connected, setConnected] = useState(true);
   const [epoch, setEpoch] = useState(0);
@@ -33,9 +33,7 @@ export function useJobEvents(selected: string, enabled: boolean) {
     setConnected(navigator.onLine);
     const source = new EventSource(`/api/v1/jobs/${selected}/events`);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // The chat is fetched anew, dropping a fetch that started before the event. The list
-    // keeps a fetch on its way: the next page of chats the user asked for would be dropped
-    // while the open chat keeps working.
+    // свежий снимок
     const refresh = () => {
       void client.invalidateQueries({ queryKey: ["job", selected] });
       void client.invalidateQueries(
@@ -60,7 +58,7 @@ export function useJobEvents(selected: string, enabled: boolean) {
           ? previous
           : [...previous, update].slice(-1000),
       );
-      // Several state events in a burst cost one refetch.
+      // одна выборка на пачку
       if (STATE_EVENTS.test(update.type) && !timer)
         timer = setTimeout(refresh, 100);
     };

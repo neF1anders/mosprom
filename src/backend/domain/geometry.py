@@ -1,5 +1,3 @@
-"""Server-owned STL facts: report binding and the compact summary agents receive."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -59,5 +57,5 @@ def summarize(report: dict[str, Any], units: str, report_id: str) -> Geometry:
 
 
 def _partial(report: dict[str, Any]) -> list[str]:
-    # Sorted: JSONB does not keep key order, and the summary is part of agent cache keys.
+    # сортировка для кеша
     return [f"Не завершена проверка {name}" for name in sorted(report.get("partial_errors", {}))]

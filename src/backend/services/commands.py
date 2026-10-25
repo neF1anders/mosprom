@@ -19,12 +19,7 @@ async def changed(
     correction: bool = False,
     typed: list[str] | None = None,
 ) -> int | None:
-    """A new revision and its stage-one job commit together with the change itself.
-
-    ``start`` runs stage one anew; ``correction`` continues the checker's dialog with the new
-    text; ``typed`` are messages already in the chat that the run reads as the user's reply.
-    Returns where the messages that waited in the queue start in the chat, if any did.
-    """
+    """Фиксирует изменение вместе с ревизией."""
     job.updated_at = now()
     job.revision += 1
     first = await _take_queue(uow, job)
@@ -55,10 +50,7 @@ async def changed(
 
 
 async def _take_queue(uow: UnitOfWork, job: Job) -> int | None:
-    """Every new revision takes the messages still waiting, before whatever text started it.
-
-    Nothing is lost or left between revisions; a delivery that claimed them loses its claim.
-    """
+    """Забирает ожидающие сообщения очереди."""
     waiting = await uow.queued.list(job.id)
     seqs = [
         await uow.messages.add(
@@ -78,10 +70,7 @@ async def _take_queue(uow: UnitOfWork, job: Job) -> int | None:
 
 
 async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) -> None:
-    """A sent STL replaces the previous one; until the send, the previous one stays in use.
-
-    Removing an unsent STL therefore leaves the earlier model intact.
-    """
+    """Заменяет STL после отправки."""
     stls = [a for a in attachments if a.active and a.kind == "stl" and in_project(a, job)]
     new = next((a for a in stls if a.id != job.active_stl), None)
     current = next((a for a in stls if a.id == job.active_stl), None)
@@ -95,7 +84,7 @@ async def apply_stl(uow: UnitOfWork, job: Job, attachments: list[Attachment]) ->
 
 
 async def attached(uow: UnitOfWork, job: Job, message: str, files_changed: bool = True) -> None:
-    """File changes wait for the user's next send instead of starting work."""
+    """Изменения файлов ждут отправки."""
     job.updated_at = now()
     job.files_changed = files_changed
     await uow.jobs.save(job)

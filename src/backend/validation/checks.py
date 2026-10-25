@@ -1,21 +1,3 @@
-"""Stage three: a deterministic check of a parameter set against the issued STE Slicer build.
-
-Ported from FedorSolodkin's ``validation/tools/check_parameter_set.py``. Each group of the
-check (printer, quality profile, materials, settings, models) is one function returning its
-findings, and ``check_parameters`` runs them in the original order. Nothing from a definition
-is executed: formulas go through ``domain.formulas``.
-
-What ``ParameterSet`` enforces on its own is not checked again: the contract and its version,
-the iteration, ``card_ref``, the three printing modes, a ``why`` and a ``source`` on every value
-and the JSON type of each field.
-
-Settings are compared with the limits, options and applicability conditions of the build.
-Limits and conditions written as formulas are evaluated the way parameter selection resolves
-values: the set's values over its quality profile, over the printer's in the chosen mode
-(``Catalog.values``). A limit that cannot be evaluated is not compared, a condition that cannot
-be evaluated becomes a note.
-"""
-
 from __future__ import annotations
 
 import json
@@ -31,21 +13,20 @@ from ..domain.parameters import Issue, ParameterSet, PlacedModel
 
 Level = Literal["error", "warning", "info"]
 
-# The variant of a shared key the slicer reads in each printing mode.
+# вариант общего ключа
 _MODE_VARIANTS = {
     "classic": "_classic",
     "cylindrical": "_cylindrical",
     "cylindrical_full": "_cylindrical",
 }
-# A formula that fails on these values: a construct outside the formula language, a value of
-# the wrong type, a division by zero or a missing argument.
+# формула не вычисляется
 _UNEVALUATED = (ArithmeticError, LookupError, TypeError, ValueError)
 _ROTATION_TOLERANCE = 1e-3
 _DIAMETER_TOLERANCE = 1e-6
 
 
 def check_parameters(parameter_set: ParameterSet, catalog: Catalog) -> list[Issue]:
-    """Every finding of the check, in the order of the original."""
+    """Все замечания проверки по порядку."""
     return [issue for check in _CHECKS for issue in check(parameter_set, catalog)]
 
 
@@ -83,7 +64,7 @@ def _check_materials(parameter_set: ParameterSet, catalog: Catalog) -> list[Issu
 
 
 def _check_material(position: str, material_id: str, catalog: Catalog) -> list[Issue]:
-    """The material is in the build and its filament fits the extruder at ``position``."""
+    """Материал есть и подходит экструдеру."""
     where = f"materials[{position}]"
     filament = catalog.filament_diameter(position)
     profile = catalog.materials.get(material_id)
@@ -109,8 +90,7 @@ def _fits(diameter: float | None, filament: float | None) -> bool:
 
 @dataclass(frozen=True)
 class _Context:
-    """What the setting checks read: the build, the printing mode, the values sent and the
-    values the slicer would use with them."""
+    """Данные для проверок настроек."""
 
     catalog: Catalog
     mode: str
@@ -152,7 +132,7 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-# The JSON value each slicer type takes, and how people call it. Other types are not checked.
+# тип JSON слайсера
 _JSON_TYPES: dict[str, tuple[Callable[[Any], bool], str]] = {
     "bool": (_is_bool, "логическое значение"),
     "int": (_is_integer, "целое число"),
@@ -217,8 +197,7 @@ def _check_limits(
 
 
 def _bound(limit: Any, context: _Context) -> float | None:
-    """A limit as a number: written as one or as a formula. A formula that cannot be
-    evaluated, or gives no number, is not compared."""
+    """Предел числом или формулой."""
     try:
         return float(limit)
     except (TypeError, ValueError):
@@ -233,7 +212,7 @@ def _bound(limit: Any, context: _Context) -> float | None:
 
 
 def _check_applicability(key: str, definition: Mapping[str, Any], context: _Context) -> list[Issue]:
-    """The setting's ``enabled`` condition holds in the chosen mode with the values sent."""
+    """Условие применимости настройки выполняется."""
     condition = definition.get("enabled")
     if not isinstance(condition, str) or condition.strip() in ("", "True"):
         return []
@@ -255,8 +234,7 @@ class _ModeKey:
     meant_for: str
 
 
-# Keys meant for some printing modes only. In cylindrical_full the inner part is printed as in
-# 3D, so ``_classic`` keys apply there too (stage two's author says so, not tried in the slicer).
+# ключи отдельных режимов
 _MODE_KEYS = (
     _ModeKey("_classic", ("classic", "cylindrical_full"), "режима 3D"),
     _ModeKey("_cylindrical", ("cylindrical", "cylindrical_full"), "режимов 5D"),
@@ -278,10 +256,7 @@ def _check_mode_key(key: str, mode: str) -> list[Issue]:
 
 
 def _check_mode_variant(key: str, value: Any, context: _Context) -> list[Issue]:
-    """A shared key reaches the mode only if the mode's variant follows it by formula.
-
-    The variant's formula is read from ``fdmprinter``, as in the original.
-    """
+    """Общий ключ достигает режима формулой."""
     variant = key + _MODE_VARIANTS[context.mode]
     if variant not in context.catalog.settings or variant in context.sent:
         return []
@@ -306,7 +281,7 @@ def _check_mode_variant(key: str, value: Any, context: _Context) -> list[Issue]:
 
 @dataclass(frozen=True)
 class _Bed:
-    """The build plate of one printing mode, centred on the origin of the slicer scene."""
+    """Стол одного режима печати."""
 
     mode: str
     width: float
@@ -356,7 +331,7 @@ def _check_rotation(where: str, model: PlacedModel) -> list[Issue]:
 
 
 def _rotation_problem(matrix: list[list[float]]) -> str | None:
-    """Why ``matrix`` is not a rotation: it must be 3 by 3, orthonormal, with determinant 1."""
+    """Почему матрица не поворот."""
     if len(matrix) != 3 or any(len(row) != 3 for row in matrix):
         return "Поворот задан не матрицей 3 на 3"
     orthonormal = all(
@@ -385,7 +360,7 @@ def _check_scale(where: str, scale: list[float]) -> list[Issue]:
 
 
 def _check_position(where: str, position: list[float], bed: _Bed) -> list[Issue]:
-    """The model's centre lies over the plate and within the height of the mode."""
+    """Центр модели над столом."""
     if len(position) != 3:
         return [_issue("error", where, "bad_position", "Положение должно быть тремя числами")]
     x, y, z = position
@@ -411,7 +386,7 @@ def _setting_issue(level: Level, key: str, kind: str, message: str, bound: Any =
 
 
 def _text(value: Any) -> str:
-    """A value as people read it: a decimal comma, a name in quotes."""
+    """Значение в читаемом виде."""
     if isinstance(value, float):
         return format(value, ".10g").replace(".", ",")
     if isinstance(value, str):

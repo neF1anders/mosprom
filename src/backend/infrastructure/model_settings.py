@@ -14,12 +14,7 @@ FIELDS = ("base_url", "model", "api_key")
 
 
 class ModelSettingsFile:
-    """The settings saved from the chat, in DATA_DIR.
-
-    A value the file lacks comes from env, which the portable build's plugin fills from its
-    own settings. The file is read again only when it changes, so a save reaches the next
-    model call.
-    """
+    """Настройки модели из файла данных."""
 
     def __init__(self, folder: Path, defaults: ModelSettings):
         self.path, self.defaults = folder / "model.json", defaults
@@ -30,7 +25,7 @@ class ModelSettingsFile:
             stat = self.path.stat()
         except FileNotFoundError:
             return self.defaults
-        # A save replaces the file, so a new inode tells it apart even within one mtime tick.
+        # новый inode заметен
         stamp = (stat.st_ino, stat.st_mtime_ns, stat.st_size)
         if self._seen is None or self._seen[0] != stamp:
             self._seen = stamp, self._read()
@@ -40,7 +35,7 @@ class ModelSettingsFile:
         settings = self.current().updated(base_url, model, api_key)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(f"{self.path.name}.{uuid4().hex}")
-        # Only the owner reads the key; the other process sees the old file or the new one.
+        # читает только владелец
         try:
             descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:

@@ -14,7 +14,7 @@ function sentAt(message: Message) {
     minute: "2-digit",
   });
 }
-// The files a message was sent with, as the composer showed them.
+// файлы сообщения
 function sentFiles(
   message: Message,
   files: Map<string, Attachment>,
@@ -28,7 +28,7 @@ function sentFiles(
     ];
   });
 }
-// Hovering a sent message shows when it was sent and a copy button, as on Figma screen 23.
+// время и копирование
 function UserMessage({
   message,
   job,
@@ -73,7 +73,7 @@ function UserMessage({
     </article>
   );
 }
-// The chat as sent; a reply the timeline already shows as a stage summary is not repeated.
+// чат без повторов
 export function MessageList({
   messages,
   job,
@@ -88,7 +88,7 @@ export function MessageList({
   hidden?: Set<string>;
   files?: Map<string, Attachment>;
   load?: (id: string) => Promise<Blob>;
-  // The assistant's turns that led to each reply, opened like an agent's.
+  // ходы ассистента
   thought?: Map<string, AgentRun[]>;
   onAgent?: (id: string) => void;
 }) {

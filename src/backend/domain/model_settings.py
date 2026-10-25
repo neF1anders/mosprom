@@ -1,5 +1,3 @@
-"""The OpenAI-compatible API the agents call, entered in the chat or taken from env."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -19,7 +17,7 @@ class ModelSettings:
         return bool(self.base_url and self.model and self.api_key)
 
     def updated(self, base_url: str, model: str, api_key: str | None) -> ModelSettings:
-        """The user's entry over these settings; an empty key keeps the current one."""
+        """Настройки с записью пользователя."""
         base_url, model, api_key = base_url.strip(), model.strip(), (api_key or "").strip()
         if not http_url(base_url):
             raise AppError("Укажите адрес API в виде http или https")
@@ -35,7 +33,7 @@ def http_url(text: str) -> bool:
         return False
     try:
         parts = urlsplit(text)
-        # A port that is not a number fails here rather than at the first model call.
+        # порт проверяем сразу
         return parts.scheme in ("http", "https") and bool(parts.hostname) and parts.port != 0
     except ValueError:
         return False

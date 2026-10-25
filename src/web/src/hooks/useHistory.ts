@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 import { api } from "../api";
 import type { Message, Snapshot } from "../types";
 
-// Older messages load page by page above the snapshot's latest hundred.
+// подгрузка старых сообщений
 export function useHistory(
   selected: string,
   current: () => string,

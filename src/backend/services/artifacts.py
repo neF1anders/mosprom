@@ -8,7 +8,7 @@ from ..ports.operations import Files
 from ..ports.persistence import UowFactory
 
 ResultFile = Literal["gcode", "project"]
-# The report field with the stored copy and the name it is downloaded under.
+# поле отчёта
 RESULT_FILES = {"gcode": ("gcode", "result.gcode"), "project": ("project", "project.3mf")}
 
 
@@ -27,7 +27,7 @@ class ArtifactService:
         return await self.files.read(artifact_id)
 
     async def result(self, user_id: str, job_id: str, kind: ResultFile) -> tuple[bytes, str]:
-        """The G-code or the project of the last slicing of the job's work."""
+        """Результат последней нарезки задачи."""
         async with self.uow() as uow:
             job = await uow.jobs.get(job_id, user_id=user_id)
             report = None

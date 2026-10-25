@@ -1,9 +1,8 @@
-/* Colours of the Figma pages "Chat UI — Stage 1" (light) and "Chat UI — Dark". */
 :root {
   color-scheme: light;
   --bg: #ffffff;
   --surface: #f5f5f7;
-  /* The side panels: a softer grey that parts them from the chat without a line. */
+/* мягкий серый */
   --panel: #f7f7f9;
   --raised: #ffffff;
   --bubble: #f4f4f6;
@@ -36,7 +35,7 @@
   --on-status: #ffffff;
   --overlay: rgba(19, 20, 26, 0.12);
 }
-/* The system theme, unless the switch in the chats panel chose one. */
+/* системная тема */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;

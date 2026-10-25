@@ -8,7 +8,7 @@ from packaging.requirements import Requirement
 
 pytestmark = pytest.mark.architecture
 ROOT = Path("src/backend")
-# Selection and its check are pure: they get the card and the catalog and return values.
+# чистые функции
 STAGE_CORE = (
     "sqlalchemy",
     "psycopg",
@@ -82,7 +82,7 @@ def test_A01_worker_runs_the_shared_stage_one():
 
 
 def test_A01_application_branch_nesting_at_most_two():
-    """Statements nest at most two deep; a conditional expression never holds another one."""
+    """Вложенность операторов не глубже двух."""
 
     def visit(node, depth=0, inline=False):
         current = depth + isinstance(node, ast.If)

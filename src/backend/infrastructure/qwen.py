@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class _Transient(Exception):
-    """A failure worth another attempt: nothing usable arrived from the provider."""
+    """Сбой, после которого стоит повторить."""
 
     def __init__(self, reason: str, response: httpx.Response | None = None):
         super().__init__(reason)
@@ -27,7 +27,7 @@ class _Transient(Exception):
 
 
 class QwenClient:
-    """Streams every completion, so silence means a stuck provider rather than a long answer."""
+    """Клиент Qwen с потоковыми ответами."""
 
     def __init__(
         self,
@@ -39,11 +39,11 @@ class QwenClient:
         silence_seconds: float = 120,
         call_seconds: float = 600,
     ):
-        # Read at every call: the address, model and key saved in the chat apply at once.
+        # читаем каждый вызов
         self.settings, self.retry_delay = settings, retry_delay
         self.max_tokens, self.call_seconds = max_tokens, call_seconds
         self.client = httpx.AsyncClient(
-            # read bounds the wait for the first token (provider queue) and every gap after it.
+            # ожидание первого токена
             timeout=httpx.Timeout(silence_seconds, connect=15),
             transport=transport,
             limits=httpx.Limits(max_connections=8),
@@ -81,14 +81,14 @@ class QwenClient:
             payload["thinking_budget"] = budget
         if tools:
             payload["tools"] = tools
-        # Transient failures get two retries after the original attempt; others fail at once.
+        # два повтора
         for attempt in range(3):
             think = partial(_forward, on_reasoning, attempt + 1)
             try:
                 async with asyncio.timeout(self.call_seconds):
                     return await self._request(settings, payload, agent, think)
             except TimeoutError as exc:
-                # A stream still going after the call budget would only repeat on retry.
+                # повтор не поможет
                 logger.warning("Model call %s exceeded %ss", agent, self.call_seconds)
                 raise AppError(
                     "Модель отвечает слишком долго, попробуйте позже", "model_timeout", 504
@@ -120,7 +120,7 @@ class QwenClient:
                         )
                     raise _Transient(f"HTTP {response.status_code}", response)
                 if "text/event-stream" not in response.headers.get("content-type", ""):
-                    # Providers that ignore stream answer with a single JSON body.
+                    # ответ одним телом
                     await response.aread()
                     reply = self._decode(response.content)
                     await think(reply.reasoning)
@@ -132,10 +132,7 @@ class QwenClient:
     async def _collect(
         self, response: httpx.Response, think: Callable[[str], Awaitable[None]]
     ) -> ModelReply:
-        """Joins SSE deltas into the same reply a non-streaming call returns.
-
-        The reasoning is handed on as it arrives, so the chat can show it before the answer.
-        """
+        """Собирает SSE-дельты в готовый ответ."""
         content: list[str] = []
         reasoning: list[str] = []
         calls: dict[int, dict[str, Any]] = {}
@@ -230,6 +227,6 @@ class QwenClient:
 
 
 async def _forward(on_reasoning: Reasoning | None, attempt: int, text: str) -> None:
-    """Hands a piece of the reasoning to the caller, if it listens and the piece has text."""
+    """Передаёт часть рассуждения слушателю."""
     if text and on_reasoning is not None:
         await on_reasoning(text, attempt)

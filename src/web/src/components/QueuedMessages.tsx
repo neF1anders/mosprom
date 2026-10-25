@@ -3,7 +3,7 @@ import type { QueuedMessage } from "../types";
 import { Icon } from "./Icon";
 import styles from "../App.module.css";
 
-// One message waiting for the end of the stage, Figma screen 04.
+// сообщение в очереди
 function Plate({
   item,
   pending,
@@ -36,7 +36,7 @@ function Plate({
       document.removeEventListener("keydown", close);
     };
   }, [menu]);
-  // A message the server is already delivering can no longer be changed.
+  // доставка не меняется
   const busy = pending || item.status !== "queued";
   return (
     <li ref={root} className={styles.plate} data-status={item.status}>
@@ -79,7 +79,7 @@ function Plate({
     </li>
   );
 }
-// Messages typed while the job works wait here until the end of the current stage.
+// очередь сообщений
 export function QueuedMessages({
   items,
   pending,

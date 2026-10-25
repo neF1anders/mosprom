@@ -1,7 +1,3 @@
-"""Methods taken over from the other teams of the case: the stiffness class of a material, heat
-by Tg or HDT, the media a polymer family resists, glass fillers, the cost priority, the walls a
-thin part can hold and the infill of a shaft under torsion."""
-
 import pytest
 
 from tests.backend.tuning.cards import card, report, requirement
@@ -25,15 +21,14 @@ def with_walls(thickness):
 
 def test_flexible_part_gets_a_true_elastomer_not_a_hard_tpu(select):
     parameter_set = select(card(requirements=[requirement("flexible", "да")]))
-    # Shore 70D TPU and the carbon-filled TPU of gears are semi-rigid, not elastomers.
+    # полужёсткие, не эластомеры
     assert chosen(parameter_set) not in {"enduse_tpu_d70", "fiberpart_tpu_c5"}
     (check,) = parameter_set["materials"]["0"]["checks"]
     assert (check["status"], check["detail"]) == ("ok", "flexible=True")
 
 
 def test_heat_asked_as_tg_is_met_by_the_hdt_of_a_semicrystalline_polymer(select):
-    # A water-glycol pump at pH 10: PC does not resist alkali, glass-filled PP keeps its shape
-    # far above its Tg.
+    # щёлочь и PC
     parameter_set = select(
         card(
             requirements=[
@@ -89,7 +84,7 @@ def walls_of(select, stl_report):
 
 
 def test_walls_of_a_thin_blade_are_capped_by_what_fits_from_both_faces(select):
-    # Strength first asks for six walls; a 3.4 mm blade holds 5 lines of 0.4 mm.
+    # шесть стенок прочности
     walls = walls_of(select, with_walls(3.4))
     assert (walls["value"], walls["source"]) == (2.0, "rule:WALLS-FIT-SECTION")
 

@@ -7,9 +7,9 @@ import type { Attachment, Snapshot } from "../types";
 
 export function useUploads(ensureJob: () => Promise<string>) {
   const client = useQueryClient();
-  // Files still uploading or rejected before reaching the server; they live only here.
+  // незавершённые загрузки
   const [uploads, setUploads] = useState<DraftFile[]>([]);
-  // Picked files by attachment id, so previews need no download; also keeps card order.
+  // файлы по id
   const picked = useRef(new Map<string, File>());
   const fail = (key: string, error: string) =>
     setUploads((list) =>
@@ -35,7 +35,7 @@ export function useUploads(ensureJob: () => Promise<string>) {
     if (!accepted.length) return;
     let id: string;
     try {
-      // Resolved once: every file goes to the chat it was picked in, even if another opens.
+      // чат выбран заранее
       id = await ensureJob();
     } catch (e) {
       for (const { card } of accepted) fail(card.key, (e as Error).message);
@@ -51,7 +51,7 @@ export function useUploads(ensureJob: () => Promise<string>) {
           body: form,
         });
         picked.current.set(attachment.id, file);
-        // The card swaps to the server copy only once the snapshot holds it, without a gap.
+        // замена копией сервера
         await client
           .fetchQuery({
             queryKey: ["job", id],

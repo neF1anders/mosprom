@@ -1,8 +1,3 @@
-"""Read-only tools agents may call. Every argument is validated.
-
-The STL report and the knowledge base travel in the request, so no tool repeats them.
-"""
-
 from __future__ import annotations
 
 import asyncio

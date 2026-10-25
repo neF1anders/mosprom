@@ -30,10 +30,12 @@ def load():
 
 
 def save(base_url=None, api_key=None, model=None, persist=True):
-    """Store the LLM settings; with persist=False they are kept only until the slicer is closed."""
-    values = {"base_url": base_url.strip().rstrip("/") if base_url else None,
-              "api_key": api_key.strip() if api_key else None,
-              "model": model.strip() if model else None}
+    """Сохраняет настройки LLM или сессии."""
+    values = {
+        "base_url": base_url.strip().rstrip("/") if base_url else None,
+        "api_key": api_key.strip() if api_key else None,
+        "model": model.strip() if model else None,
+    }
     prefs = Application.getInstance().getPreferences()
     names = {"base_url": PREF_BASE_URL, "api_key": PREF_API_KEY, "model": PREF_MODEL}
     for key, value in values.items():
@@ -47,5 +49,5 @@ def save(base_url=None, api_key=None, model=None, persist=True):
 
 
 def forget_session():
-    """Drop the values given with persist=False, so the saved ones apply again."""
+    """Сбрасывает значения только сессии."""
     _session_only.clear()

@@ -125,7 +125,7 @@ async def test_one_request_carries_text_pages_and_projections():
 
 
 async def test_a_report_read_back_from_jsonb_gives_the_same_agent_input():
-    """Regression: JSONB reorders keys, and the reordered report missed the agent cache."""
+    """Отчёт из JSONB совпадает."""
     report = {
         "geometry": {"volume": 1.5, "extents": [1, 2, 3]},
         "topology": {"watertight": True, "component_count": 1},

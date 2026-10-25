@@ -74,7 +74,7 @@ export interface Job {
   error: string | null;
   files_changed: boolean;
   answers?: Record<string, { title: string; value: string }>;
-  // Between stages the job is queued; it completes after the last one.
+  // между этапами очередь
   stage:
     | "understanding"
     | "parameters"
@@ -82,14 +82,14 @@ export interface Job {
     | "slicing"
     | "gcode"
     | "done";
-  // The revision whose work the card, the timeline and the results come from.
+  // ревизия задачи
   work_revision: number;
   parameters: ParametersSummary | null;
-  // The last slicing of the current pass, once STE Slicer was asked.
+  // последняя нарезка
   result?: ResultSummary | null;
-  // How the finished pipeline ended, as the server decided it.
+  // итог конвейера
   outcome: "ready" | "attention" | "parameters_attention" | "not_sliced" | null;
-  // The parts of the chat in order; files and the card belong to the last one.
+  // части чата
   projects?: Project[];
   created_at: string;
   updated_at: string;
@@ -135,11 +135,11 @@ export interface ParameterSet {
 }
 export interface Attachment {
   id: string;
-  // Not sent yet: the file waits in the composer.
+  // ждёт отправки
   draft?: boolean;
-  // Removed files stay listed for the messages that sent them.
+  // удалённые файлы остаются
   active?: boolean;
-  // The project the file belongs to; none for a file no project has taken yet.
+  // проект файла
   project?: number | null;
   filename: string;
   kind: string;
@@ -151,19 +151,17 @@ export interface Message {
   id: string;
   seq: number;
   role: string;
-  // A gate reply asks for details before the work starts; offtopic marks older rows.
-  // "steer" is the reply to a message that did not change the task while the work went on;
-  // "report" is the summary of a finished project.
+  // виды ответов
   kind?: "chat" | "answers" | "gate" | "offtopic" | "steer" | "report";
   text: string;
-  // Files sent with the message, shown above its bubble.
+  // файлы сообщения
   attachment_ids?: string[];
-  // The assistant's turn a reply came from.
+  // ход ассистента
   turn?: string | null;
   revision: number;
   created_at?: string;
 }
-// A message typed while the job works; it waits for the end of the current stage.
+// сообщение в очереди
 export interface QueuedMessage {
   id: string;
   text: string;
@@ -198,12 +196,12 @@ export const statusLabel: Record<string, string> = {
   completed: "Параметры подобраны",
   pending: "Ждёт отправки",
 };
-// The server stores every way of saying "unknown" as this one value.
+// единое значение «неизвестно»
 export const UNKNOWN_ANSWER = "Не знаю";
 export function answered(question: Question) {
   return !!question.answer?.trim() && question.answer !== UNKNOWN_ANSWER;
 }
-// What the chat shows for a job: the status, refined by the stage and the result.
+// статус задачи
 export function jobStatus(job?: Job | null) {
   if (!job) return statusLabel.draft;
   if (job.status === "completed") return outcome(job);
@@ -216,7 +214,7 @@ const outcomeLabel: Record<NonNullable<Job["outcome"]>, string> = {
   parameters_attention: "Параметры требуют внимания",
   not_sliced: "Проект не создан",
 };
-// Jobs finished before slicing joined the pipeline have no outcome.
+// без итога
 function outcome(job: Job) {
   return job.outcome ? outcomeLabel[job.outcome] : statusLabel.completed;
 }

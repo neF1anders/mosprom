@@ -1,8 +1,3 @@
-"""The parts one chat works on: which files and messages belong to the current one.
-
-A chat without projects is the chat of before: every file and message is its one part.
-"""
-
 from __future__ import annotations
 
 from pathlib import PurePath
@@ -12,7 +7,7 @@ from .models import Attachment, Job, Project
 
 
 def in_project(attachment: Attachment, job: Job) -> bool:
-    """A file of the current project; before the first one, every sent file."""
+    """Файл текущего проекта чата."""
     project = job.project
     if project is None:
         return True
@@ -20,11 +15,7 @@ def in_project(attachment: Attachment, job: Job) -> bool:
 
 
 def unassigned(job: Job, attachments: list[Attachment], sent: set[str]) -> list[Attachment]:
-    """The new files: sent and not taken by a project yet.
-
-    A chat of before projects counts its earlier files as its work, so only the files of the
-    messages decided now, ``sent``, are new there.
-    """
+    """Новые файлы без проекта."""
     files = [a for a in attachments if a.project is None and a.active and not a.draft]
     if job.project is None and job.revision > 0:
         return [a for a in files if a.id in sent]
@@ -32,7 +23,7 @@ def unassigned(job: Job, attachments: list[Attachment], sent: set[str]) -> list[
 
 
 def project_messages(job: Job, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The messages of the current project; the earlier ones belong to earlier parts."""
+    """Сообщения текущего проекта чата."""
     project = job.project
     if project is None:
         return messages
@@ -40,8 +31,7 @@ def project_messages(job: Job, messages: list[dict[str, Any]]) -> list[dict[str,
 
 
 def first_message(job: Job, messages: list[dict[str, Any]], pending: list[dict[str, Any]]) -> int:
-    """Where a new project's messages begin: at the messages that start it, or earlier, at
-    the message the assistant answered with its one request for details."""
+    """Начало сообщений нового проекта."""
     first = pending[0]["seq"] if pending else 0
     since = job.project.first_message if job.project else 0
     requests = [m["seq"] for m in messages if m.get("kind") == "gate" and since <= m["seq"] < first]
@@ -52,10 +42,7 @@ def first_message(job: Job, messages: list[dict[str, Any]], pending: list[dict[s
 
 
 def start_project(job: Job, title: str, notes: str, first_message: int) -> Project:
-    """The next part of the chat; the finished one keeps its answers to hint the next.
-
-    The card, the answers and the results describe the previous part, so they go.
-    """
+    """Начало следующей части чата."""
     previous = job.project
     if previous is not None:
         previous.answers = {a.title: a.value for a in job.answers.values()}
@@ -76,7 +63,7 @@ def start_project(job: Job, title: str, notes: str, first_message: int) -> Proje
 
 
 def take_files(job: Job, files: list[Attachment]) -> list[Attachment]:
-    """The new files go to the current project; the caller saves them."""
+    """Новые файлы в текущий проект."""
     project = job.project
     for attachment in files:
         attachment.project = project.number if project else None
@@ -84,7 +71,7 @@ def take_files(job: Job, files: list[Attachment]) -> list[Attachment]:
 
 
 def earlier_answers(job: Job) -> dict[str, str]:
-    """What the user answered in the finished parts of the chat, newest last."""
+    """Ответы пользователя из прошлых частей."""
     answers: dict[str, str] = {}
     for project in job.projects[:-1]:
         answers.update(project.answers)
@@ -92,7 +79,7 @@ def earlier_answers(job: Job) -> dict[str, str]:
 
 
 def part_name(job: Job) -> str:
-    """What the folder of a finished project is called: the part, as the chat names it."""
+    """Название папки готового проекта."""
     if job.project is not None:
         return job.project.title
     files = job.card.files if job.card else []

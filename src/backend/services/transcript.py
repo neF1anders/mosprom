@@ -1,10 +1,3 @@
-"""The chat of a finished project as pictures, for the folder the user keeps.
-
-The pictures are drawn here rather than shot in a browser: the chat may be closed when the
-project ends. The user's messages stand on the right and the assistant's on the left, as in
-the chat; a long chat goes on to the next picture.
-"""
-
 from __future__ import annotations
 
 import io
@@ -25,9 +18,9 @@ GAP = 26
 TEXT = 22
 SMALL = 17
 LINE = 32
-# A picture taller than this is hard to read; the rest of the chat goes to the next one.
+# предел высоты картинки
 PAGE = 3200
-# Fewer lines than this left at the bottom of a picture start the message on the next one.
+# минимум строк внизу
 FEW = 4
 BACKGROUND, TEXT_COLOR, MUTED = "#f4f5f7", "#1d2228", "#6b7380"
 USER_FILL, ASSISTANT_FILL, BORDER = "#dce9ff", "#ffffff", "#e1e4e9"
@@ -48,7 +41,7 @@ class Entry:
 
 @dataclass(frozen=True)
 class Block:
-    """A bubble, or the part of a long one that fits a picture."""
+    """Пузырь сообщения или его часть."""
 
     role: str
     label: str
@@ -60,7 +53,7 @@ class Block:
 
 
 def entries(messages: list[dict[str, Any]], names: dict[str, str]) -> list[Entry]:
-    """The messages as the chat shows them, with the files each one brought."""
+    """Сообщения чата с файлами."""
     shown = []
     for message in messages:
         role = "user" if message.get("role") == "user" else "assistant"
@@ -76,7 +69,7 @@ def entries(messages: list[dict[str, Any]], names: dict[str, str]) -> list[Entry
 
 
 def plain(text: str) -> list[tuple[str, bool]]:
-    """Markdown as plain lines; a heading is kept as a bold line."""
+    """Markdown в простые строки."""
     lines = []
     for raw in text.strip().splitlines():
         line, bold = raw.rstrip(), False
@@ -91,7 +84,7 @@ def plain(text: str) -> list[tuple[str, bool]]:
 
 
 def render(title: str, shown: list[Entry], when: str) -> list[bytes]:
-    """PNG pictures of the chat, the first one headed by the project's name."""
+    """PNG-картинки чата проекта."""
     header = [(f"Переписка по проекту «{title}»", True), (when, False)]
     pages: list[list[Block]] = [[]]
     used = _header_height(header)
@@ -99,8 +92,7 @@ def render(title: str, shown: list[Entry], when: str) -> list[bytes]:
         rows, label = _rows(entry), entry.label
         while rows:
             fit = (PAGE - used - GAP - SMALL - 10 - 2 * PAD - MARGIN) // LINE
-            # A long message fills the rest of the picture and goes on in the next one; a
-            # bubble of a few lines is not cut off at the bottom.
+            # длинное сообщение переносится
             if pages[-1] and fit < min(len(rows), FEW):
                 pages.append([])
                 used = MARGIN
@@ -121,7 +113,7 @@ def _rows(entry: Entry) -> list[tuple[str, bool]]:
 
 
 def wrap(text: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:
-    """Lines no wider than ``width``; a word longer than a line, a path say, breaks anywhere."""
+    """Строки не шире заданной ширины."""
     if not text.strip():
         return [""]
     lines, current = [], ""

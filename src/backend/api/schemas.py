@@ -22,7 +22,7 @@ class RenameJob(Command):
 
 
 class SendMessage(Command):
-    # Files alone may go without a text; the service refuses a message with neither.
+    # файлы без текста
     text: str = Field(default="", max_length=30000)
 
 
@@ -36,9 +36,9 @@ class Launch(BaseModel):
 
 
 class ModelEntry(BaseModel):
-    """Checked by the settings themselves, so a wrong entry is explained like other errors."""
+    """Запись модели в настройках."""
 
     base_url: str = Field(default="", max_length=2000)
     model: str = Field(default="", max_length=200)
-    # Empty or missing keeps the saved key.
+    # пусто сохраняет ключ
     api_key: str | None = Field(default=None, max_length=4000)

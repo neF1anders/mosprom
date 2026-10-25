@@ -1,5 +1,3 @@
-"""Messages typed while the job works wait in a queue the user can edit, delete or send now."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -17,7 +15,7 @@ class QueuedService:
         self.commands = commands
 
     async def add(self, user_id: str, job_id: str, request_id: str, text: str):
-        """While the job works the message waits; otherwise it goes to the assistant at once."""
+        """Добавляет сообщение в очередь."""
 
         async def apply(uow: UnitOfWork, job: Job):
             await post(uow, job, text)
@@ -26,7 +24,7 @@ class QueuedService:
         return await self.commands.execute(user_id, job_id, request_id, {"queue": text}, apply)
 
     async def edit(self, user_id: str, job_id: str, request_id: str, item_id: str, text: str):
-        """A new text starts its attempts afresh; a claim that died goes with the old one."""
+        """Меняет текст отложенного сообщения."""
 
         async def apply(uow: UnitOfWork, job: Job):
             item = await _waiting(uow, job, item_id)
@@ -47,11 +45,7 @@ class QueuedService:
         return await self.commands.execute(user_id, job_id, request_id, payload, apply)
 
     async def send(self, user_id: str, job_id: str, request_id: str, item_id: str):
-        """«Скорректировать»: the assistant decides beside the running work, without waiting
-        for the step to end, and at once when the job no longer works.
-
-        The whole queue goes, in its order, so no message overtakes an earlier one.
-        """
+        """Отправляет очередь ассистенту сразу."""
 
         async def apply(uow: UnitOfWork, job: Job):
             await _waiting(uow, job, item_id)
@@ -63,12 +57,12 @@ class QueuedService:
 
 
 def queued_view(items: list[QueuedMessage]) -> list[dict[str, Any]]:
-    """What the chat shows of the queue; the claim is the server's own business."""
+    """Вид очереди для чата."""
     return [item.model_dump(mode="json", exclude={"claim", "claimed_at"}) for item in items]
 
 
 async def _waiting(uow: UnitOfWork, job: Job, item_id: str) -> QueuedMessage:
-    """A message still in the queue that no delivery holds right now."""
+    """Ожидающее сообщение без активной доставки."""
     item = next((i for i in await uow.queued.list(job.id) if i.id == item_id), None)
     if item is None:
         raise AppError("Сообщение уже отправлено или удалено", "queued_gone", 409)

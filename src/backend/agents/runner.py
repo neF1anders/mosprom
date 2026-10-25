@@ -1,5 +1,3 @@
-"""One generic loop for every agent: tool calls, json-repair parsing, limits and tracing."""
-
 from __future__ import annotations
 
 import hashlib
@@ -35,7 +33,7 @@ FINAL_STEP = (
 
 @dataclass(frozen=True)
 class AgentSpec:
-    """The last of max_steps is always offered without tools, so every run ends with an answer."""
+    """Описание агента и его лимитов."""
 
     name: str
     title: str
@@ -43,13 +41,13 @@ class AgentSpec:
     tools: tuple[str, ...] = ()
     max_steps: int = 10
     thinking: bool = True
-    # Reasoning token cap; it bounds the slowest step, not the typical one.
+    # лимит токенов рассуждения
     budget: int | None = None
 
 
 @dataclass
 class RunContext:
-    """State shared by the agents of one stage-one run."""
+    """Общее состояние запуска агентов."""
 
     job_id: str
     revision: int
@@ -63,7 +61,7 @@ class RunContext:
 
 @cache
 def prompt(name: str) -> str:
-    """Each prompt holds its agent's whole instruction; its digest versions the card."""
+    """Промпт агента и его версия."""
     return (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
 
 
@@ -77,22 +75,16 @@ class AgentRunner:
         clock: Clock = time.monotonic,
         narrate: Narrate | None = None,
     ):
-        # Read per call: a model saved in the chat neither reuses nor overwrites another's cache.
+        # модель на вызов
         self.model, self.tools, self.uow, self.model_name = model, tools, uow, model_name
-        # The chat gets a Russian phrase about the reasoning; the agents never see it.
+        # фраза для чата
         self.clock, self.narrate = clock, narrate
 
     async def run(self, spec: AgentSpec, content: list[dict[str, Any]], ctx: RunContext) -> Any:
         return await self.converse(spec, [{"role": "user", "content": content}], ctx)
 
     async def converse(self, spec: AgentSpec, turns: list[dict[str, Any]], ctx: RunContext) -> Any:
-        """An agent's result is reused while its prompt, model and whole dialog stay the same.
-
-        Each agent sees only the data it depends on, so an answer or a new STL reruns just
-        the agents that read it. A later turn repeats the earlier ones, so the answer to it
-        is reused only for the same history. A reply that lost items to validation is not
-        reused: another call may well return them.
-        """
+        """Диалог агента с кешем результата."""
         key = self._key(spec, turns, ctx)
         async with self.uow() as uow:
             cached = await uow.cache.get(key)
@@ -117,11 +109,7 @@ class AgentRunner:
         ctx: RunContext,
         step: int = 1,
     ) -> ModelReply:
-        """One plain reply in a chat, where calling a tool is the decision itself.
-
-        The tools are not executed: the caller reads which one was called and runs the next
-        ``step`` itself. Nothing is cached, a chat reply depends on the whole conversation.
-        """
+        """Один текстовый ответ в чате."""
         await ctx.check()
         trace = Trace(spec, ctx, step, messages)
         async with CallEvents(spec, ctx, step, self.clock, narrate=self.narrate) as events:
@@ -164,7 +152,7 @@ class AgentRunner:
             schemas = [] if final else self.tools.schemas(spec.tools)
             if final and spec.tools:
                 messages.append({"role": "user", "content": FINAL_STEP})
-            # Each step stores only what it added, so a long dialog is not written again.
+            # шаг хранит добавленное
             trace = Trace(spec, ctx, step, messages[recorded:], recorded)
             recorded = len(messages)
             async with CallEvents(spec, ctx, step, self.clock, narrate=self.narrate) as events:
@@ -183,7 +171,7 @@ class AgentRunner:
         trace: Trace,
         events: CallEvents,
     ) -> ModelReply:
-        """A failed call is traced before it is raised; the reasoning streams to the chat."""
+        """Вызов модели с трассировкой."""
         try:
             reply = await self.model.complete(
                 messages,
@@ -220,7 +208,7 @@ class AgentRunner:
         for call in reply.tool_calls:
             name = call["function"]["name"]
             arguments = json_repair.loads(call["function"].get("arguments") or "{}")
-            # A repeated identical call gets the same answer instead of a new execution.
+            # повтор берёт кеш
             signature = name + json.dumps(arguments, sort_keys=True, ensure_ascii=False)
             if signature not in seen:
                 seen[signature] = await self._call_tool(spec, name, arguments, ctx, call_id)
@@ -239,7 +227,7 @@ class AgentRunner:
         return executed
 
     async def _call_tool(self, spec, name, arguments, ctx, call_id) -> dict[str, Any]:
-        """A tool's answer reaches the chat as a short preview; an error is a warning there."""
+        """Вызов инструмента с превью."""
         if name not in spec.tools:
             return {"error": "Этот инструмент недоступен"}
         title = f"{spec.title}, {self.tools.title(name)}"
@@ -278,7 +266,7 @@ class Trace:
         self.started, self.clock = now(), time.perf_counter()
 
     def cached(self, key: str) -> AgentCall:
-        """A reused result is logged too, so the journal shows why no call was made."""
+        """Запись об использовании кеша."""
         call = self.done(None, [], None)
         return call.model_copy(update={"request": {"cache_key": key}, "cached": True})
 
@@ -299,7 +287,7 @@ class Trace:
 
 
 def redact(value: Any, images: dict[str, str]) -> Any:
-    """Store image references instead of base64 bodies."""
+    """Замена изображений ссылками на них."""
     if isinstance(value, dict):
         if value.get("type") == "image_url":
             url = value["image_url"]["url"]
@@ -311,7 +299,7 @@ def redact(value: Any, images: dict[str, str]) -> Any:
 
 
 def parse_output(text: str, model: type[T]) -> tuple[T, list[str]]:
-    """json-repair fixes syntax; invalid list items are dropped one by one, never re-asked."""
+    """Разбор ответа модели через json-repair."""
     data = json_repair.loads(text or "")
     if not isinstance(data, dict):
         raise AppError("Модель вернула ответ не по схеме", "model_output", 502)

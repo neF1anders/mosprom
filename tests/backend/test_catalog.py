@@ -106,8 +106,7 @@ def test_definition_carries_the_printer_limits_but_not_its_value(catalog):
 
 
 def test_values_follow_the_stack_of_settings_of_the_slicer():
-    """A value set over the printer, else the extruder's, else the printer's, else fdmprinter's;
-    a formula reads the others the same way."""
+    """Значения идут по стеку настроек."""
     stacked = Catalog(
         printer="p",
         digest="",
@@ -158,6 +157,6 @@ def test_shared_requirement_codes_load_with_units_stage_one_understands():
 
 
 def test_an_extruder_constant_value_wins_over_its_default(catalog):
-    """Regression: an extruder override with only ``value`` was loaded as None."""
+    """Константа экструдера важнее умолчания."""
     main = catalog.extruder_overrides["0"]
     assert (main["machine_extruder_start_pos_x"], main["machine_extruder_end_pos_x"]) == (15, 0)

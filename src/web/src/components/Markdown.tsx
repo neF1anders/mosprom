@@ -15,7 +15,7 @@ function kindOf(line: string): Block["kind"] {
   if (BULLET.test(line)) return "list";
   return NUMBER.test(line) ? "ordered" : "paragraph";
 }
-// Lines of one kind in a row make one block; an empty line ends a paragraph.
+// строки одного вида
 export function blocks(text: string): Block[] {
   const result: Block[] = [];
   for (const line of text.split("\n")) {
@@ -45,8 +45,7 @@ function inline(text: string): ReactNode[] {
 function strip(line: string) {
   return line.replace(HEADING, "").replace(BULLET, "").replace(NUMBER, "");
 }
-// The assistant writes Markdown: headings, lists, paragraphs and inline marks are shown,
-// anything else stays text. React escapes it, so a model's HTML never reaches the page.
+// разметка Markdown
 export function Markdown({ text }: { text: string }) {
   return (
     <div className={styles.markdown}>

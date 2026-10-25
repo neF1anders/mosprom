@@ -1,4 +1,3 @@
-"""One-time launch link of the StereotechAI web app, signed the same way as scripts/bootstrap.py."""
 import base64
 import hashlib
 import hmac
@@ -18,11 +17,7 @@ def config_path():
 
 
 def app_url(sidecar=None):
-    """The link that logs the browser into the app.
-
-    The portable build passes its running sidecar; otherwise the config written by bootstrap.py
-    is read, and None is returned until it exists.
-    """
+    """Ссылка для входа в приложение."""
     if sidecar is not None and sidecar.running():
         origin, secret, user_id = sidecar.origin(), sidecar.secret, sidecar.user_id
     else:
@@ -33,8 +28,14 @@ def app_url(sidecar=None):
         except (OSError, ValueError, KeyError, TypeError):
             return None
         user_id = config.get("user_id") or "local"
-    claims = {"kind": "launch", "expires": int(time.time()) + LINK_SECONDS, "nonce": str(uuid.uuid4()),
-              "user_id": user_id}
+    claims = {
+        "kind": "launch",
+        "expires": int(time.time()) + LINK_SECONDS,
+        "nonce": str(uuid.uuid4()),
+        "user_id": user_id,
+    }
     payload = base64.urlsafe_b64encode(json.dumps(claims).encode("utf-8")).decode("ascii")
-    signature = hmac.new(secret.encode("utf-8"), payload.encode("ascii"), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        secret.encode("utf-8"), payload.encode("ascii"), hashlib.sha256
+    ).hexdigest()
     return origin.rstrip("/") + "/#launch=" + payload + "." + signature

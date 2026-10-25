@@ -1,12 +1,10 @@
-"""Deterministic readiness gates. Model output cannot declare itself ready."""
-
 from __future__ import annotations
 
 from .models import SELECT_PARAMETERS, TaskCard
 
 RULES_VERSION = "5"
 UNKNOWN = {"", "не знаю", "unknown", "неизвестно"}
-# The one spelling of "unknown" stored and shown; the interface checks only this value.
+# единое написание неизвестного
 UNKNOWN_ANSWER = "Не знаю"
 
 

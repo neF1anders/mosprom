@@ -1,11 +1,3 @@
-"""Contracts between parameter selection (stage two), its check (stage three) and the slicer.
-
-``ParameterSet`` 0.2 is the checker's 0.1 plus the fields stage two already reports: its
-status, unmet requirements, warnings, material alternatives and checks, the orientation
-candidate and, on the second pass, how each constraint of the check was applied.
-``Feedback`` is what the check returns to stage two for its second and last pass.
-"""
-
 from __future__ import annotations
 
 from typing import Annotated, Any, Literal
@@ -16,7 +8,7 @@ from .models import Value
 
 MAX_ITERATIONS = 2
 
-# Every value cites where it came from; the check rejects any other form.
+# значение со ссылкой
 SourceRef = Annotated[
     str,
     StringConstraints(pattern=r"^(requirement|rule|constraint|assumption):[\w\-.]+$|^default$"),
@@ -119,7 +111,7 @@ class ParameterSet(Value):
     applied_constraints: list[AppliedConstraint] | None = None
 
     def published(self) -> dict[str, Any]:
-        """The JSON form: optional fields that are not set are left out."""
+        """JSON без неустановленных полей."""
         return self.model_dump(mode="json", exclude_none=True)
 
 
@@ -167,12 +159,7 @@ class Feedback(Value):
 
 
 class Issue(Value):
-    """One finding of the check. ``kind`` is machine-readable; ``message`` is for people.
-
-    ``where`` is the place in the parameter set, ``key`` the slicer key or choice a feedback
-    item names and ``bound`` what that item needs: a limit, the allowed values, the value to
-    set or the orientation candidate to drop.
-    """
+    """Одна находка проверки набора."""
 
     level: Literal["error", "warning", "info"]
     where: str
@@ -183,7 +170,7 @@ class Issue(Value):
 
 
 class CheckResult(Value):
-    """A finished check: every finding and what goes back to parameter selection."""
+    """Результат проверки со всеми находками."""
 
     issues: list[Issue]
     feedback: Feedback

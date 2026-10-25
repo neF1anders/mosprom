@@ -1,10 +1,8 @@
 import type { Raster } from "./stl";
 
-// Previews are drawn from the user's own file in the browser, so the server parses
-// nothing before the user sends it.
 export type Preview = { image: string } | { text: string[] } | null;
 
-// Device pixels for the 160×84 preview area, doubled again for the STL supersampling.
+// размер предпросмотра
 const WIDTH = 320;
 const cache = new Map<string, Promise<Preview>>();
 
@@ -75,7 +73,7 @@ async function docxText(blob: Blob) {
   ).join("\n");
 }
 
-// Reads one entry of a ZIP container through the central directory.
+// запись ZIP-контейнера
 async function zipEntry(bytes: Uint8Array, name: string) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let end = bytes.length - 22;

@@ -13,7 +13,7 @@ const markers: Record<Section["state"], ReactNode> = {
   run: <Icon name="spinner-20" size={20} className={styles.spin} />,
   wait: <Icon name="ring" size={20} />,
 };
-// One section as a step, as the stages in the thread; a click opens its list (Figma screen 21).
+// раздел как шаг
 function Step({ section }: { section: Section }) {
   const [open, setOpen] = useState(false);
   const word = stateWords[section.state];
@@ -61,7 +61,7 @@ function Step({ section }: { section: Section }) {
     </li>
   );
 }
-// The right panel: the project files, the agents at work and the task card.
+// правая панель
 export function TaskCard({
   job,
   onCollapse,
@@ -84,7 +84,7 @@ export function TaskCard({
   folder?: string | null;
   agents?: AgentRow[];
   highlighted?: string;
-  // An agent's train of thought takes the place of the agents and the card.
+  // ход мысли агента
   detail?: ReactNode;
   pending?: boolean;
   collapsed?: boolean;

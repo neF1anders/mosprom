@@ -1,12 +1,3 @@
-"""Stage-one task card (``TaskCard`` 2.0) -> what parameter selection reads from it.
-
-Requirement codes, kinds and units come from the dictionary shared with stage one
-(``knowledge/requirement_keys.json``); a requirement under another key, or under a code no step
-of the selection reads, is reported as not taken into account. Free text is read only for a ban
-on supports, the load and, when the card has no ``priority`` code, the priorities, by the
-phrases of ``phrases.json``; every such inference is told to the user as an assumption.
-"""
-
 from __future__ import annotations
 
 import re
@@ -24,7 +15,7 @@ from .free_requirements import quotes_of, text_of, translate
 from .geometry import Geometry, read_geometry
 
 RequirementValue = float | bool | str | tuple[str, ...]
-# How far a requirement is confirmed: by the user or a document, by knowledge, or not at all.
+# степень подтверждения
 Basis = Literal["user", "model", "assumption"]
 _BASIS: dict[str, Basis] = {
     "user": "user",
@@ -33,8 +24,7 @@ _BASIS: dict[str, Basis] = {
     "assumption": "assumption",
 }
 _LIST_SEPARATORS = re.compile(r"[,;]")
-# Codes that describe the part rather than demand anything of the print: when no step reads
-# them there is nothing to tell the user, only the log.
+# коды описания детали
 PART_CLASS = "part_class"
 _DESCRIPTIVE = frozenset({PART_CLASS})
 
@@ -69,7 +59,7 @@ class CardRequirement:
 
 @dataclass(frozen=True)
 class MaterialRequest:
-    """A material named by the card, an answer or a check constraint, with that origin."""
+    """Материал, названный в карточке."""
 
     name: str
     source: str
@@ -94,18 +84,18 @@ class TuningInput:
     load: str | None
     mode: ModeRequest | None
     material: MaterialRequest | None
-    # Told to the user (stage-one assumptions and what this reading inferred) and to the logs.
+    # сообщения и логи
     assumptions: tuple[str, ...]
     warnings: tuple[str, ...]
 
 
 class Unreadable(ValueError):
-    """A requirement value cannot be read as the kind its code has."""
+    """Значение не читается как нужное."""
 
 
 @dataclass
 class _Draft:
-    """What the card has said so far; frozen into ``TuningInput`` once the card is read."""
+    """Черновик чтения карточки задачи."""
 
     assumptions: list[str]
     requirements: list[CardRequirement] = field(default_factory=list)
@@ -115,12 +105,12 @@ class _Draft:
     load: str | None = None
     mode: ModeRequest | None = None
     material: MaterialRequest | None = None
-    # Requirements under keys the dictionary does not have, read after the coded ones.
+    # свободные требования после
     free: list[tuple[Requirement, str]] = field(default_factory=list)
 
 
 def read_card(card: TaskCard, keys: RequirementKeys, read: Collection[str]) -> TuningInput:
-    """``read``: the codes a step of the selection reads besides the card fields below."""
+    """Читает коды карточки для выбора."""
     draft = _Draft(assumptions=_readiness_notes(card))
     for requirement, requirement_id in _with_ids(card.requirements):
         _read_requirement(draft, requirement, requirement_id, keys, read)
@@ -152,7 +142,7 @@ def read_card(card: TaskCard, keys: RequirementKeys, read: Collection[str]) -> T
 
 
 def stricter_end(text: str, strict: Literal["upper", "lower"] | None) -> Decimal:
-    """A single number, or the binding end of a two-number range."""
+    """Строгий конец числа или диапазона."""
     found = numbers(text)
     if len(found) == 1:
         return found[0]
@@ -162,7 +152,7 @@ def stricter_end(text: str, strict: Literal["upper", "lower"] | None) -> Decimal
 
 
 def read_flag(text: str) -> bool:
-    """An exact yes or no from the phrase list; anything else is ambiguous."""
+    """Точное да или нет."""
     normalized = text.strip().lower()
     if normalized in PHRASES.booleans.false:
         return False
@@ -172,7 +162,7 @@ def read_flag(text: str) -> bool:
 
 
 def _readiness_notes(card: TaskCard) -> list[str]:
-    """Refuse a card stage one does not release; a preliminary one is used with a caveat."""
+    """Проверяет готовность карточки этапа."""
     if card.schema_version != CARD_SCHEMA_VERSION:
         raise AppError(
             f"Карточка версии {card.schema_version}, подбор параметров читает {CARD_SCHEMA_VERSION}",
@@ -188,7 +178,7 @@ def _readiness_notes(card: TaskCard) -> list[str]:
 
 
 def _with_ids(requirements: Sequence[Requirement]) -> Iterator[tuple[Requirement, str]]:
-    """The requirement code is its id; a repeated code gets ``key-2``, ``key-3`` and so on."""
+    """Назначает идентификаторы повторяющимся кодам."""
     seen: dict[str, int] = {}
     for requirement in requirements:
         key = requirement.key or "unnamed"
@@ -242,7 +232,7 @@ def _not_interpreted(draft: _Draft, requirement: Requirement, label: str) -> Non
 
 
 def _number(requirement: Requirement, entry: RequirementKey) -> float:
-    """The binding end of the stated range, in the unit of the code."""
+    """Строгий конец заданного диапазона."""
     unit, expected = requirement.unit, entry.unit or ""
     if unit is None or dimension(unit) is None or dimension(unit) != dimension(expected):
         raise Unreadable(f"unit {unit!r}, expected {entry.unit}")
@@ -280,8 +270,7 @@ def _read_quantity(
 def _read_load(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
-    """A load stage one only assumed is told, not used: it would add walls and gyroid infill to a
-    part nobody said is loaded (validation cases 004, 007, 056 printed 2-4 times longer)."""
+    """Читает заявленную нагрузку детали."""
     if _basis(requirement) == "assumption":
         draft.assumptions.append(
             f"нагрузка «{requirement.value}» в карточке не подтверждена: подбор её не учитывает, "
@@ -320,8 +309,7 @@ def _read_printing_mode(
 def _read_priority(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
-    """Known priorities in the stated order; an unknown one is dropped with a warning. Without
-    a known one the wishes are read instead."""
+    """Читает известные приоритеты по порядку."""
     options = ", ".join(entry.options)
     items = [item.strip().lower() for item in _LIST_SEPARATORS.split(requirement.value)]
     known = tuple(dict.fromkeys(item for item in items if item in entry.options))
@@ -348,7 +336,7 @@ _MODE_WORDS = re.compile(
 
 
 def _invented_mode(requirement: Requirement) -> bool:
-    """A mode taken from quotes that never name a print mode, e.g. "FDM / FFF" read as classic."""
+    """Режим, выдуманный из цитат."""
     if requirement.provenance != "document":
         return False
     quotes = [s.quote for s in requirement.sources if s.quote]
@@ -356,7 +344,7 @@ def _invented_mode(requirement: Requirement) -> bool:
 
 
 def _note_unconfirmed(draft: _Draft, requirement: Requirement, text: str) -> None:
-    """A card field taken from an unconfirmed requirement is told to the user as an assumption."""
+    """Сообщает о неподтверждённом поле."""
     if _basis(requirement) == "assumption":
         draft.assumptions.append(text)
 
@@ -388,7 +376,7 @@ _VALUES: dict[str, Callable[[Requirement, RequirementKey], RequirementValue]] = 
 
 
 def _first_match(phrases: Sequence[str], text: str) -> int | None:
-    """Where the earliest phrase of ``phrases.json`` is found in the lowercase text, if any."""
+    """Ищет первую фразу списка."""
     found = [match.start() for phrase in phrases if (match := re.search(phrase, text))]
     return min(found, default=None)
 
@@ -404,7 +392,7 @@ def _set_load(draft: _Draft, text: str, origin: str) -> None:
 
 
 def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
-    """The ``priority`` code of the card, else priorities in the order the wishes name them."""
+    """Приоритет из кода или пожеланий."""
     if draft.priority:
         return draft.priority
     positions = []
@@ -419,9 +407,7 @@ def _priority(draft: _Draft, wishes: str) -> tuple[str, ...]:
 
 
 def _read_free(draft: _Draft, keys: RequirementKeys, read: Collection[str]) -> None:
-    """Free requirements as codes the card lacks (``free_requirements``), each told as an
-    assumption; the rest are not interpreted, as before. The load is read from their texts
-    when the card has no load code."""
+    """Читает свободные требования как коды."""
     coded = {requirement.key for requirement in draft.requirements}
     unread = {entry.key for entry in keys.keys if entry.key not in read}
     translation = translate(draft.free, keys, coded | unread, _number)
@@ -457,7 +443,7 @@ def _shown_value(value: RequirementValue) -> str:
 
 
 def _load_from_free(draft: _Draft) -> None:
-    """The first load the phrase list finds in the free requirements of the document."""
+    """Нагрузка из свободных требований документа."""
     for load, phrases in PHRASES.load_phrases:
         for requirement, requirement_id in draft.free:
             if _basis(requirement) == "assumption":
@@ -472,8 +458,7 @@ def _load_from_free(draft: _Draft) -> None:
 
 
 def _part_class_from_purpose(draft: _Draft, purpose: str) -> None:
-    """Without a ``part_class`` code the class named first in the purpose, as an assumption:
-    the 5D rules and the infill of a shaft read the class."""
+    """Класс детали из назначения."""
     if any(requirement.key == PART_CLASS for requirement in draft.requirements):
         return
     lowered = purpose.lower()

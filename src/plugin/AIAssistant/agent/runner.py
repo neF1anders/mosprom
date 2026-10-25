@@ -1,4 +1,3 @@
-"""The chat session: the dialog loop between the user, the LLM and the MCP tools."""
 import base64
 import json
 import os
@@ -27,7 +26,7 @@ class Chat(object):
         self._uploads = {}
         self._busy = False
 
-    # ---------- events the web page polls
+    # опрос событий
     def add_event(self, kind, **data):
         with self._lock:
             data.update({"id": len(self._events), "type": kind})
@@ -37,7 +36,7 @@ class Chat(object):
         with self._lock:
             return {"events": self._events[after:], "next": len(self._events), "busy": self._busy}
 
-    # ---------- uploads
+    # загрузка файлов
     def add_upload(self, upload_id, name, path):
         extension = os.path.splitext(name)[1].lower()
         kind = "image" if extension in MIME else "model"
@@ -51,7 +50,7 @@ class Chat(object):
             self._uploads = {}
         tools.SESSION.changes = []
 
-    # ---------- dialog
+    # цикл диалога
     def send(self, text, upload_ids, scenario):
         with self._lock:
             if self._busy:
@@ -60,7 +59,7 @@ class Chat(object):
         try:
             self._start(text, upload_ids, scenario)
         except Exception:
-            # the loop thread did not start, so nothing else would clear the flag
+            # поток не стартовал
             with self._lock:
                 self._busy = False
             raise
@@ -73,7 +72,9 @@ class Chat(object):
             if upload is None:
                 continue
             if upload["kind"] == "model":
-                notes.append("[Прикреплена модель: %s. Загрузи её через load_model.]" % upload["path"])
+                notes.append(
+                    "[Прикреплена модель: %s. Загрузи её через load_model.]" % upload["path"]
+                )
             else:
                 images.append(upload)
         content = text + ("\n" + "\n".join(notes) if notes else "")
@@ -84,13 +85,27 @@ class Chat(object):
                     with open(image["path"], "rb") as stream:
                         encoded = base64.b64encode(stream.read()).decode("ascii")
                 except (IOError, OSError) as error:
-                    raise ValueError("The attached file %s cannot be read: %s" % (image["name"], error))
+                    raise ValueError(
+                        "The attached file %s cannot be read: %s" % (image["name"], error)
+                    )
                 mime = MIME[os.path.splitext(image["name"])[1].lower()]
-                parts.append({"type": "image_url", "image_url": {"url": "data:%s;base64,%s" % (mime, encoded)}})
+                parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:%s;base64,%s" % (mime, encoded)},
+                    }
+                )
             content = parts
         self._history.append({"role": "user", "content": content})
-        self.add_event("user", text=text, attachments=[
-            {"name": self._uploads[i]["name"], "kind": self._uploads[i]["kind"]} for i in upload_ids if i in self._uploads])
+        self.add_event(
+            "user",
+            text=text,
+            attachments=[
+                {"name": self._uploads[i]["name"], "kind": self._uploads[i]["kind"]}
+                for i in upload_ids
+                if i in self._uploads
+            ],
+        )
         tools.SESSION.changes = []
         thread = threading.Thread(target=self._loop, args=(scenario,))
         thread.daemon = True
@@ -103,8 +118,13 @@ class Chat(object):
             system = BASE_PROMPT + ("\nСценарий: " + focus if focus else "")
             specs = mcp.list_tools()
             for _ in range(MAX_STEPS):
-                message = llm.chat(config["base_url"], config["api_key"], config["model"],
-                                   [{"role": "system", "content": system}] + self._history, specs)
+                message = llm.chat(
+                    config["base_url"],
+                    config["api_key"],
+                    config["model"],
+                    [{"role": "system", "content": system}] + self._history,
+                    specs,
+                )
                 calls = message.get("tool_calls") or []
                 entry = {"role": "assistant", "content": message.get("content") or ""}
                 if calls:
@@ -137,4 +157,6 @@ class Chat(object):
         text = result["content"][0]["text"]
         self.add_event("tool_result", name=name, ok=not result["isError"], text=text[:1500])
         self.add_event("changes", changes=list(tools.SESSION.changes))
-        self._history.append({"role": "tool", "tool_call_id": call.get("id", name), "content": text[:RESULT_LIMIT]})
+        self._history.append(
+            {"role": "tool", "tool_call_id": call.get("id", name), "content": text[:RESULT_LIMIT]}
+        )

@@ -3,7 +3,7 @@ import { api } from "../api";
 import type { Job, ParameterSet } from "../types";
 import styles from "../App.module.css";
 
-// The selected parameters inside the timeline row, like the card summary of stage one.
+// выбранные параметры
 export function ParameterSummary({ job }: { job: Job }) {
   const summary = job.parameters;
   const details = useQuery({
@@ -51,7 +51,7 @@ export function ParameterSummary({ job }: { job: Job }) {
           <div>
             <dt>Допущения</dt>
             <dd>
-              {/* Selection notes every requirement it could not use; folded, they stay readable. */}
+              {/* заметки свёрнуты */}
               <details>
                 <summary>Допущений {assumptions.length}</summary>
                 {assumptions.map((text) => (

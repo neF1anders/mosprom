@@ -1,5 +1,3 @@
-"""The folders a finished project is kept in, and the pictures of its chat."""
-
 import io
 
 import pytest
@@ -40,7 +38,7 @@ async def test_a_name_taken_by_an_earlier_project_gets_a_number(tmp_path):
         "Шестерня (3)",
     ]
     assert first.shown == str(tmp_path / RESULTS / "Шестерня")
-    # The earlier project's files stay as they were.
+    # прежние файлы остаются
     assert (first.path / "result.gcode").read_bytes() == b"G1"
 
 
@@ -100,7 +98,7 @@ def test_a_word_longer_than_a_line_breaks_inside():
 
 
 def test_a_long_report_fills_the_picture_before_going_on():
-    """The first picture is not left half empty when the report after it is long."""
+    """Длинный отчёт заполняет картинку."""
     report = "\n".join(f"Строка {n} итогового отчёта" for n in range(120))
     messages = [
         {"role": "user", "kind": "chat", "text": "Деталь 6"},

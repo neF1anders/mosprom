@@ -23,7 +23,7 @@ test("T12 reconnect catches up and reopens same task", async ({
 });
 
 test("T11 stop at safe point, resume, retain correction", async ({ page }) => {
-  // With a model the assistant starts the work, so the stop lands in a real run.
+  // реальная остановка
   await task(page, "TEST_DELAY Шестерня");
   await expect(
     page.getByRole("status").filter({ hasText: "Обрабатываю" }),
@@ -101,7 +101,7 @@ test("T13 downloaded card embeds the full STL report of the active file", async 
   const card = await result.json();
   expect(card.schema_version).toBe("2.0");
   expect(card.geometry.units).toBe("mm");
-  // STL is read in millimetres like in Cura, so nobody is asked about units.
+  // миллиметры как в Cura
   expect(card.questions).toEqual([]);
   expect(card.stl_analysis.sha256).toMatch(/^[a-f0-9]{64}$/);
   expect(card.stl_analysis.report.file.sha256).toBe(card.stl_analysis.sha256);
@@ -112,7 +112,6 @@ test("T13 downloaded card embeds the full STL report of the active file", async 
       .replace(/\/card$/, `/artifacts/${card.geometry.report_id}.json`),
   );
   expect(raw.ok()).toBe(true);
-  // SQLite keeps the JSON as it was written, IEEE negative zero included, so the card holds
-  // the report exactly as the analyzer wrote it.
+  // отрицательный нуль сохранён
   expect(await raw.json()).toEqual(card.stl_analysis.report);
 });

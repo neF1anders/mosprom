@@ -1,5 +1,3 @@
-"""Run the actual command on files, including failure and batch handling."""
-
 import json
 import subprocess
 import sys

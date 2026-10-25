@@ -1,5 +1,3 @@
-"""Deterministic unit conversion within one physical dimension."""
-
 from __future__ import annotations
 
 import re
@@ -60,8 +58,7 @@ _LINEAR: dict[str, tuple[str, str]] = {
     "%": ("ratio", "1"),
 }
 _TEMPERATURE = {"c", "°c", "с°", "°с", "k", "к", "f", "°f"}
-# A number does not continue a word, a list or a dotted version ("v.2", "1.5.7"), but may
-# follow the two dots of a range ("-10..70").
+# число после слова
 _NUMBER = re.compile(r"(?<![\w,])(?<![^.]\.)(?<!^\.)-?\d+(?:[.,]\d+)?")
 
 

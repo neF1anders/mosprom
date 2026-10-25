@@ -1,6 +1,3 @@
-"""Apply check constraints: hard limits on searched axes, forced or banned discrete values, keys
-passed through as they are, and the three top-level choices."""
-
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -12,7 +9,7 @@ from .axes import Axis, SearchSpace
 from .notes import ConstraintResult, Unmet
 from .planning import Chosen, Plan, find_conflicts, limit_axis
 
-# Keys that select the printing mode, the quality profile and the material, not a setting.
+# ключи верхнего уровня
 MODE_KEY, QUALITY_KEY, MATERIAL_KEY = "printing_mode", "quality_type", "material"
 _CHOICE_KEYS = (MODE_KEY, QUALITY_KEY, MATERIAL_KEY)
 
@@ -25,7 +22,7 @@ class Forced:
 
 @dataclass(frozen=True)
 class Choices:
-    """Forced, allowed and banned values of the three top-level choices."""
+    """Навязанные и запрещённые значения выбора."""
 
     forced: Mapping[str, Forced] = field(default_factory=dict)
     allowed: Mapping[str, tuple[Any, ...]] = field(default_factory=dict)
@@ -39,7 +36,7 @@ class Choices:
 
 @dataclass(frozen=True)
 class PassThrough:
-    """A value for a key stage two does not model, sent as the check demands it."""
+    """Значение ключа вне модели."""
 
     value: Any
     reason: str
@@ -70,7 +67,7 @@ def is_choice(constraint: Constraint) -> bool:
 
 
 def choices_from(constraints: Sequence[Constraint]) -> Choices:
-    """Later constraints win for ``eq`` and ``in``; ``ne`` bans add up."""
+    """Поздние ограничения перекрывают ранние."""
     choices = Choices()
     for constraint in constraints:
         if is_choice(constraint):
@@ -98,11 +95,7 @@ def apply_constraints(
     space: SearchSpace,
     line_width: float,
 ) -> ConstraintOutcome:
-    """Constraints on settings, not on the three choices, in the order the check sent them.
-
-    A limit that leaves its axis no value together with the rules and the other constraints is
-    not applied; the conflict itself is reported with the plan's unmet requirements.
-    """
+    """Применяет ограничения проверки к настройкам."""
     index = _index(axes, space)
     pass_through: dict[str, PassThrough] = {}
     notes: list[tuple[Constraint, str | None]] = []
@@ -137,7 +130,7 @@ def apply_constraints(
 def _index(
     axes: Mapping[str, Axis], space: SearchSpace
 ) -> dict[str, _AxisTarget | _DiscreteTarget]:
-    """Slicer key -> what it constrains; the wall line count maps to the axis it comes from."""
+    """Индекс ключей слайсера по ограничениям."""
     index: dict[str, _AxisTarget | _DiscreteTarget] = {
         axis.key: _AxisTarget(axis.id, "thickness" if axis.spec.emit_as else "value")
         for axis in axes.values()
@@ -159,7 +152,7 @@ def _limit_axis(
         or not isinstance(value, int | float)
     ):
         return plan, f"op {op} with value {value!r} is not supported on {constraint.key}"
-    # The slicer gets the thickness of whole lines, so the limit counts lines of that width.
+    # линии этой ширины
     limit = value / line_width if target.domain == "thickness" else value
     minimum = limit if op in ("eq", "min") else None
     maximum = limit if op in ("eq", "max") else None
@@ -186,7 +179,7 @@ def _restrict_discrete(
 
 
 def _pass_through(constraint: Constraint, pass_through: dict[str, PassThrough]) -> str | None:
-    """A key stage two does not model: the demanded value as is (min/max: the bound itself)."""
+    """Требуемое значение ключа без изменений."""
     op, value = constraint.op, constraint.value
     if op == "ne":
         return (
@@ -200,7 +193,7 @@ def _pass_through(constraint: Constraint, pass_through: dict[str, PassThrough]) 
 
 
 def wall_lines(thickness: float, line_width: float) -> int:
-    """Wall line count the slicer derives from wall_thickness (``wall_line_count`` formula)."""
+    """Число линий стенки по толщине."""
     if thickness == 0:
         return 0
     return max(1, int(round((thickness - line_width) / line_width)) + 1)

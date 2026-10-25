@@ -12,7 +12,7 @@ def five_d(mode, **fields):
 
 
 def test_5d_mode_requested_by_the_card_is_used_with_its_own_keys(select):
-    # Enduse ABS has no part cooling in its file.
+    # нет охлаждения ABS
     abs_part = card(
         requirements=[
             requirement("printing_mode", "cylindrical_full"),
@@ -27,8 +27,7 @@ def test_5d_mode_requested_by_the_card_is_used_with_its_own_keys(select):
         "source": "requirement:printing_mode",
     }
     settings = parameter_set["settings"]
-    # No heated bed in 5D; the fan switch of the 5D part has its own key; raft is already the
-    # 5D default.
+    # умолчания 5D
     assert "material_bed_temperature" not in settings
     assert "cool_fan_enabled_cylindrical" in settings and "cool_fan_enabled_classic" not in settings
     assert "adhesion_type" not in settings
@@ -54,7 +53,7 @@ def test_part_taller_than_the_5d_area_stays_classic_and_says_why(select):
 
 
 def test_part_too_wide_for_3d_is_infeasible_and_names_the_modes_it_would_fit(select):
-    # 340 mm: wider than the usable 320 mm of the 3D table, inside the 351 x 300.3 ellipse of 5D.
+    # шире стола 3D
     parameter_set = select(card(stl_report=report(size=(340.0, 20.0, 20.0))))
     assert parameter_set["status"] == "infeasible"
     (item,) = parameter_set["unsatisfied"]

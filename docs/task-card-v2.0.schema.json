@@ -89,7 +89,7 @@
     },
     "Geometry": {
       "additionalProperties": false,
-      "description": "Summary of the analyzer report; the full report travels as StlAnalysis.",
+      "description": "Сводка отчёта анализатора STL.",
       "properties": {
         "readable": {
           "default": false,
@@ -497,7 +497,7 @@
     },
     "WaivedQuestion": {
       "additionalProperties": false,
-      "description": "A question the checker chose not to ask, and why; the user may still answer otherwise.",
+      "description": "Вопрос, который проверяющий не задал.",
       "properties": {
         "title": {
           "title": "Title",

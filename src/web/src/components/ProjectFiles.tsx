@@ -7,12 +7,12 @@ import styles from "../App.module.css";
 interface Node {
   name: string;
   href?: string;
-  // A sent file the server could not read can be taken out of the task.
+  // убрать нечитаемый файл
   attachment?: string;
   error?: string | null;
   children?: Node[];
 }
-// File icons of the Figma reference 201:755, chosen by the extension.
+// иконки по расширению
 const kinds: Record<string, string> = {
   pdf: "doc",
   docx: "doc",
@@ -26,7 +26,7 @@ const kinds: Record<string, string> = {
   jpeg: "image",
   gcode: "gcode",
 };
-// The project as the chat knows it: the files sent, the card and what the slicer made.
+// проект в чате
 function tree(job: Job | undefined, attachments: Attachment[]): Node | null {
   if (!job || (!attachments.length && !job.card)) return null;
   const api = `/api/v1/jobs/${job.id}`;
@@ -54,7 +54,7 @@ function tree(job: Job | undefined, attachments: Attachment[]): Node | null {
   children.push({ name: "результат", children: result });
   return { name: job.projects?.at(-1)?.title || job.title, children };
 }
-// Level guides as in a code editor: a pipe for an ancestor with siblings below, a bend for the row.
+// направляющие уровней
 function guides(depth: number, continues: boolean[], last: boolean) {
   const lines = continues
     .map((more, level) => (more ? `M${16 + 18 * level} 0V28` : ""))
@@ -158,7 +158,7 @@ function Row({
     </li>
   );
 }
-// "Файлы проекта", Figma node 132:164: the folder of the projects and the job's files.
+// файлы проекта
 export function ProjectFiles({
   job,
   attachments,

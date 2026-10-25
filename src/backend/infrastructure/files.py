@@ -15,7 +15,7 @@ from ..domain.errors import AppError, NotFound
 from ..domain.limits import InputLimits
 
 logger = logging.getLogger(__name__)
-# Enough of a traceback to find the failing line without flooding the log.
+# хвост трассировки
 STDERR_TAIL = 4000
 
 
@@ -64,7 +64,7 @@ class LocalFiles:
         await asyncio.to_thread(self.path(key).unlink, missing_ok=True)
 
     async def inspect(self, key: str, kind: str) -> dict[str, Any]:
-        """The parse result lives in the database; its temporary JSON is removed."""
+        """Разбирает файл, убирает временный JSON."""
         output = str(uuid4()) + ".json"
         try:
             return await self._run(
