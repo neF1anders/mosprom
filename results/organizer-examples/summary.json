@@ -1,0 +1,268 @@
+[
+ {
+  "case": 1,
+  "part": "Шестерня",
+  "mode_asked_by_organizer": "3D",
+  "printing_mode": "classic",
+  "pipeline_result": "ok",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.2,
+  "layers": 50,
+  "empty_layers": 0,
+  "gcode_print_time_s": 2761,
+  "pipeline_print_time_s": 2761,
+  "material_g": 4.17,
+  "filament_m": "1.5474",
+  "gcode_size_mb": 3.3,
+  "pipeline_seconds": 207.2,
+  "stl_extents_mm": [
+   33.1,
+   10.1,
+   33.1
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-26.0",
+   "MAXX": "7.0",
+   "MINY": "-16.5",
+   "MAXY": "16.5",
+   "MINZ": "0.0",
+   "MAXZ": "10.1"
+  },
+  "openscad_5d_step": "не используется (3D)",
+  "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+  "input_sha256": {
+   "Техническое задание для шестерни.docx": "ed07d377ffe079064b79ccf5d89c1197211a5a99d82e373e8808f3bec499a81f",
+   "Шестерня.jpg": "2d62e990d762ed65dcd44d30c84f94a648b98fae2cad2223c1a7c55e9cb426dd",
+   "Шестерня.stl": "df0486ac08dd9a2672ab4a9aa2b4651019efb1d7894f9cae1672696e720ee5cf"
+  }
+ },
+ {
+  "case": 2,
+  "part": "Колесо конвейерной линии",
+  "mode_asked_by_organizer": "5D",
+  "printing_mode": "cylindrical_full",
+  "pipeline_result": "ok",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.1,
+  "layers": 484,
+  "empty_layers": 0,
+  "gcode_print_time_s": 21524,
+  "pipeline_print_time_s": 23154,
+  "material_g": 36.44,
+  "filament_m": "11.6876",
+  "gcode_size_mb": 30.2,
+  "pipeline_seconds": 250.3,
+  "stl_extents_mm": [
+   59.0,
+   25.0,
+   59.0
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-29.5",
+   "MAXX": "29.5",
+   "MINY": "-29.5",
+   "MAXY": "29.5",
+   "MINZ": "0.0",
+   "MAXZ": "25.0"
+  },
+  "openscad_5d_step": "запущен, завершился с кодом 1 через ~3 с; слайсер продолжил нарезку без этого шага",
+  "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+  "input_sha256": {
+   "Колесо.STL": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4",
+   "Колесо.jpg": "febabc6d10f96d59ef9db50f8c4a1038b2de2eb89f0f0075608047bb380842ed",
+   "Техническое задание для колеса конвейерной линии.docx": "32727bab5d9ece28069684a20453bdb14bf508ad983053c5fea18934d78a213d"
+  }
+ },
+ {
+  "case": 3,
+  "part": "Пыльник ШРУСа",
+  "mode_asked_by_organizer": "3D",
+  "printing_mode": "classic",
+  "pipeline_result": "ok",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.2,
+  "layers": 514,
+  "empty_layers": 0,
+  "gcode_print_time_s": 93583,
+  "pipeline_print_time_s": 93584,
+  "material_g": 149.99,
+  "filament_m": "54.225",
+  "gcode_size_mb": 72.1,
+  "pipeline_seconds": 163.8,
+  "stl_extents_mm": [
+   111.0,
+   103.0,
+   103.0
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-65.0",
+   "MAXX": "46.0",
+   "MINY": "-51.5",
+   "MAXY": "51.5",
+   "MINZ": "0.0",
+   "MAXZ": "103.0"
+  },
+  "openscad_5d_step": "не используется (3D)",
+  "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+  "input_sha256": {
+   "Пыльник шруса.STL": "70663df1130d2d969063537c506b9ca767e36f3949bfe5c7d5dc0217d58ca467",
+   "Пыльник шруса.jpg": "f620469e27ddfa9a960441cd144d052006d9552725fe4efadbc27f1fcadea984",
+   "Техническое задание для пыльника шруса.docx": "588ceb9e8fb9830e66b131aca9e3947a9187cea28c1d07372374a73b05e9a15d"
+  }
+ },
+ {
+  "case": 4,
+  "part": "Фигурка",
+  "mode_asked_by_organizer": "3D",
+  "printing_mode": "classic",
+  "pipeline_result": "attention",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.1,
+  "layers": 1498,
+  "empty_layers": 0,
+  "gcode_print_time_s": 267458,
+  "pipeline_print_time_s": 267458,
+  "material_g": 383.63,
+  "filament_m": "151.901",
+  "gcode_size_mb": 158.9,
+  "pipeline_seconds": 170.5,
+  "stl_extents_mm": [
+   103.3,
+   128.8,
+   150.0
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-61.1",
+   "MAXX": "42.1",
+   "MINY": "-64.4",
+   "MAXY": "64.4",
+   "MINZ": "0.0",
+   "MAXZ": "150.0"
+  },
+  "openscad_5d_step": "не используется (3D)",
+  "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+  "input_sha256": {
+   "Декоративная фигурка.jpg": "a37aaa49a0aeb4d8976d6695a7a5883cd3272c41ef8038ece7534abcac0bf6e5",
+   "Декоративная фигурка.stl": "e9fa3c6831fc511bfd37174e48077371956b725c544bec96e6d7d456db4d016c",
+   "Техническое задание для декоративной фигурки.docx": "e7ab6d97285b551e34b9c6e3bed98a464c86200793c4815297522d4d239b9ff8"
+  }
+ },
+ {
+  "case": 5,
+  "part": "Рабочее колесо насоса Wilo",
+  "mode_asked_by_organizer": "5D",
+  "printing_mode": "cylindrical_full",
+  "pipeline_result": "ok",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.2,
+  "layers": 582,
+  "empty_layers": 0,
+  "gcode_print_time_s": 51177,
+  "pipeline_print_time_s": 52560,
+  "material_g": 143.24,
+  "filament_m": "50.0164",
+  "gcode_size_mb": 82.5,
+  "pipeline_seconds": null,
+  "stl_extents_mm": [
+   134.6,
+   50.7,
+   134.6
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-67.3",
+   "MAXX": "67.3",
+   "MINY": "-67.3",
+   "MAXY": "67.3",
+   "MINZ": "0.0",
+   "MAXZ": "50.7"
+  },
+  "openscad_5d_step": "запущен, завершился с кодом 1 через ~2 мин 25 с (в логе `Failed to intersect model`); слайсер продолжил нарезку без этого шага",
+  "run_by": "через веб-интерфейс приложения, вручную; слайсер запущен пользователем",
+  "input_sha256": {
+   "Рабочее колесо насоса Wilo.jpg": "12a81a04f5830929d37f5ed0c8633fbd609718b80efbe3b651b621f914df6bb5",
+   "Рабочее_колесо насоса Wilo IPL 80140-42. 2063106.STL": "c78061849c43078ea5dda6e21e9f0614735d36f57880441b829ed529ffe89510",
+   "Техническое задания для рабочего колеса насоса.docx": "b13fcf14ceb671226caf2929d9fb1254175cddfbbfcf8d41dda5ff25eaeab10a"
+  }
+ },
+ {
+  "case": 6,
+  "part": "Крыльчатка охлаждения электродвигателя",
+  "mode_asked_by_organizer": "3D",
+  "printing_mode": "classic",
+  "pipeline_result": "ok",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.2,
+  "layers": 110,
+  "empty_layers": 0,
+  "gcode_print_time_s": 35132,
+  "pipeline_print_time_s": 35132,
+  "material_g": 76.67,
+  "filament_m": "27.7184",
+  "gcode_size_mb": 20.3,
+  "pipeline_seconds": 136.9,
+  "stl_extents_mm": [
+   169.0,
+   22.0,
+   169.0
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-94.0",
+   "MAXX": "75.0",
+   "MINY": "-84.5",
+   "MAXY": "84.5",
+   "MINZ": "0.0",
+   "MAXZ": "22.0"
+  },
+  "openscad_5d_step": "не используется (3D)",
+  "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+  "input_sha256": {
+   "Крыльчатка охлаждения электродвигателя.STL": "32f253b238959eae223c0df27e012eb4722c536ed7e3a3ecd078d94b769bfc4d",
+   "Крыльчатка охлаждения электродвигателя.jpg": "7de16eb523fffdc296acdfe5933b5e0e02cd83b168bc6b1da04ce5740f861af5",
+   "Техническое задание для крыльчатки охлаждения электродвигателя.docx": "99bb7586efb459118704d07210eb78cb2efddfdfbe433ecbcab35f670975469a"
+  }
+ },
+ {
+  "case": 7,
+  "part": "Ось вращения передающих звёзд формовщика коробов Krones",
+  "mode_asked_by_organizer": "5D",
+  "printing_mode": "cylindrical_full",
+  "pipeline_result": "ok",
+  "iterations": 1,
+  "gcode_check": "ok",
+  "layer_height_mm": 0.1,
+  "layers": 714,
+  "empty_layers": 0,
+  "gcode_print_time_s": 18624,
+  "pipeline_print_time_s": 20822,
+  "material_g": 12.98,
+  "filament_m": "4.65267",
+  "gcode_size_mb": 27.5,
+  "pipeline_seconds": 237.8,
+  "stl_extents_mm": [
+   61.7,
+   23.5,
+   40.5
+  ],
+  "gcode_bbox_mm": {
+   "MINX": "-30.9",
+   "MAXX": "30.9",
+   "MINY": "-11.7",
+   "MAXY": "11.7",
+   "MINZ": "0.0",
+   "MAXZ": "40.5"
+  },
+  "openscad_5d_step": "запущен, ошибок в логе слайсера нет",
+  "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+  "input_sha256": {
+   "Ось вращения передающих звёзд.STL": "9fa137ba0d1f8b0a7b3736e4094e412dd90c5ee38f5b9eb226bcead4c8066690",
+   "Ось вращения передающих звёзд.docx": "dce4a95d513dd2ecd2885ee52927ec757335d6db3a0d44e19bf49ba52dceab4d",
+   "Ось вращения передающих звёзд.jpg": "644c746cee06d98abb6188735b2165bff1690d9b95dd8c2213aca06f512d49a8"
+  }
+ }
+]

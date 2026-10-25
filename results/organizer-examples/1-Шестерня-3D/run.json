@@ -1,0 +1,38 @@
+{
+ "case": 1,
+ "part": "Шестерня",
+ "mode_asked_by_organizer": "3D",
+ "printing_mode": "classic",
+ "pipeline_result": "ok",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.2,
+ "layers": 50,
+ "empty_layers": 0,
+ "gcode_print_time_s": 2761,
+ "pipeline_print_time_s": 2761,
+ "material_g": 4.17,
+ "filament_m": "1.5474",
+ "gcode_size_mb": 3.3,
+ "pipeline_seconds": 207.2,
+ "stl_extents_mm": [
+  33.1,
+  10.1,
+  33.1
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-26.0",
+  "MAXX": "7.0",
+  "MINY": "-16.5",
+  "MAXY": "16.5",
+  "MINZ": "0.0",
+  "MAXZ": "10.1"
+ },
+ "openscad_5d_step": "не используется (3D)",
+ "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+ "input_sha256": {
+  "Техническое задание для шестерни.docx": "ed07d377ffe079064b79ccf5d89c1197211a5a99d82e373e8808f3bec499a81f",
+  "Шестерня.jpg": "2d62e990d762ed65dcd44d30c84f94a648b98fae2cad2223c1a7c55e9cb426dd",
+  "Шестерня.stl": "df0486ac08dd9a2672ab4a9aa2b4651019efb1d7894f9cae1672696e720ee5cf"
+ }
+}

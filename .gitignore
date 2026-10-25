@@ -32,3 +32,8 @@ test-results/
 # сборка архива
 build/
 dist/
+
+# результаты семи деталей
+!results/organizer-examples/**/*.png
+!results/organizer-examples/**/*.3mf
+!results/organizer-examples/**/*.zip

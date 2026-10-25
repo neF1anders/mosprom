@@ -1,0 +1,38 @@
+{
+ "case": 2,
+ "part": "Колесо конвейерной линии",
+ "mode_asked_by_organizer": "5D",
+ "printing_mode": "cylindrical_full",
+ "pipeline_result": "ok",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.1,
+ "layers": 484,
+ "empty_layers": 0,
+ "gcode_print_time_s": 21524,
+ "pipeline_print_time_s": 23154,
+ "material_g": 36.44,
+ "filament_m": "11.6876",
+ "gcode_size_mb": 30.2,
+ "pipeline_seconds": 250.3,
+ "stl_extents_mm": [
+  59.0,
+  25.0,
+  59.0
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-29.5",
+  "MAXX": "29.5",
+  "MINY": "-29.5",
+  "MAXY": "29.5",
+  "MINZ": "0.0",
+  "MAXZ": "25.0"
+ },
+ "openscad_5d_step": "запущен, завершился с кодом 1 через ~3 с; слайсер продолжил нарезку без этого шага",
+ "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+ "input_sha256": {
+  "Колесо.STL": "9cebfe96ba84aef74161ddd98264a2e1e90df63b11ad9b19c3fe181003483bd4",
+  "Колесо.jpg": "febabc6d10f96d59ef9db50f8c4a1038b2de2eb89f0f0075608047bb380842ed",
+  "Техническое задание для колеса конвейерной линии.docx": "32727bab5d9ece28069684a20453bdb14bf508ad983053c5fea18934d78a213d"
+ }
+}

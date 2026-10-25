@@ -1,0 +1,38 @@
+{
+ "case": 7,
+ "part": "Ось вращения передающих звёзд формовщика коробов Krones",
+ "mode_asked_by_organizer": "5D",
+ "printing_mode": "cylindrical_full",
+ "pipeline_result": "ok",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.1,
+ "layers": 714,
+ "empty_layers": 0,
+ "gcode_print_time_s": 18624,
+ "pipeline_print_time_s": 20822,
+ "material_g": 12.98,
+ "filament_m": "4.65267",
+ "gcode_size_mb": 27.5,
+ "pipeline_seconds": 237.8,
+ "stl_extents_mm": [
+  61.7,
+  23.5,
+  40.5
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-30.9",
+  "MAXX": "30.9",
+  "MINY": "-11.7",
+  "MAXY": "11.7",
+  "MINZ": "0.0",
+  "MAXZ": "40.5"
+ },
+ "openscad_5d_step": "запущен, ошибок в логе слайсера нет",
+ "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+ "input_sha256": {
+  "Ось вращения передающих звёзд.STL": "9fa137ba0d1f8b0a7b3736e4094e412dd90c5ee38f5b9eb226bcead4c8066690",
+  "Ось вращения передающих звёзд.docx": "dce4a95d513dd2ecd2885ee52927ec757335d6db3a0d44e19bf49ba52dceab4d",
+  "Ось вращения передающих звёзд.jpg": "644c746cee06d98abb6188735b2165bff1690d9b95dd8c2213aca06f512d49a8"
+ }
+}

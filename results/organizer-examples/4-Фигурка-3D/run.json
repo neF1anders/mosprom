@@ -1,0 +1,38 @@
+{
+ "case": 4,
+ "part": "Фигурка",
+ "mode_asked_by_organizer": "3D",
+ "printing_mode": "classic",
+ "pipeline_result": "attention",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.1,
+ "layers": 1498,
+ "empty_layers": 0,
+ "gcode_print_time_s": 267458,
+ "pipeline_print_time_s": 267458,
+ "material_g": 383.63,
+ "filament_m": "151.901",
+ "gcode_size_mb": 158.9,
+ "pipeline_seconds": 170.5,
+ "stl_extents_mm": [
+  103.3,
+  128.8,
+  150.0
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-61.1",
+  "MAXX": "42.1",
+  "MINY": "-64.4",
+  "MAXY": "64.4",
+  "MINZ": "0.0",
+  "MAXZ": "150.0"
+ },
+ "openscad_5d_step": "не используется (3D)",
+ "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+ "input_sha256": {
+  "Декоративная фигурка.jpg": "a37aaa49a0aeb4d8976d6695a7a5883cd3272c41ef8038ece7534abcac0bf6e5",
+  "Декоративная фигурка.stl": "e9fa3c6831fc511bfd37174e48077371956b725c544bec96e6d7d456db4d016c",
+  "Техническое задание для декоративной фигурки.docx": "e7ab6d97285b551e34b9c6e3bed98a464c86200793c4815297522d4d239b9ff8"
+ }
+}

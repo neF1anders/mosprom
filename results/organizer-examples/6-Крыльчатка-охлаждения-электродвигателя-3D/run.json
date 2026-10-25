@@ -1,0 +1,38 @@
+{
+ "case": 6,
+ "part": "Крыльчатка охлаждения электродвигателя",
+ "mode_asked_by_organizer": "3D",
+ "printing_mode": "classic",
+ "pipeline_result": "ok",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.2,
+ "layers": 110,
+ "empty_layers": 0,
+ "gcode_print_time_s": 35132,
+ "pipeline_print_time_s": 35132,
+ "material_g": 76.67,
+ "filament_m": "27.7184",
+ "gcode_size_mb": 20.3,
+ "pipeline_seconds": 136.9,
+ "stl_extents_mm": [
+  169.0,
+  22.0,
+  169.0
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-94.0",
+  "MAXX": "75.0",
+  "MINY": "-84.5",
+  "MAXY": "84.5",
+  "MINZ": "0.0",
+  "MAXZ": "22.0"
+ },
+ "openscad_5d_step": "не используется (3D)",
+ "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+ "input_sha256": {
+  "Крыльчатка охлаждения электродвигателя.STL": "32f253b238959eae223c0df27e012eb4722c536ed7e3a3ecd078d94b769bfc4d",
+  "Крыльчатка охлаждения электродвигателя.jpg": "7de16eb523fffdc296acdfe5933b5e0e02cd83b168bc6b1da04ce5740f861af5",
+  "Техническое задание для крыльчатки охлаждения электродвигателя.docx": "99bb7586efb459118704d07210eb78cb2efddfdfbe433ecbcab35f670975469a"
+ }
+}

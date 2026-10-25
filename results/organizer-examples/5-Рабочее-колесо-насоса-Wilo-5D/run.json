@@ -1,0 +1,38 @@
+{
+ "case": 5,
+ "part": "Рабочее колесо насоса Wilo",
+ "mode_asked_by_organizer": "5D",
+ "printing_mode": "cylindrical_full",
+ "pipeline_result": "ok",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.2,
+ "layers": 582,
+ "empty_layers": 0,
+ "gcode_print_time_s": 51177,
+ "pipeline_print_time_s": 52560,
+ "material_g": 143.24,
+ "filament_m": "50.0164",
+ "gcode_size_mb": 82.5,
+ "pipeline_seconds": null,
+ "stl_extents_mm": [
+  134.6,
+  50.7,
+  134.6
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-67.3",
+  "MAXX": "67.3",
+  "MINY": "-67.3",
+  "MAXY": "67.3",
+  "MINZ": "0.0",
+  "MAXZ": "50.7"
+ },
+ "openscad_5d_step": "запущен, завершился с кодом 1 через ~2 мин 25 с (в логе `Failed to intersect model`); слайсер продолжил нарезку без этого шага",
+ "run_by": "через веб-интерфейс приложения, вручную; слайсер запущен пользователем",
+ "input_sha256": {
+  "Рабочее колесо насоса Wilo.jpg": "12a81a04f5830929d37f5ed0c8633fbd609718b80efbe3b651b621f914df6bb5",
+  "Рабочее_колесо насоса Wilo IPL 80140-42. 2063106.STL": "c78061849c43078ea5dda6e21e9f0614735d36f57880441b829ed529ffe89510",
+  "Техническое задания для рабочего колеса насоса.docx": "b13fcf14ceb671226caf2929d9fb1254175cddfbbfcf8d41dda5ff25eaeab10a"
+ }
+}

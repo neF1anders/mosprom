@@ -1,0 +1,38 @@
+{
+ "case": 3,
+ "part": "Пыльник ШРУСа",
+ "mode_asked_by_organizer": "3D",
+ "printing_mode": "classic",
+ "pipeline_result": "ok",
+ "iterations": 1,
+ "gcode_check": "ok",
+ "layer_height_mm": 0.2,
+ "layers": 514,
+ "empty_layers": 0,
+ "gcode_print_time_s": 93583,
+ "pipeline_print_time_s": 93584,
+ "material_g": 149.99,
+ "filament_m": "54.225",
+ "gcode_size_mb": 72.1,
+ "pipeline_seconds": 163.8,
+ "stl_extents_mm": [
+  111.0,
+  103.0,
+  103.0
+ ],
+ "gcode_bbox_mm": {
+  "MINX": "-65.0",
+  "MAXX": "46.0",
+  "MINY": "-51.5",
+  "MAXY": "51.5",
+  "MINZ": "0.0",
+  "MAXZ": "103.0"
+ },
+ "openscad_5d_step": "не используется (3D)",
+ "run_by": "скрипт scripts/eval_pipeline.py через HTTP API",
+ "input_sha256": {
+  "Пыльник шруса.STL": "70663df1130d2d969063537c506b9ca767e36f3949bfe5c7d5dc0217d58ca467",
+  "Пыльник шруса.jpg": "f620469e27ddfa9a960441cd144d052006d9552725fe4efadbc27f1fcadea984",
+  "Техническое задание для пыльника шруса.docx": "588ceb9e8fb9830e66b131aca9e3947a9187cea28c1d07372374a73b05e9a15d"
+ }
+}
