@@ -25,7 +25,29 @@ PLUGIN = ROOT / "src" / "plugin" / "AIAssistant"
 OUTPUT = ROOT / "dist" / "AIAssistant-portable.zip"
 APP_ITEMS = [("src/backend", "src/backend"), ("src/mesh_analysis.py", "src/mesh_analysis.py"),
              ("knowledge", "knowledge"), ("src/web/dist", "src/web/dist")]
-IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store")
+IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", ".env", "*.db", "model.json")
+APP = "AIAssistant/runtime/app/"
+# What the app reads at runtime besides its code: prompts, tuning tables, knowledge, the chat.
+REQUIRED = [
+    "AIAssistant/plugin.json",
+    "AIAssistant/agent/sidecar.py",
+    "AIAssistant/runtime/python/python.exe",
+    "AIAssistant/runtime/python/Lib/site-packages/aiosqlite/__init__.py",
+    APP + "src/backend/api/app.py",
+    APP + "src/backend/startup.py",
+    APP + "src/backend/agents/prompts/assistant.md",
+    APP + "src/backend/tuning/free_keys.json",
+    APP + "src/backend/tuning/rules.json",
+    APP + "src/mesh_analysis.py",
+    APP + "knowledge/catalog.json",
+    APP + "knowledge/requirement_keys.json",
+    APP + "knowledge/ste_5.2.4/definitions/fdmprinter.def.json",
+    APP + "src/web/dist/index.html",
+]
+# Settings, keys and data of the build machine never ship; neither does the Docker setup.
+PRIVATE = re.compile(
+    r"(^|/)(\.env[^/]*|[^/]*compose[^/]*\.ya?ml|Dockerfile|model\.json|[^/]*\.db)$"
+)
 
 
 def run(command, **kwargs):
@@ -73,6 +95,48 @@ def check_plugin_syntax():
     run(command)
 
 
+def install_packages(python_dir, args):
+    requirements = ROOT / "requirements.portable.txt"
+    target = python_dir / "Lib" / "site-packages"
+    if shutil.which("uv"):
+        pip = ["uv", "pip", "install", "--python-platform", "x86_64-pc-windows-msvc",
+               "--python-version", "3.11", "--only-binary", ":all:", "--target", target,
+               "-r", requirements]
+    else:
+        pip = [sys.executable, "-m", "pip", "install", "--no-compile", "--only-binary=:all:",
+               "--platform", "win_amd64", "--python-version", "3.11", "--implementation", "cp",
+               "--target", target, "-r", requirements]
+    if args.offline:
+        pip += ["--no-index", "--find-links", args.wheels]
+    run(pip)
+
+
+def copy_app(app):
+    for source, target in APP_ITEMS:
+        origin = ROOT / source
+        destination = app / target
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if origin.is_dir():
+            shutil.copytree(origin, destination, ignore=IGNORE)
+        else:
+            shutil.copy2(origin, destination)
+
+
+def check_zip():
+    """The archive must hold what the app reads at runtime and nothing private of this machine."""
+    with zipfile.ZipFile(OUTPUT) as bundle:
+        broken = bundle.testzip()
+        names = set(bundle.namelist())
+    if broken:
+        raise SystemExit("Broken entry in the zip: {}".format(broken))
+    missing = [name for name in REQUIRED if name not in names]
+    if missing:
+        raise SystemExit("Missing in the zip: {}".format(", ".join(missing)))
+    private = sorted(name for name in names if PRIVATE.search(name))
+    if private:
+        raise SystemExit("Private files in the zip: {}".format(", ".join(private)))
+
+
 def build(args):
     if args.dry_run:
         print("embeddable python:", EMBED_URL)
@@ -94,40 +158,15 @@ def build(args):
     with zipfile.ZipFile(archive) as bundle:
         bundle.extractall(python_dir)
     enable_site(python_dir)
-    requirements = ROOT / "requirements.portable.txt"
-    target = python_dir / "Lib" / "site-packages"
-    if shutil.which("uv"):
-        pip = ["uv", "pip", "install", "--python-platform", "x86_64-pc-windows-msvc",
-               "--python-version", "3.11", "--only-binary", ":all:", "--target", target,
-               "-r", requirements]
-        if args.offline:
-            pip += ["--no-index", "--find-links", args.wheels]
-    else:
-        pip = [sys.executable, "-m", "pip", "install", "--no-compile", "--only-binary=:all:",
-               "--platform", "win_amd64", "--python-version", "3.11", "--implementation", "cp",
-               "--target", target, "-r", requirements]
-        if args.offline:
-            pip += ["--no-index", "--find-links", args.wheels]
-    run(pip)
-    app = runtime / "app"
-    for source, target in APP_ITEMS:
-        origin = ROOT / source
-        destination = app / target
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if origin.is_dir():
-            shutil.copytree(origin, destination, ignore=IGNORE)
-        else:
-            shutil.copy2(origin, destination)
+    install_packages(python_dir, args)
+    copy_app(runtime / "app")
     (runtime / "data").mkdir()
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.unlink(missing_ok=True)
     with zipfile.ZipFile(OUTPUT, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
         for path in sorted(STAGE.rglob("*")):
-            bundle.write(path, path.relative_to(STAGE))
-    with zipfile.ZipFile(OUTPUT) as bundle:
-        broken = bundle.testzip()
-    if broken:
-        raise SystemExit("Broken entry in the zip: {}".format(broken))
+            bundle.write(path, path.relative_to(STAGE).as_posix())
+    check_zip()
     print("{} {:.0f} MB".format(OUTPUT, OUTPUT.stat().st_size / 1e6))
 
 
