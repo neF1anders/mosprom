@@ -9,8 +9,9 @@ from .agent import launch, settings, sidecar
 from .agent.server import AssistantServer
 
 NO_CONFIG = ("Приложение StereotechAI ещё не настроено. В папке проекта запустите "
-             "python scripts\\bootstrap.py и docker compose up -d, затем откройте пункт меню снова")
-NO_BACKEND = ("Приложение StereotechAI не запустилось: {}. Откройте пункт меню снова, чтобы попробовать ещё раз")
+             "python scripts\\bootstrap.py и сервер приложения по инструкции из README, "
+             "затем откройте пункт меню снова")
+NO_BACKEND = ("Приложение StereotechAI не запустилось ({}). Откройте пункт меню снова, чтобы попробовать ещё раз")
 NO_SERVER = ("Сервер плагина не запустился, поэтому слайсер не сможет нарезать модели из приложения. "
              "Подробности в журнале STE Slicer. Откройте пункт меню снова, чтобы попробовать ещё раз")
 

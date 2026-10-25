@@ -26,7 +26,7 @@ def python_path():
 
 
 def available():
-    """True in the portable build; the Docker flow has no runtime/ and keeps using mosprom.json."""
+    """True in the portable build; a run from the sources has no runtime/ and uses mosprom.json."""
     return os.path.isfile(python_path()) and os.path.isdir(os.path.join(RUNTIME_DIR, "app"))
 
 
