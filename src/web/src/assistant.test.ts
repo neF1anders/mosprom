@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { answering, splitAt } from "./chat";
 import { blocks } from "./components/Markdown";
+import { chatRuns, runsByReply } from "./timeline";
 import type { Message, ProgressEvent } from "./types";
 
 const message = (role: string, created_at: string, kind = "chat"): Message =>
@@ -58,5 +59,45 @@ describe("the assistant in the chat", () => {
       { kind: "list", lines: ["- Цвет не важен", "- Одна штука"] },
       { kind: "ordered", lines: ["1. Шаг"] },
     ]);
+  });
+});
+describe("the assistant's reasoning", () => {
+  const at = (second: number) =>
+    new Date(Date.UTC(2026, 9, 25, 3, 0, second)).toISOString();
+  const agentEvent = (
+    type: string,
+    agent: string,
+    call: string,
+    second: number,
+  ): ProgressEvent => ({
+    ...event(type, agent, call),
+    created_at: at(second),
+  });
+  it("shows a turn like an agent and opens it above the reply it led to", () => {
+    const events = [
+      agentEvent("agent.started", "assistant", "t1:assistant:1", 0),
+      agentEvent("agent.finished", "assistant", "t1:assistant:1", 4),
+      agentEvent("agent.started", "checker", "w:checker:1", 5),
+      agentEvent("agent.started", "assistant", "t2:assistant:1", 10),
+    ];
+    const thoughts = {
+      "t1:assistant:1": {
+        agent: "assistant",
+        attempt: 1,
+        chunks: [{ at: Date.parse(at(1)), text: "The user greets" }],
+        said: [{ at: Date.parse(at(3)), text: "Отвечаю на приветствие" }],
+      },
+    };
+    const turns = chatRuns(events, thoughts);
+    expect(turns.map((t) => [t.id, t.title, t.state])).toEqual([
+      ["t1:assistant", "Ассистент", "done"],
+      ["t2:assistant", "Ассистент", "run"],
+    ]);
+    expect(turns[0].said[0].text).toBe("Отвечаю на приветствие");
+    const reply = { ...message("assistant", at(5)), id: "r1" };
+    const earlier = { ...message("assistant", at(0)), id: "r0" };
+    const found = runsByReply([earlier, reply], turns);
+    expect([...found.keys()]).toEqual(["r1"]);
+    expect(found.get("r1")!.map((t) => t.id)).toEqual(["t1:assistant"]);
   });
 });

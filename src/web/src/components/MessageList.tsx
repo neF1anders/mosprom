@@ -1,8 +1,10 @@
 import { answerPairs } from "../chat";
+import type { AgentRun } from "../timeline";
 import type { Attachment, Job, Message } from "../types";
 import { Attachments, type DraftFile } from "./Attachments";
 import { Icon } from "./Icon";
 import { Markdown } from "./Markdown";
+import { AgentDone } from "./Timeline";
 import styles from "../App.module.css";
 
 function sentAt(message: Message) {
@@ -78,12 +80,17 @@ export function MessageList({
   hidden = new Set(),
   files = new Map(),
   load = () => Promise.reject(new Error("Файл недоступен")),
+  thought = new Map(),
+  onAgent = () => undefined,
 }: {
   messages: Message[];
   job?: Job;
   hidden?: Set<string>;
   files?: Map<string, Attachment>;
   load?: (id: string) => Promise<Blob>;
+  // The assistant's turns that led to each reply, opened like an agent's.
+  thought?: Map<string, AgentRun[]>;
+  onAgent?: (id: string) => void;
 }) {
   return (
     <>
@@ -107,6 +114,13 @@ export function MessageList({
               className={styles.agentMessage}
               data-kind={message.kind || "chat"}
             >
+              {(thought.get(message.id) || []).map((turn) => (
+                <AgentDone
+                  key={turn.id}
+                  agent={turn}
+                  onOpen={() => onAgent(turn.id)}
+                />
+              ))}
               <Markdown text={message.text} />
             </article>
           ),

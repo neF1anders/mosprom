@@ -32,7 +32,9 @@ REPLY, START, UPDATE = "reply", "start_project", "update_project"
 LOG, INVESTIGATE = "project_log", "investigate"
 # Steps of one turn: a look at the journal or an investigation, then the answer.
 STEPS = 4
-ASSISTANT = AgentSpec("assistant", "Ассистент", Output, max_steps=STEPS, thinking=False)
+# With reasoning the model acts by its tools as reliably as when forced to, while a forced
+# call switches the reasoning off; the chat shows the reasoning as it shows the agents'.
+ASSISTANT = AgentSpec("assistant", "Ассистент", Output, max_steps=STEPS, budget=2000)
 ANALYST = AgentSpec("analyst", "Разбор работы", Output, max_steps=1, budget=4000)
 REPORTER = AgentSpec("report", "Итоговый отчёт", Output, max_steps=1, thinking=False)
 # The chat the assistant reads: the latest messages, a long report cut to its start.
@@ -120,8 +122,8 @@ class Assistant:
         self.tools = [answer, start, update, log, investigate]
 
     async def decide(self, situation: Situation, say: Say) -> Decision:
-        """One turn: a tool every step, the reply in the chat included, so the agent never
-        says it did something it did not do; the last step offers only the reply.
+        """One turn: tools until a decision or a reply, which is a tool too or plain text;
+        the last step offers only the reply.
 
         What the agent says along with an investigation reaches the chat at once, so the
         user sees «сейчас посмотрю» while it runs.
@@ -131,12 +133,9 @@ class Assistant:
         messages = assistant_messages(self.system, situation)
         for step in range(1, STEPS + 1):
             offered = self.tools if step < STEPS else [self.reply]
-            reply = await self.runner.talk(
-                ASSISTANT, messages, offered, ctx, step, tool_choice="required"
-            )
+            reply = await self.runner.talk(ASSISTANT, messages, offered, ctx, step)
             calls = reply.tool_calls
             answer = called(calls, REPLY)
-            # A provider that ignores the requirement still answers in plain text.
             if answer is not None or not calls:
                 text = str((answer or {}).get("text") or reply.content)
                 return Decision("reply", chat_text(text) or FALLBACK)

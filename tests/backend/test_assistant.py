@@ -82,8 +82,8 @@ async def said(text):
 said.texts = []
 
 
-async def test_every_step_must_call_a_tool_and_the_reply_is_one():
-    """Regression: the agent wrote «принято» to typed answers and called nothing."""
+async def test_the_assistant_reasons_and_may_reply_by_its_tool():
+    """It reasons, so the chat can show how it thought, and acts by its tools."""
     answer = reply("", tool_calls=[call(REPLY, {"text": "Привет — чем помочь?"})])
     agent, model = assistant(assistant=[answer])
     decision = await agent.decide(situation(), said)
@@ -91,10 +91,10 @@ async def test_every_step_must_call_a_tool_and_the_reply_is_one():
     request = model.requests["assistant"][0]
     names = {t["function"]["name"] for t in request["tools"]}
     assert names == {REPLY, START, UPDATE, LOG, INVESTIGATE}
-    assert (request["tool_choice"], request["thinking"]) == ("required", False)
+    assert (request["thinking"], request["budget"]) == (True, 2000)
 
 
-async def test_a_provider_ignoring_the_requirement_still_answers_in_text():
+async def test_a_reply_in_plain_text_is_taken_as_well():
     agent, _ = assistant(assistant=[reply("Привет — чем помочь?")])
     decision = await agent.decide(situation(), said)
     assert decision.action == "reply" and decision.text == "Привет, чем помочь?"
