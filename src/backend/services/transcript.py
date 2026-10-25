@@ -27,6 +27,8 @@ SMALL = 17
 LINE = 32
 # A picture taller than this is hard to read; the rest of the chat goes to the next one.
 PAGE = 3200
+# Fewer lines than this left at the bottom of a picture start the message on the next one.
+FEW = 4
 BACKGROUND, TEXT_COLOR, MUTED = "#f4f5f7", "#1d2228", "#6b7380"
 USER_FILL, ASSISTANT_FILL, BORDER = "#dce9ff", "#ffffff", "#e1e4e9"
 LABELS = {
@@ -93,29 +95,29 @@ def render(title: str, shown: list[Entry], when: str) -> list[bytes]:
     header = [(f"Переписка по проекту «{title}»", True), (when, False)]
     pages: list[list[Block]] = [[]]
     used = _header_height(header)
-    for block in _blocks(shown, used):
-        if pages[-1] and used + GAP + block.height + MARGIN > PAGE:
-            pages.append([])
-            used = MARGIN
-        pages[-1].append(block)
-        used += GAP + block.height
+    for entry in shown:
+        rows, label = _rows(entry), entry.label
+        while rows:
+            fit = (PAGE - used - GAP - SMALL - 10 - 2 * PAD - MARGIN) // LINE
+            # A long message fills the rest of the picture and goes on in the next one; a
+            # bubble of a few lines is not cut off at the bottom.
+            if pages[-1] and fit < min(len(rows), FEW):
+                pages.append([])
+                used = MARGIN
+                continue
+            block = Block(entry.role, label, rows[:fit])
+            pages[-1].append(block)
+            used += GAP + block.height
+            rows, label = rows[fit:], f"{entry.label}, продолжение"
     return [_draw(blocks, header if number == 0 else []) for number, blocks in enumerate(pages)]
 
 
-def _blocks(shown: list[Entry], header: int) -> list[Block]:
-    """Bubbles of at most as many lines as fit a picture, even the one under the header."""
-    room = (PAGE - header - GAP - SMALL - 10 - 2 * PAD - MARGIN) // LINE
-    blocks = []
-    for entry in shown:
-        rows = [
-            (part, bold)
-            for text, bold in entry.lines
-            for part in wrap(text, _font(bold, TEXT), BUBBLE - 2 * PAD)
-        ]
-        for start in range(0, len(rows), room):
-            label = entry.label if start == 0 else f"{entry.label}, продолжение"
-            blocks.append(Block(entry.role, label, rows[start : start + room]))
-    return blocks
+def _rows(entry: Entry) -> list[tuple[str, bool]]:
+    return [
+        (part, bold)
+        for text, bold in entry.lines
+        for part in wrap(text, _font(bold, TEXT), BUBBLE - 2 * PAD)
+    ]
 
 
 def wrap(text: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:

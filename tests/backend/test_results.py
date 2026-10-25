@@ -97,3 +97,15 @@ def test_a_word_longer_than_a_line_breaks_inside():
     lines = wrap(f"Проект лежит в папке {path}", font, BUBBLE - 2 * PAD)
     assert len(lines) > 1 and "".join(lines).replace(" ", "") in f"Проектлежитвпапке{path}"
     assert all(font.getlength(line) <= BUBBLE - 2 * PAD for line in lines)
+
+
+def test_a_long_report_fills_the_picture_before_going_on():
+    """The first picture is not left half empty when the report after it is long."""
+    report = "\n".join(f"Строка {n} итогового отчёта" for n in range(120))
+    messages = [
+        {"role": "user", "kind": "chat", "text": "Деталь 6"},
+        {"role": "assistant", "kind": "report", "text": report},
+    ]
+    pages = render("Крыльчатка", entries(messages, {}), "25.10.2026 05:00")
+    heights = [Image.open(io.BytesIO(page)).height for page in pages]
+    assert len(pages) == 2 and heights[0] > PAGE - 200, heights
