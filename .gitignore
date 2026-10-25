@@ -2,6 +2,7 @@ __pycache__/
 .DS_Store
 .idea/
 *.png
+!tests/fixtures/*.png
 /CLAUDE.md
 /AGENTS.md
 .venv/
