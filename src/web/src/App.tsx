@@ -513,15 +513,27 @@ export function App() {
                 thought={thought}
                 onAgent={setAgentView}
               />
-              {thinking.map((turn) => (
-                <AgentCard
-                  key={turn.id}
-                  agent={turn}
-                  highlighted={highlighted === turn.id}
-                  onOpen={() => setAgentView(turn.id)}
-                />
-              ))}
-              {replying && !thinking.length && <Replying />}
+              {replying && (
+                // One status while the assistant answers, whichever way it shows.
+                <div
+                  className={styles.answering}
+                  role="status"
+                  aria-label="Ассистент отвечает"
+                >
+                  {thinking.length ? (
+                    thinking.map((turn) => (
+                      <AgentCard
+                        key={turn.id}
+                        agent={turn}
+                        highlighted={highlighted === turn.id}
+                        onOpen={() => setAgentView(turn.id)}
+                      />
+                    ))
+                  ) : (
+                    <Replying />
+                  )}
+                </div>
+              )}
               {job?.status === "stopped" && (
                 <button onClick={() => control.mutate("retry")}>
                   Продолжить
