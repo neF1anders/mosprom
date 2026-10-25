@@ -7,7 +7,8 @@ The stand-in user sends the files, declines to add details if the gate asks, and
 checker with the suggested option or «Не знаю». With --full the job goes on through parameter
 selection, its check, slicing in the stand-in STE Slicer and the G-code check.
 
-Needs QWEN_API_KEY and a migrated database in EVAL_DATABASE_URL (default mosprom_eval on 55432).
+Needs QWEN_API_KEY. The database is EVAL_DATABASE_URL, by default artifacts/eval/eval.db; its
+schema and the knowledge are created here.
 Results go to artifacts/eval/<time>/: one job per example and summary.json.
 """
 
@@ -30,9 +31,12 @@ from src.backend.container import Container
 from src.backend.domain.models import Job, Status
 from src.backend.domain.requirement_keys import RequirementKeys
 from src.backend.domain.rules import UNKNOWN_ANSWER
+from src.backend.infrastructure.database import create_schema
+from src.backend.startup import import_knowledge
 
 REFERENCE = json.loads(Path("tests/eval/reference.json").read_text())
-DEFAULT_DATABASE = "postgresql+psycopg://mosprom:mosprom_local@127.0.0.1:55432/mosprom_eval"
+EVAL_FOLDER = Path("artifacts/eval")
+DEFAULT_DATABASE = "sqlite+aiosqlite:///" + (EVAL_FOLDER / "eval.db").as_posix()
 DECLINE = "Подробностей нет, сделайте как считаете нужным"
 SLICER_START_SECONDS = 30
 # A code's unit is written the Latin way; the reference facts look for the Russian one too.
@@ -162,9 +166,7 @@ async def main() -> None:
     parser.add_argument("--full", action="store_true", help="go on to slicing in the stand-in")
     args = parser.parse_args()
     database = os.environ.get("EVAL_DATABASE_URL", DEFAULT_DATABASE)
-    env = dict(os.environ, DATABASE_URL=database)
-    subprocess.run(["alembic", "upgrade", "head"], env=env, check=True)
-    subprocess.run([sys.executable, "scripts/import_knowledge.py"], env=env, check=True)
+    EVAL_FOLDER.mkdir(parents=True, exist_ok=True)
     folder = Path(tempfile.mkdtemp(prefix="eval-slicer-"))
     slicer = None
     if args.full:
@@ -179,7 +181,10 @@ async def main() -> None:
                 raise SystemExit("The slicer stand-in did not start")
             await asyncio.sleep(0.2)
     container = Container(Settings(database_url=database, slicer_folder=folder))
-    output = Path("artifacts/eval") / datetime.now().strftime("%Y%m%d-%H%M%S")
+    # The stages run right here, so the queue's runner stays off.
+    await create_schema(container.engine)
+    await import_knowledge(container)
+    output = EVAL_FOLDER / datetime.now().strftime("%Y%m%d-%H%M%S")
     output.mkdir(parents=True)
     summary = []
     try:
