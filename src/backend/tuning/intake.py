@@ -292,6 +292,11 @@ def _read_printing_mode(
     draft: _Draft, requirement: Requirement, requirement_id: str, label: str, entry: RequirementKey
 ) -> None:
     mode = requirement.value.strip().lower()
+    if mode in entry.options and _invented_mode(requirement):
+        draft.assumptions.append(
+            f"режим печати {mode} не назван в документах и не принят как требование"
+        )
+        return
     if mode in entry.options:
         draft.mode = ModeRequest(mode, requirement_id)
         _note_unconfirmed(
@@ -327,6 +332,20 @@ def _read_priority(
         requirement,
         f"приоритеты {', '.join(known)} в карточке не подтверждены и приняты как допущение",
     )
+
+
+_MODE_WORDS = re.compile(
+    r"3\s*d|5\s*d|классическ|плоск|спирал|spiral|цилиндр|cylindr|режим\w*\s+печат|printing\s*mode",
+    re.IGNORECASE,
+)
+
+
+def _invented_mode(requirement: Requirement) -> bool:
+    """A mode taken from quotes that never name a print mode, e.g. "FDM / FFF" read as classic."""
+    if requirement.provenance != "document":
+        return False
+    quotes = [s.quote for s in requirement.sources if s.quote]
+    return bool(quotes) and not any(_MODE_WORDS.search(q) for q in quotes)
 
 
 def _note_unconfirmed(draft: _Draft, requirement: Requirement, text: str) -> None:

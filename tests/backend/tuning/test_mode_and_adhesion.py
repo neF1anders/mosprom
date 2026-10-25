@@ -162,3 +162,12 @@ def test_5d_prints_without_supports_whatever_the_flat_overhangs(select):
     parameter_set = select(coded(overhanging, requirement("part_class", "shaft")))
     assert parameter_set["printing_mode"]["value"] == "cylindrical_full"
     assert "support_enable" not in parameter_set["settings"]
+
+
+def test_a_mode_invented_from_the_production_method_does_not_override_the_part_class(select):
+    invented = requirement("printing_mode", "classic", provenance="document")
+    invented["sources"] = [
+        {"source_id": "s1", "quote": "Метод производства: Аддитивное производство (FDM / FFF)"}
+    ]
+    wheel = select(coded(axial(50.7, 134.6, False), requirement("part_class", "impeller_fan"), invented))
+    assert wheel["printing_mode"]["value"] == "cylindrical_full"
