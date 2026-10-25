@@ -58,13 +58,15 @@ class Result:
     checks: list[tuple[str, bool, str]] = field(default_factory=list)
     transcript: list[str] = field(default_factory=list)
     error: str = ""
+    # Why the scenario could not be checked: the model never reached its starting state.
+    skipped: str = ""
 
     def check(self, name: str, ok: bool, detail: Any = "") -> None:
         self.checks.append((name, bool(ok), str(detail)[:300]))
 
     @property
     def passed(self) -> bool:
-        return not self.error and all(ok for _, ok, _ in self.checks)
+        return not self.error and not self.skipped and all(ok for _, ok, _ in self.checks)
 
 
 class Chat:
@@ -396,31 +398,48 @@ async def new_part_during_work(chat: Chat, result: Result) -> None:
     await chat.wait_event("interpretation.started")
     await chat.attach("boot")
     turn = await chat.say("А вот ещё одна деталь, сделай и её")
-    result.check("новый проект не начат", turn.projects == 1, turn)
+    result.check("новый проект не начат, ассистент ответил", turn.action == "reply", turn)
+    result.check("проект по-прежнему один", turn.projects == 1, turn)
     await chat.stop()
 
 
-@scenario("Ответ на вопросы текстом в чате")
-async def typed_answers(chat: Chat, result: Result) -> None:
+async def asking(chat: Chat, result: Result) -> list[dict[str, Any]] | None:
+    """A project whose checker asked; None marks the scenario skipped when it did not."""
     await started(chat, result, "gear")
     now = await chat.until({"waiting_user", "queued", "completed"}, 400)
     if now["job"]["status"] != "waiting_user":
-        result.check("вопросов не было, сценарий пропущен", True)
+        result.skipped = "проверяющий не задал вопросов"
         await chat.stop()
+        return None
+    return [q for q in now["job"]["card"]["questions"] if not q.get("answer")]
+
+
+@scenario("Содержательный ответ на вопросы текстом в чате")
+async def typed_answers(chat: Chat, result: Result) -> None:
+    questions = await asking(chat, result)
+    if questions is None:
         return
-    questions = [q["title"] for q in now["job"]["card"]["questions"]]
+    answers = "; ".join(
+        f"{q['title']} {q.get('suggested') or (q.get('options') or ['не знаю'])[0]}"
+        for q in questions
+    )
+    turn = await chat.say(answers)
+    result.check("ответ принят как ответ", turn.action == "update", (turn, answers))
+    await chat.stop()
+
+
+@scenario("Ответ «не знаю, решай сам» на вопросы текстом")
+async def unknown_answers(chat: Chat, result: Result) -> None:
+    if await asking(chat, result) is None:
+        return
     turn = await chat.say("На все вопросы ответ один, не знаю, решай сам")
-    result.check("ответ принят как ответ", turn.action == "update", (turn, questions))
+    result.check("ответ принят как ответ", turn.action == "update", turn)
     await chat.stop()
 
 
 @scenario("Посторонний вопрос, пока ждут ответы")
 async def chat_while_asking(chat: Chat, result: Result) -> None:
-    await started(chat, result, "gear")
-    now = await chat.until({"waiting_user", "queued", "completed"}, 400)
-    if now["job"]["status"] != "waiting_user":
-        result.check("вопросов не было, сценарий пропущен", True)
-        await chat.stop()
+    if await asking(chat, result) is None:
         return
     turn = await chat.say("Слушай, а сколько вообще стоит такой принтер?")
     result.check("вопросы остались", turn.action == "reply" and turn.status == "waiting_user", turn)
@@ -490,6 +509,8 @@ async def send_now(chat: Chat, result: Result) -> None:
             break
         await asyncio.sleep(1.5)
     result.check("очередь разобрана сразу", not now["queued"], now["queued"])
+    decided = [e["type"] for e in chat.events if e["type"] in ("steer.applied", "steer.replied")]
+    result.check("ассистент решил по сообщению", decided, decided)
     await chat.stop()
 
 
@@ -550,12 +571,14 @@ async def two_chats(chat: Chat, result: Result) -> None:
             chat.until({"waiting_user", "completed", "failed"}, 900),
             other.until({"waiting_user", "completed", "failed"}, 900),
         )
-        for (name, where), now in zip((("первый", "первом"), ("второй", "втором")), done):
+        parts = (("первый", "первом", "wheel"), ("второй", "втором", "boot"))
+        for (name, where, part), now in zip(parts, done):
             job = now["job"]
             files = {a["filename"] for a in now["attachments"] if a.get("project")}
+            own = {p.name for p in (chat.examples / PARTS[part]).iterdir()}
             result.check(f"{name} чат дошёл до конца или вопросов", job["status"] != "failed", job)
             result.check(f"{name} чат не перезапускался", job["revision"] == 1, job["revision"])
-            result.check(f"в {where} чате только свои файлы", len(files) == 2, files)
+            result.check(f"в {where} чате только свои файлы", files and files <= own, files)
     finally:
         await other.close()
 
@@ -577,12 +600,15 @@ async def run_one(
 def report(results: list[Result], folder: Path) -> str:
     lines = [f"# Сценарии чата {datetime.now():%d.%m %H:%M}", ""]
     passed = sum(r.passed for r in results)
-    lines += [f"Прошли {passed} из {len(results)}", ""]
+    skipped = sum(bool(r.skipped) for r in results)
+    lines += [f"Прошли {passed} из {len(results)}, пропущено {skipped}", ""]
     for r in sorted(results, key=lambda r: r.number):
-        mark = "✅" if r.passed else "❌"
+        mark = "⏭" if r.skipped else ("✅" if r.passed else "❌")
         lines += [f"## {mark} {r.number}. {r.name}", ""]
         if r.error:
             lines += [f"Ошибка {r.error}", ""]
+        if r.skipped:
+            lines += [f"Пропущен, {r.skipped}", ""]
         lines += [
             f"- {'✅' if ok else '❌'} {name} {'' if ok else detail}"
             for name, ok, detail in r.checks

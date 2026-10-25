@@ -18,7 +18,7 @@ from src.backend.domain.model_settings import ModelSettings
 from src.backend.domain.models import Status, now
 from src.backend.infrastructure.qwen import QwenClient
 from src.backend.pipeline.parameters import ParameterPipeline, PipelineSettings
-from src.backend.services.steering import CLAIM_TIMEOUT
+from src.backend.services.steering import CLAIM_TIMEOUT, _pending
 from tests import model_server
 
 from .fakes import call, reply
@@ -553,3 +553,16 @@ async def test_the_model_server_drives_the_agent_through_the_real_client(pg, htt
         await client.close()
     assert (answered.action, answered.text) == ("reply", model_server.STEER_REPLY)
     assert (applied.action, applied.summary) == ("update", model_server.STEER_SUMMARY)
+
+
+def test_a_message_sent_while_the_assistant_answered_stays_pending():
+    """Regression: the reply to the first message landed after the second, which then
+    looked answered."""
+    messages = [
+        {"id": "m1", "seq": 1, "role": "user", "kind": "chat", "text": "Привет"},
+        {"id": "m2", "seq": 2, "role": "user", "kind": "chat", "text": "У меня деталь"},
+        {"id": "r1", "seq": 3, "role": "assistant", "kind": "chat", "text": "Здравствуйте"},
+    ]
+    assert [m["id"] for m in _pending(messages, 1)] == ["m2"]
+    # A chat from before the mark counts what follows its last reply.
+    assert _pending(messages, 0) == []

@@ -56,11 +56,6 @@ def called(tool_calls: list[dict[str, Any]], name: str) -> dict[str, Any] | None
     return None
 
 
-def clean(text: str) -> str:
-    """Plain text without Markdown, dashes and colons, ending without a full stop."""
-    return chat_text(re.sub(r"\*\*|__|^#+\s*", "", text, flags=re.M))
-
-
 def chat_text(text: str) -> str:
     """Markdown as the chat shows it: no dashes or colons, no full stop at the end."""
     text = _CJK.sub("", text)
@@ -70,4 +65,6 @@ def chat_text(text: str) -> str:
     # A dash that opens a line of dialogue goes; one inside a sentence becomes a comma.
     text = re.sub(r"(?m)^([ \t]*)[—–][ \t]*", r"\1", text)
     text = re.sub(r",?\s+[—–]\s+", ", ", text)
+    # One inside a range or a word, like 3–6 %, is a hyphen.
+    text = re.sub(r"(?<=\w)[—–](?=\w)", "-", text)
     return text.strip().removesuffix(".")

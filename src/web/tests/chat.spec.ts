@@ -292,8 +292,8 @@ test("T15 the assistant asks for details, the next message starts the work", asy
   await settled(page);
   const card = page.getByRole("complementary", { name: "Карточка задания" });
   await expect(card.getByText("Нет данных").first()).toBeVisible();
-  // The model sent with the first message still waits for a project.
-  await send(page, "Шестерня привода");
+  // The marker would make it ask again, but a second request is not taken: the work starts.
+  await send(page, "TEST_GATE_ASK Шестерня привода");
   await pipelineDone(page);
   await expect(
     page.getByRole("main").getByText(/Расскажите подробнее о детали/),

@@ -358,21 +358,21 @@ export function chatRuns(
 ): AgentRun[] {
   return agentRuns(events, thoughts, [], (agent) => CHAT_AGENTS.has(agent));
 }
-// A finished turn belongs to the first reply written after it ended.
+// A finished turn opens above the last reply of that turn, its own words.
 export function runsByReply(
   messages: Message[],
   runs: AgentRun[],
 ): Map<string, AgentRun[]> {
-  const replies = messages.filter(
-    (m) => m.role === "assistant" && m.created_at,
-  );
+  const last = new Map<string, string>();
+  for (const message of messages)
+    if (message.role === "assistant" && message.turn)
+      last.set(message.turn, message.id);
   const found = new Map<string, AgentRun[]>();
   for (const run of runs) {
-    if (run.finished === undefined) continue;
-    const reply = replies.find(
-      (m) => Date.parse(m.created_at!) >= run.finished! - 1000,
-    );
-    if (reply) found.set(reply.id, [...(found.get(reply.id) || []), run]);
+    // A run's id is its turn and its agent: the assistant and its analyst share the turn.
+    const reply = last.get(run.id.slice(0, run.id.lastIndexOf(":")));
+    if (run.finished === undefined || !reply) continue;
+    found.set(reply, [...(found.get(reply) || []), run]);
   }
   return found;
 }

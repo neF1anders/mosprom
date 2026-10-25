@@ -2,8 +2,8 @@
 
 Markers anywhere in the chat or in a document steer it. TEST_PROVIDER_401 and
 TEST_PROVIDER_INVALID_JSON break the provider, TEST_DELAY slows every call down. In the
-latest message TEST_OFFTOPIC and TEST_GATE_ASK keep the assistant talking instead of starting
-the work, TEST_STEER_APPLY makes it update the project. TEST_TOOL makes the interpreter call a tool first. TEST_QUESTIONS, TEST_CONFLICT and
+latest message TEST_OFFTOPIC keeps the assistant talking, TEST_GATE_ASK makes it ask for details,
+TEST_STEER_APPLY makes it update the project. TEST_TOOL makes the interpreter call a tool first. TEST_QUESTIONS, TEST_CONFLICT and
 TEST_STL_MISMATCH make the checker ask in its first turn.
 """
 
@@ -14,8 +14,6 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
-from src.backend.agents.assistant import template
 
 app = FastAPI()
 SOURCE = re.compile(r'<source id="([^"]+)"[^>]*>\n?(.*?)\n?</source>', re.S)
@@ -36,7 +34,17 @@ STEER_REPLY = "Задание от этого не меняется, продо�
 NO_MODEL = "Приложите модель STL, и я подберу параметры печати"
 
 ANALYSIS = "Так решила программа подбора по требованиям карточки"
-GATE_ASK = "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
+ASK_DETAILS = (
+    "Расскажите подробнее о детали, для чего она нужна, какие у неё нагрузки и температура"
+)
+# The report's first line by the outcome, as report.md asks; the rest is not the fake's job.
+HEADLINES = {
+    "ready": "Проект готов к печати",
+    "attention": "Проект создан, но требует внимания",
+    "parameters_attention": "Параметры подобраны, но требуют внимания",
+    "not_sliced": "Параметры подобраны, но проект не создан",
+}
+INFEASIBLE = "Подобрать параметры под все требования не получилось"
 UNKNOWN = "Не знаю"
 REASONING = "Читаю источники и ищу числа.\n\nСверяю каждое значение с цитатой."
 
@@ -54,9 +62,7 @@ async def complete(request: Request):
     if agent == "assistant":
         return assistant(payload)
     if agent == "report":
-        # The report the code would write without a model, from the same facts.
-        facts = json.loads(text(messages[-1]).split("<facts>", 1)[1].split("</facts>", 1)[0])
-        return message(template(facts))
+        return message(report(text(messages[-1])))
     if agent == "analyst":
         return message(ANALYSIS)
     # The assistant replies in plain text, so a broken answer reaches the first JSON agent.
@@ -101,26 +107,38 @@ def reply(body: dict[str, Any], finish: str, reasoning: str = "") -> dict:
     }
 
 
+def report(content: str) -> str:
+    facts = json.loads(content.split("<facts>", 1)[1].split("</facts>", 1)[0])
+    infeasible = (facts.get("parameters") or {}).get("status") == "infeasible"
+    head = INFEASIBLE if infeasible else HEADLINES.get(facts.get("outcome"), "Работа завершена")
+    return f"### Итог\n{head}"
+
+
 def assistant(payload: dict[str, Any]) -> dict:
-    """New files with a model start a project and a marked message updates it; small talk is
-    answered, and so is the turn after a refused call."""
+    """Follows assistant.md: new files with a model start a project, an answer to the open
+    questions or a change of the current project updates it, small talk is answered, and a
+    refused request for details is followed by the start it asks for."""
     messages = payload["messages"]
     users = [m for m in messages if m["role"] == "user"]
     latest = text(users[-1]) if users else ""
-    if messages[-1]["role"] == "tool" or not payload.get("tools"):
+    state = json.loads(latest.split("<state>", 1)[1].split("</state>", 1)[0])
+    new_model = any("(модель STL)" in f for f in state["новые файлы"])
+    if messages[-1]["role"] == "tool":
+        refused = text(messages[-1])
+        if "уже спрашивал" in refused and new_model:
+            return tool_call("start_project", {"title": "Деталь", "notes": ""})
         return message(NO_MODEL)
-    if "TEST_STEER_APPLY" in latest:
-        return tool_call("update_project", {"summary": STEER_SUMMARY})
+    if not payload.get("tools") or "TEST_OFFTOPIC" in latest:
+        return message(OFF_TOPIC if "TEST_OFFTOPIC" in latest else NO_MODEL)
     if "TEST_GATE_ASK" in latest:
-        return message(GATE_ASK)
-    if "TEST_OFFTOPIC" in latest:
-        return message(OFF_TOPIC)
-    if '"работа": "идёт' in latest:
+        return tool_call("ask_details", {"text": ASK_DETAILS})
+    if "TEST_STEER_APPLY" in latest or state["вопросы без ответа"]:
+        return tool_call("update_project", {"summary": STEER_SUMMARY})
+    if state["работа"].startswith("идёт"):
         return message(STEER_REPLY)
-    if "(модель STL)" in latest:
+    if new_model:
         return tool_call("start_project", {"title": "Деталь", "notes": ""})
-    # With a project, whatever else the user writes about it changes it.
-    if '"текущий проект": {' in latest:
+    if state["текущий проект"] != "нет":
         return tool_call("update_project", {"summary": STEER_SUMMARY})
     return message(NO_MODEL)
 

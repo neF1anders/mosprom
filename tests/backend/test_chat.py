@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.backend.agents.chat import called, chat_text, clean, split_tool
+from src.backend.agents.chat import called, chat_text, split_tool
 from src.backend.agents.runner import prompt
 
 from .fakes import call
@@ -28,7 +28,6 @@ def test_only_the_named_tool_counts_as_called():
 @pytest.mark.parametrize(
     "text,expected",
     [
-        ("## Готово.", "Готово"),
         ("Приложите STL — и начнём", "Приложите STL, и начнём"),
         ("Уточните:\n- нагрузку", "Уточните\n- нагрузку"),
         ("Например: вода", "Например, вода"),
@@ -36,11 +35,12 @@ def test_only_the_named_tool_counts_as_called():
         ("Принтер Hybrid 530: печать", "Принтер Hybrid 530, печать"),
         ("Вот анекдот:\n— Почему колесо?\n— Потому что", "Вот анекдот\nПочему колесо?\nПотому что"),
         ("Анекдот: — Почему?", "Анекдот, Почему?"),
+        ("Перекись 3–6% и спирт", "Перекись 3-6% и спирт"),
         ("Деталь 齿轮 готова", "Деталь  готова"),
     ],
 )
-def test_plain_text_follows_the_chat_text_rules(text, expected):
-    assert clean(text) == expected
+def test_the_chat_text_follows_its_rules(text, expected):
+    assert chat_text(text) == expected
 
 
 def test_markdown_keeps_its_marks_but_not_dashes_and_colons():

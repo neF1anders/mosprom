@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 
 from src.backend.agents.assistant import (
+    ASK,
     FALLBACK,
     INVESTIGATE,
     LOG,
@@ -75,7 +76,7 @@ def situation(job: Job | None = None, files=(), new=(), text="Привет") -> 
     return Situation(job, messages, list(files), list(files), list(new))
 
 
-async def said(text):
+async def said(text, turn):
     said.texts.append(text)
 
 
@@ -90,7 +91,7 @@ async def test_the_assistant_reasons_and_may_reply_by_its_tool():
     assert decision.action == "reply" and decision.text == "Привет, чем помочь?"
     request = model.requests["assistant"][0]
     names = {t["function"]["name"] for t in request["tools"]}
-    assert names == {REPLY, START, UPDATE, LOG, INVESTIGATE}
+    assert names == {REPLY, ASK, START, UPDATE, LOG, INVESTIGATE}
     assert (request["thinking"], request["budget"]) == (True, 2000)
 
 
@@ -277,3 +278,50 @@ def test_the_template_says_when_no_parameters_fit():
     assert template({"outcome": "parameters_attention"}).startswith(
         "Параметры подобраны, но требуют внимания"
     )
+
+
+async def test_details_are_asked_once_and_the_next_turn_starts():
+    """Regression: only the prompt kept the assistant from asking a second time."""
+    files = [file("Колесо.STL", "stl")]
+    ask = reply("", tool_calls=[call(ASK, {"text": "Расскажите — для чего деталь?"})])
+    agent, _ = assistant(assistant=[ask])
+    decision = await agent.decide(situation(files=files), said)
+    assert (decision.action, decision.text) == ("ask", "Расскажите, для чего деталь?")
+    earlier = [
+        {"id": "m1", "seq": 1, "role": "user", "kind": "chat", "text": "Деталь"},
+        {"id": "a1", "seq": 2, "role": "assistant", "kind": "gate", "text": "Расскажите"},
+        {"id": "m2", "seq": 3, "role": "user", "kind": "chat", "text": "Не знаю"},
+    ]
+    again = Situation(Job(user_id="u"), earlier, files, files)
+    start = reply("", tool_calls=[call(START, {"title": "Колесо"})])
+    agent, model = assistant(assistant=[ask, start])
+    decision = await agent.decide(again, said)
+    assert decision.action == "start"
+    assert "уже спрашивал" in model.requests["assistant"][1]["messages"][-1]["content"]
+
+
+async def test_a_text_reply_while_questions_wait_is_checked_once():
+    """Regression: «принято» to a typed answer left the work waiting."""
+    job = Job(
+        user_id="u", revision=1, status=Status.WAITING, projects=[Project(number=1, title="Вал")]
+    )
+    job.card = TaskCard(
+        job_id=job.id, revision=1, questions=[Question(id="q", kind="clarify", title="Среда")]
+    )
+    update = reply("", tool_calls=[call(UPDATE, {"summary": "Учитываю ответ"})])
+    agent, model = assistant(assistant=[reply("Принято"), update])
+    decision = await agent.decide(situation(job, text="Масло"), said)
+    assert decision.action == "update"
+    assert model.requests["assistant"][1]["messages"][-1]["content"].startswith(
+        "Ты ответил текстом"
+    )
+    # A plain question is answered after the one check.
+    agent, model = assistant(assistant=[reply("Стоит дорого"), reply("Стоит дорого")])
+    decision = await agent.decide(situation(job, text="Сколько стоит принтер?"), said)
+    assert (decision.action, len(model.requests["assistant"])) == ("reply", 2)
+
+
+async def test_a_decision_keeps_its_turn():
+    agent, _ = assistant(assistant=[reply("Привет")])
+    decision = await agent.decide(situation(), said)
+    assert decision.turn

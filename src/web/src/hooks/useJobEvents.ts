@@ -33,13 +33,11 @@ export function useJobEvents(selected: string, enabled: boolean) {
     setConnected(navigator.onLine);
     const source = new EventSource(`/api/v1/jobs/${selected}/events`);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    // A refresh never cancels a fetch on its way: the next page of chats the user asked
-    // for would be dropped while the open chat keeps working.
+    // The chat is fetched anew, dropping a fetch that started before the event. The list
+    // keeps a fetch on its way: the next page of chats the user asked for would be dropped
+    // while the open chat keeps working.
     const refresh = () => {
-      void client.invalidateQueries(
-        { queryKey: ["job", selected] },
-        { cancelRefetch: false },
-      );
+      void client.invalidateQueries({ queryKey: ["job", selected] });
       void client.invalidateQueries(
         { queryKey: ["jobs"] },
         { cancelRefetch: false },

@@ -280,15 +280,16 @@ async def test_files_sent_with_a_message_stay_with_it_and_start_the_first_projec
     assert job.projects[0].first_message == message["seq"]
     assert await todo(pg, "stage1") == [{"job_id": job_id, "revision": 1, "start": True}]
     tools = model.requests["assistant"][0]["tools"]
-    assert [t["function"]["name"] for t in tools][:3] == [
+    assert [t["function"]["name"] for t in tools][:4] == [
         "reply",
+        "ask_details",
         "start_project",
         "update_project",
     ]
     job = await run(pg, job_id, script())
     assert {f.filename for f in job.card.files} == {"box.stl", "task.txt"}
     assert job.status == Status.QUEUED
-    reading = sent(job and pg.stage1.runner.model, "interpreter")
+    reading = sent(pg.stage1.runner.model, "interpreter")
     assert "Из разговора в чате до начала проекта. На улице" in reading
     assert "Нужна такая деталь" in reading
 
@@ -670,3 +671,33 @@ async def test_files_alone_go_to_the_assistant_and_an_empty_message_is_refused(p
     job = await turn(pg, job_id, model)
     assert [p.number for p in job.projects] == [1]
     assert "[вложения box.stl]" in model.requests["assistant"][0]["messages"][-1]["content"]
+
+
+async def test_the_details_asked_reach_the_interpreter_with_the_answer(pg, http):
+    """The one request for details is marked, so the interpreter sees what was asked."""
+    job_id = (await http.post("/api/v1/jobs", json={"request_id": rid()})).json()["id"]
+    await upload(http, job_id, "box.stl")
+    await send(http, job_id, "Деталь")
+    ask = reply("", tool_calls=[call("ask_details", {"text": "Расскажите, для чего деталь"})])
+    await turn(pg, job_id, assistant(ask))
+    request = (await chat(http, job_id))[-1]
+    assert (request["kind"], request["text"]) == ("gate", "Расскажите, для чего деталь")
+    assert request["turn"]
+    await send(http, job_id, "Подробностей нет")
+    job = await turn(pg, job_id, assistant(ask, START))
+    assert [p.number for p in job.projects] == [1]
+    model = script()
+    await run(pg, job_id, model)
+    reading = sent(model, "interpreter")
+    assert "<asked>Расскажите, для чего деталь</asked>" in reading
+    assert "Подробностей нет" in reading
+
+
+async def test_the_report_is_written_once_for_its_own_revision(pg, http):
+    done = await finished(pg, http)
+    reports = [m for m in await chat(http, done.id) if m["kind"] == "report"]
+    assert len(reports) == 1
+    await pg.reports.post(done.id, done.revision)
+    await pg.reports.post(done.id, done.revision - 1)
+    reports = [m for m in await chat(http, done.id) if m["kind"] == "report"]
+    assert len(reports) == 1
