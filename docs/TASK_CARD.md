@@ -4,10 +4,10 @@
 
 ## Как второй этап получает карточку
 
-Когда у карточки нет блокеров, первый этап в одной транзакции сохраняет её, переводит задание в `queued` на этап `parameters` и ставит задачу Procrastinate:
+Когда у карточки нет блокеров, первый этап в одной транзакции сохраняет её, переводит задание в `queued` на этап `parameters` и ставит задачу в очередь `task_queue`:
 
 ```
-task: stage2.select_parameters   queue: stage2   lock: job:<job_id>
+task: stage2.select_parameters   lock: job:<job_id>
 args: {"job_id": "...", "revision": 7}
 ```
 

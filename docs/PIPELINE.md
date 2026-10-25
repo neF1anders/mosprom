@@ -71,13 +71,13 @@
 
 ### Где лежат файлы
 
-Плагин слушает только `127.0.0.1` на случайном порту и пишет порт и токен в `Documents/STE_AIAssistant/server.json`. Воркер делит с ним эту папку: модели кладёт в `mosprom/<задание>-r<ревизия>-i<заход>/`, туда же слайсер сохраняет `result.gcode` и `project.3mf`. Копии файлов воркер забирает себе, чат отдаёт их по `GET /api/v1/jobs/{id}/result/gcode` и `.../result/project`. Оригиналы остаются в папке на компьютере, проект можно открыть в STE Slicer прямо оттуда.
+Плагин слушает только `127.0.0.1` на случайном порту и пишет порт и токен в `Documents/STE_AIAssistant/server.json`. Приложение делит с ним эту папку: модели кладёт в `mosprom/<задание>-r<ревизия>-i<заход>/`, туда же слайсер сохраняет `result.gcode` и `project.3mf`. Копии файлов приложение забирает себе, чат отдаёт их по `GET /api/v1/jobs/{id}/result/gcode` и `.../result/project`. Оригиналы остаются в папке на компьютере, проект можно открыть в STE Slicer прямо оттуда.
 
-| Настройка | Без Docker | В Docker (`compose.yaml`) |
+| Настройка | По умолчанию | Смысл |
 | --- | --- | --- |
-| `SLICER_FOLDER` | `~/Documents/STE_AIAssistant` | `/slicer`, сюда монтируется папка плагина |
-| `SLICER_HOST_FOLDER` | пусто | та же папка, как её видит слайсер, например `C:\Users\<имя>\Documents\STE_AIAssistant`; `scripts/bootstrap.py` дописывает её в `.env` |
-| `SLICER_HOST` | `127.0.0.1` | `host.docker.internal`; запрос идёт с заголовком `Host: 127.0.0.1:<порт>`, который проверяет плагин |
+| `SLICER_FOLDER` | `~/Documents/STE_AIAssistant` | папка `server.json`; портативный плагин передаёт свою |
+| `SLICER_HOST_FOLDER` | пусто | та же папка, как её видит слайсер, если приложение называет её иначе; `scripts/bootstrap.py` дописывает её в `.env` |
+| `SLICER_HOST` | `127.0.0.1` | где слушает плагин; запрос идёт с заголовком `Host: 127.0.0.1:<порт>`, который проверяет плагин |
 
 ## Этап 5. Проверка G-code
 
@@ -101,7 +101,7 @@ uv run python scripts/fake_ste_slicer.py            # папка ~/Documents/STE
 uv run python scripts/fake_ste_slicer.py --no-reset-tool   # как старый плагин без reset_settings
 ```
 
-Тестовый стенд `compose.test.yaml` поднимает ту же заглушку сервисом `slicer`, поэтому браузерный T13 доходит до проекта.
+Полный прогон `scripts/run_tests.py` поднимает ту же заглушку рядом с приложением, поэтому браузерный T13 доходит до проекта.
 
 Семь примеров организаторов целиком, с настоящей моделью и заглушкой слайсера: этап 1, подбор, проверка, нарезка и проверка G-code. Скрипт сам отвечает на вопросы (предложенным вариантом или «Не знаю») и пишет итоги в `artifacts/eval/<время>/summary.json`.
 
@@ -114,14 +114,14 @@ uv run --locked python scripts/eval_stage1.py "~/Downloads/Примеры дет
 1. Обновить `main` (`git pull`).
 2. Поставить плагин: скопировать папку `src\plugin\AIAssistant` в папку `plugins` внутри папки конфигурации слайсера (Справка → Показать папку конфигурации, обычно `%APPDATA%\steslicer\<версия>\plugins`). Если там уже лежит старая `AIAssistant`, заменить её целиком. Перезапустить STE Slicer.
 3. Сервер плагина стартует вместе со слайсером, должен появиться `Documents\STE_AIAssistant\server.json`.
-4. Подготовить `.env` и стенд:
+4. Запустить приложение. Проще всего поставить портативную сборку по [PORTABLE.md](PORTABLE.md): тогда плагин сам запускает приложение и шаги 2 и 3 уже сделаны. Из исходников:
    ```powershell
    python scripts\bootstrap.py              # создаст .env, допишет SLICER_HOST_FOLDER
-   # в .env SLICER_HOST_FOLDER должен указывать на папку с server.json
-   docker compose up --build -d
+   uv sync --locked
+   uv run uvicorn src.backend.api.app:create_app --factory --port 8000
    python scripts\bootstrap.py              # ссылка на чат и mosprom.json для плагина
    ```
-   `bootstrap.py` кладёт адрес приложения, секрет и пользователя в `Documents\STE_AIAssistant\mosprom.json`. Из него плагин строит одноразовую ссылку запуска. Адрес API, модель и ключ вводятся в окне чата при первом запуске и хранятся в `DATA_DIR/model.json`; `QWEN_*` из `.env` остаются значениями по умолчанию.
+   `bootstrap.py` кладёт адрес приложения, секрет и пользователя в `Documents\STE_AIAssistant\mosprom.json`. Из него плагин строит одноразовую ссылку запуска. Адрес API, модель и ключ вводятся в окне чата и хранятся в `DATA_DIR/model.json`; `QWEN_*` из `.env` (в портативной сборке настройки плагина) остаются значениями по умолчанию.
 5. Открыть приложение из слайсера: меню Extensions → AI Assistant → «Открыть StereotechAI». Браузер откроет наш чат. Пункт «Чат плагина» открывает отдельный чат самого плагина, конвейеру он не нужен.
 6. В чате отправить ТЗ и STL одной из деталей 3D (например «Шестерня»). Если ассистент попросит подробностей, ответить или написать, что подробностей нет. Если проверяющий задаст вопросы, ответить в окне вопросов. В таймлайне должны пройти «Слайсинг» и «Подготовка результата», а в чате появиться ссылки на проект и G-code. Оригиналы лежат в `Documents\STE_AIAssistant\mosprom\<задание>-r<ревизия>-i<заход>\`; `project.3mf` стоит открыть в STE Slicer и посмотреть, что принтер, режим, профиль, материал и настройки те, что в наборе.
 
@@ -135,12 +135,13 @@ uv run --locked python scripts/eval_stage1.py "~/Downloads/Примеры дет
 
 Во время прогона в слайсере ничего не трогать и не писать в «Чат плагина»: конвейер очищает стол перед нарезкой (модели на столе пропадут) и сбрасывает настройки, заданные прошлой нарезкой. Плагин выполняет вызовы по одному, но между шагами задания чат плагина может поменять сцену. Режимы 5D требуют активированной лицензии.
 
-Если проект не создан, чат пишет короткую причину, а подробности видны так:
+Если проект не создан, чат пишет короткую причину, а подробности видны в журнале приложения и в отчёте нарезки в базе (пути портативной сборки):
 ```powershell
-docker compose logs worker | Select-String "Slicer|server.json"
-docker compose exec db psql -U mosprom -d mosprom -c "SELECT payload FROM stage_results WHERE stage = 'slicing' ORDER BY job_id DESC LIMIT 1"
+$plugin = "$env:APPDATA\steslicer\7.10\plugins\AIAssistant"
+Select-String "Slicer|server.json" "$plugin\runtime\data\logs\backend.log"
+& "$plugin\runtime\python\python.exe" -c "import sqlite3, sys; print(sqlite3.connect(sys.argv[1]).execute('SELECT payload FROM stage_results WHERE stage = ? ORDER BY rowid DESC LIMIT 1', ['slicing']).fetchone()[0])" "$plugin\runtime\data\app.db"
 ```
-В отчёте нарезки по каждому вызову плагина есть `ok` и текст ошибки. «STE Slicer не отвечает» значит, что `server.json` есть, а порт не отвечает: сервер плагина не запущен или контейнер не достаёт до `host.docker.internal`. Отдельно плагин проверяется без чата тем же кодом, что у конвейера: `uv run python tools\slicing\apply_parameter_set.py набор.json --model <attachment_id>=путь.stl --folder <папка server.json> --out-dir папка`.
+В отчёте нарезки по каждому вызову плагина есть `ok` и текст ошибки. «STE Slicer не отвечает» значит, что `server.json` есть, а порт не отвечает: сервер плагина не запущен или его порт недоступен. Отдельно плагин проверяется без чата тем же кодом, что у конвейера: `uv run python tools\slicing\apply_parameter_set.py набор.json --model <attachment_id>=путь.stl --folder <папка server.json> --out-dir папка`.
 
 ## Контракты
 
@@ -150,7 +151,7 @@ docker compose exec db psql -U mosprom -d mosprom -c "SELECT payload FROM stage_
 | Набор параметров `stage2.parameter_set` 0.2 | [parameter-set-v0.2.schema.json](parameter-set-v0.2.schema.json), модель `ParameterSet` в `src/backend/domain/parameters.py` |
 | Обратная связь проверки `stage3.feedback` 0.1 | [stage3-feedback-v0.1.schema.json](stage3-feedback-v0.1.schema.json), модель `Feedback`; ею же возвращается проверка G-code |
 | Отчёт нарезки и проверка G-code | `SliceReport`, `GcodeCheck` в `src/backend/domain/slicing.py` |
-| Коды требований для этапов 1 и 2 | `knowledge/requirement_keys.json` (версия 2, 33 кода) |
+| Коды требований для этапов 1 и 2 | `knowledge/requirement_keys.json` (версия 2, 34 кода) |
 | Что этап 2 ждёт от этапа 1 | [stage1-contract.md](stage1-contract.md), [stage1-contract.schema.json](stage1-contract.schema.json) |
 | Файлы выданной сборки STE Slicer 5.2.4 | `knowledge/ste_5.2.4/`, читается в `Catalog` (`src/backend/domain/catalog.py`) |
 
@@ -165,6 +166,5 @@ docker compose exec db psql -U mosprom -d mosprom -c "SELECT payload FROM stage_
 ## Что не проверено
 
 - Настоящий STE Slicer с этим кодом: Фёдор прогнал `71c950e` с этим плагином на Windows, 10 из 10 до конца. Коммиты после него, открытие приложения из меню плагина, сохранение G-code писателем слайсера, проверки материала и профиля, порядок «материал, затем профиль» и ожидание проверки настроек при перезапуске нарезки со слайсером ещё не проверялись. На Mac сервер плагина проверен с заглушками Uranium.
-- Доступ из контейнера к плагину на `127.0.0.1` хоста проверен на Docker Desktop для Mac; на Windows ожидается так же, но не проверен.
 - Повороты вокруг Y и Z набора после правки осей, несколько моделей, режимы 5D (нужна лицензия).
 - Поддержки, которые теперь включает правило SUPPORT-OVERHANG, и `cylindrical_mode_base_diameter` в настоящем слайсере.
